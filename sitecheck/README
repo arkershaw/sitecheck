@@ -1,0 +1,51 @@
+Licensed under the MIT license (see "LICENSE" file).
+
+Dependencies:
+
+	beautiful-soup (spider, spelling, comments, metadata, security)
+	python-utidylib (validation, accessibility)
+	pyenchant (spelling)
+
+Installation:
+	Windows:
+		Download and install the following:
+		Python 2.6 http://www.python.org/download/
+		setuptools http://pypi.python.org/pypi/setuptools#files
+		pyenchant http://www.rfk.id.au/software/pyenchant/download.html
+		uTidylib http://developer.berlios.de/project/showfiles.php?group_id=1810
+		Find easy install from the command prompt (default C:\Python26\Scripts) and run: easy_install BeautifulSoup
+		Run the sitecheck installer
+
+	Linux:
+		Packages for dependencies should be available from your distribution's package manager. Install all dependencies and then extract the archive.
+
+Usage:
+	Windows:
+		C:\Python26\Lib\site-packages\sitecheck\sitecheck.py -d http://www.domain-goes-here /path/to/output
+
+	Linux:
+		/usr/lib/python2.6/site-packages/sitecheck/sitecheck.py -d http://www.domain-goes-here /path/to/output
+
+While running:
+
+	s -> Suspend
+	q -> Abort
+	return -> Print number of urls in queue
+
+To resume a suspended job, call again without -d switch and supply the path
+to an existing output directory.
+
+Modules:
+
+	persister -> Saves downloaded html headers and responses to disk for further analysis. Disabled by default.
+	regexmatch -> Checks for regular expression match in headers and content. To search for headers which don't match a regular expression, prefix the name with ^ and to search for content which doesn't match, prefix with _
+	validator -> Outputs validation errors. Parameters are passed straight to tidy.
+	accessibility -> Outputs accessibility warnings. Parameters are passed straight to tidy.
+	metadata -> Checks for missing/empty/duplicate meta title, description and keywords.
+	statuslog -> Logs any 4xx and 5xx responses.
+	security -> Attempts basic SQL injection and XSS attacks on get and post parameters.
+	comments -> Logs the content of any HTML comments found.
+	spelling -> Spellcheck using enchant.
+	spider -> If this module is disabled, only a single page will be analysed. Scans all files under the domain/path as well as testing targets of external links.
+
+Configuration and for individual modules can be found in "sc_config.py".
