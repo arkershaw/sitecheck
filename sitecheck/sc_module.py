@@ -34,7 +34,7 @@ class Request(object):
 		return full_url.replace(' ', '%20')
 
 	def hash(self):
-		m = hashlib.md5()
+		m = hashlib.sha1()
 		qsin = urlparse.parse_qs(self.url.query)
 		qsout = []
 		keys = qsin.keys()
@@ -42,7 +42,7 @@ class Request(object):
 		for k in keys:
 			qsout.append((k, qsin[k][0]))
 		hash_url = urlparse.urljoin(self.url_string, '?' + urllib.urlencode(qsout))
-		m.update(hash_url)
+		m.update(hash_url.encode('utf-8'))
 
 		if len(self.postdata) > 0:
 			pdout = []
@@ -50,7 +50,7 @@ class Request(object):
 			keys.sort()
 			for k in keys:
 				pdout.append((k, self.postdata[k][0]))
-			m.update(urllib.urlencode(pdout))
+			m.update(urllib.urlencode(pdout).encode('utf-8'))
 
 		return m.hexdigest()
 

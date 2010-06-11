@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from enchant.checker import SpellChecker
 from enchant.tokenize import EmailFilter, URLFilter
+from BeautifulSoup import Comment
 import re, urlparse, threading
 import sc_module
 
@@ -16,6 +17,9 @@ def process(request, response):
 
 		tags = doc.findAll(['script', 'style'])
 		[tag.extract() for tag in tags]
+		comments = doc.findAll(text=lambda text:isinstance(text, Comment))
+		[comment.extract() for comment in comments]
+
 		enc = doc.originalEncoding
 		if enc == None: enc = 'utf-8'
 		ct = doc.prettify().decode(enc, 'replace')

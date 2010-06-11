@@ -149,7 +149,9 @@ if __name__ == '__main__':
 		print 'Output directory required.'
 		sys.exit()
 
-	suspend_file = args[0] + '/suspend.pkl'
+	pth = args[0]
+	if pth[-1] != '/': pth = pth + '/'
+	suspend_file = pth + 'suspend.pkl'
 
 	if os.path.exists(suspend_file):
 		print 'Resuming session.'
@@ -164,13 +166,14 @@ if __name__ == '__main__':
 		except:
 			print 'Unable to load suspend data.'
 	else:
-		if os.path.exists(args[0] + 'sc_config.py'):
+		if os.path.exists(pth + 'sc_config.py'):
+			print 'Loading config'
 			import imp
 			try:
-				sc_module.session = imp.load_source('sc_config', args[0] + 'sc_config.py').sc_session()
+				sc_module.session = imp.load_source('sc_config', pth + 'sc_config.py').sc_session()
 			except:
 				print 'Invalid config file found in directory.'
-		print sc_module
+
 		if opts.domain:
 			d = opts.domain
 			if not re.match('^http', d, re.IGNORECASE): d = 'http://' + d
@@ -184,8 +187,7 @@ if __name__ == '__main__':
 			print 'Supply either a domain, a config file or a suspended session.'
 			sys.exit()
 
-		if not args[0][-1] == '/': sc_module.session.output = '/' + sc_module.session.output
-		sc_module.session.output = args[0] + sc_module.session.output
+		sc_module.session.output = pth + sc_module.session.output
 
 		if len(sc_module.session.path) == 0: sc_module.session.path = '/'
 		if not sc_module.session.path[0] == '/': sc_module.session.path = '/' + sc_module.session.path
