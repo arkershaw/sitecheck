@@ -37,6 +37,7 @@ class sc_session(object):
 			'statuslog': None,
 			'security': None,
 			'comments': None,
-			'spelling': {'dictionary': 'en_GB'},
+			'spelling': {'dictionary': 'en_GB', 'ignore': ['sitemap']},
+			'readability': {'threshold': 45},
 			'spider': None
 		}

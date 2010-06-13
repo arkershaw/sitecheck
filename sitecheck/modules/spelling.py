@@ -42,19 +42,21 @@ def process(request, response):
 			cl = len(ct)
 			keys = words.keys()
 			keys.sort()
+			ignore = sc_module.get_arg(__name__, 'ignore', [])
 			for k in keys:
-				m = re.search('(.)\s*\\b(' + k + ')\\b', ct, re.IGNORECASE)
-				if m:
-					if m.group(2).isupper(): # Abbreviation
-						pass
-					elif m.group(1) in '.>"' or m.group(2)[0].islower(): # First word in sentence/para or not proper noun
-						st = max(m.start() - 20, 0)
-						en = min(m.end() + 20, cl)
-						#st = max(words[k][1] - 20, 0)
-						#en = min(words[k][1] + 20, cl)
-						sc_module.OutputQueue.put(__name__, '\tWord: [%s] x %d (%s))' % (words[k][0], words[k][1], ct[st:en]))
-				else:
-					sc_module.OutputQueue.put(__name__, '\tWord: [%s] x %d' % (words[k][0], words[k][1]))
+				if not k.strip().lower() in ignore:
+					m = re.search('(.)\s*\\b(' + k + ')\\b', ct, re.IGNORECASE)
+					if m:
+						if m.group(2).isupper(): # Abbreviation
+							pass
+						elif m.group(1) in '.>"' or m.group(2)[0].islower(): # First word in sentence/para or not proper noun
+							st = max(m.start() - 20, 0)
+							en = min(m.end() + 20, cl)
+							#st = max(words[k][1] - 20, 0)
+							#en = min(words[k][1] + 20, cl)
+							sc_module.OutputQueue.put(__name__, '\tWord: [%s] x %d (%s))' % (words[k][0], words[k][1], ct[st:en]))
+					else:
+						sc_module.OutputQueue.put(__name__, '\tWord: [%s] x %d' % (words[k][0], words[k][1]))
 
 def check(text, words):
 	if len(text.strip()) > 0:

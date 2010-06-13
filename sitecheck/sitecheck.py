@@ -100,6 +100,7 @@ class SiteChecker(threading.Thread):
 					if not url.netloc == sc_module.session.domain:
 						request.verb = 'HEAD'
 					elif not url.path.startswith(sc_module.session.path) and not ext in sc_module.session.include:
+						#This is hit if path is a file
 						request.verb = 'HEAD'
 					elif ext in sc_module.session.test_only:
 						request.verb = 'HEAD'
@@ -142,6 +143,7 @@ if __name__ == '__main__':
 
 	parser = OptionParser()
 	parser.add_option('-d', '--domain', dest='domain', default=None)
+	parser.add_option('-p', '--page', dest='page', default=None)
 
 	(opts, args) = parser.parse_args()
 
@@ -167,7 +169,7 @@ if __name__ == '__main__':
 			print 'Unable to load suspend data.'
 	else:
 		if os.path.exists(pth + 'sc_config.py'):
-			print 'Loading config'
+			print 'Loading config.'
 			import imp
 			try:
 				sc_module.session = imp.load_source('sc_config', pth + 'sc_config.py').sc_session()
@@ -199,7 +201,10 @@ if __name__ == '__main__':
 q -> Abort
 Any key -> Print status'''
 	print 'Scanning: [http://' + sc_module.session.domain + sc_module.session.path + ']'
-	sc_module.RequestQueue.put_url('', sc_module.session.path, '')
+	if opts.page:
+		sc_module.RequestQueue.put_url('', sc_module.session.path + opts.page, '')
+	else:
+		sc_module.RequestQueue.put_url('', sc_module.session.path, '')
 	print 'Output: [' + sc_module.session.output + ']'
 
 	lw = LogWriter(terminate)
@@ -249,4 +254,4 @@ Any key -> Print status'''
 		pickle.dump((sc_module.session, sc_module.RequestQueue.urls, rq), fl)
 		fl.close()
 
-	print 'Completed'
+	print 'Completed.'
