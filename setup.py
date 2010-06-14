@@ -8,6 +8,6 @@ setup(name='sitecheck',
 	author='Andrew Kershaw',
 	url='http://sourceforge.net/projects/sitecheck/',
 	packages=['sitecheck', 'sitecheck.modules'],
-	data_files=[('sitecheck', ['sitecheck/LICENSE', 'sitecheck/README'])],
+	data_files=[('sitecheck', ['sitecheck/LICENSE', 'sitecheck/README', 'sitecheck/dict.txt'])],
 	install_requires=['beautiful-soup', 'python-utidylib', 'pyenchant']
 )

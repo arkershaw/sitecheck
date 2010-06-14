@@ -12,10 +12,11 @@ ignore.add('6.3.1.1') # programmatic objects require testing (script)
 ignore.add('7.1.1.1') # remove flicker (script).
 ignore.add('8.1.1.1') # ensure programmatic objects are accessible (script)
 
+#opts = sc_module.get_args(__name__)
+opts = {'show-warnings': False, 'accessibility-check': 1}
+
 def process(request, response):
 	if response.is_html:
-		#opts = sc_module.get_args(__name__)
-		opts = {'show-warnings': False, 'accessibility-check': 1}
 		try:
 			res = tidy.parseString(response.content, **opts)
 			if len(res.errors) > 0:

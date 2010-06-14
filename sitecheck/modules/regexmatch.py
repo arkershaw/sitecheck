@@ -2,8 +2,9 @@
 import re, urlparse
 import sc_module
 
+args = sc_module.get_args(__name__)
+
 def process(request, response):
-	args = sc_module.get_args(__name__)
 	for rx in args.iteritems():
 		inv_h = inv_b = False
 		if rx[0][0] == '^':

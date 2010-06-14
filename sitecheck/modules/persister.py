@@ -3,12 +3,13 @@ import os, threading, re, urllib#, pipes
 import sc_module
 from xml.dom.minidom import getDOMImplementation
 
+out = sc_module.get_arg(__name__, 'output', 'output')
+hdrs = sc_module.get_arg(__name__, 'headers', False)
+cntnt = sc_module.get_arg(__name__, 'content', False)
+
 def process(request, response):
-	out = sc_module.get_arg(__name__, 'output', 'output')
 	if len(out) == 0: out = 'output'
 	out = sc_module.output + '/' + out
-	hdrs = sc_module.get_arg(__name__, 'headers', False)
-	cntnt = sc_module.get_arg(__name__, 'content', False)
 
 	if not (hdrs or cntnt): return
 

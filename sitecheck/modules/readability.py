@@ -3,21 +3,29 @@ from BeautifulSoup import Comment
 import re
 import sc_module
 
+sentenceEnd = '!?.'
+threshold = float(sc_module.get_arg(__name__, 'threshold', 45))
+
 def process(request, response):
 	if response.is_html:
-		threshold = float(sc_module.get_arg(__name__, 'threshold', 45))
 		doc = sc_module.parse(response.content) #Parse again so we can modify
 		if doc == None:
 			sc_module.OutputQueue.put(__name__, 'ERROR: Unable to parse content [%s]' % request.url_string)
 			return
 
+		tags = doc.findAll(['script', 'style'])
+		[tag.extract() for tag in tags]
 		comments = doc.findAll(text=lambda text:isinstance(text, Comment))
 		[comment.extract() for comment in comments]
 
 		allText = ''
 		for txt in doc.findAll(text=True):
 			if len(txt.strip()) > 0:
-				allText += txt.strip() + '. '
+				allText += txt.strip()
+				if allText[-1] in sentenceEnd:
+					allText += ' '
+				else:
+					allText += '. '
 
 		if len(allText.strip()) > 0:
 			twrd = float(words(allText))
@@ -31,13 +39,15 @@ def words(text):
 	return len(text.split(' '))
 
 def sentences(text):
-	s = text.count('.') + text.count('!') + text.count('?')
+	s = 0
+	for se in sentenceEnd:
+		s += text.count(se)
 	if s == 0: s = 1
 	return s
 
 def syllables(text):
 	s = 0
 	for w in text.split(' '):
-		s += len(re.findall('[aeiou]+', w))
+		s += len(re.findall('[aeiou]+', w.rstrip('e')))
 	if s == 0: s = 1
 	return s

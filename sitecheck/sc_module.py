@@ -170,11 +170,12 @@ def ensure_dir(d):
 		_ensure_dir_lock.release()
 
 def get_arg(module, name, default):
-	args = session.modules[module[8:]]
-	if args == None:
-		val = None
-	else:
-		val = args[name]
+	val = None
+	if session.modules.has_key(module[8:]):
+		args = session.modules[module[8:]]
+		if args:
+			if args.has_key(name):
+				val = args[name]
 	if val == None:
 		val = default
 		OutputQueue.put(module, 'Argument: [' + name + '] not found - using default: [' + str(default) + ']')

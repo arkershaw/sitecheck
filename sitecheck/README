@@ -2,12 +2,14 @@ Licensed under the MIT license (see "LICENSE" file).
 
 Dependencies:
 
-	beautiful-soup (spider, spelling, comments, metadata, security)
+	beautiful-soup (spider, spelling, comments, metadata, security, readability)
 	python-utidylib (validation, accessibility)
 	pyenchant (spelling)
 
 Installation:
+
 	Windows:
+
 		Download and install the following:
 		Python 2.6 http://www.python.org/download/
 		setuptools http://pypi.python.org/pypi/setuptools#files
@@ -17,14 +19,22 @@ Installation:
 		Run the sitecheck installer
 
 	Linux:
+
 		Packages for dependencies should be available from your distribution's package manager. Install all dependencies and then extract the archive.
 
 Usage:
+
 	Windows:
+
 		C:\Python26\Lib\site-packages\sitecheck\sitecheck.py -d http://www.domain-goes-here /path/to/output
 
 	Linux:
+
 		/usr/lib/python2.6/site-packages/sitecheck/sitecheck.py -d http://www.domain-goes-here /path/to/output
+
+	To specify the default page, use the -p switch:
+
+		sitecheck.py -d http://www.domain-goes-here -p home.html /path/to/output
 
 While running:
 
@@ -32,20 +42,34 @@ While running:
 	q -> Abort
 	return -> Print number of urls in queue
 
-To resume a suspended job, call again without -d switch and supply the path
-to an existing output directory.
+	To resume a suspended job, call with the path to an existing output directory.
 
 Modules:
 
 	persister -> Saves downloaded html headers and responses to disk for further analysis. Disabled by default.
+
 	regexmatch -> Checks for regular expression match in headers and content. To search for headers which don't match a regular expression, prefix the name with ^ and to search for content which doesn't match, prefix with _
-	validator -> Outputs validation errors. Parameters are passed straight to tidy.
-	accessibility -> Outputs accessibility warnings. Parameters are passed straight to tidy.
+
+	validator -> Outputs validation errors.
+
+	accessibility -> Outputs selected accessibility warnings (those that can be automatically tested).
+
 	metadata -> Checks for missing/empty/duplicate meta title, description and keywords.
+
 	statuslog -> Logs any 4xx and 5xx responses.
+
 	security -> Attempts basic SQL injection and XSS attacks on get and post parameters.
+
 	comments -> Logs the content of any HTML comments found.
-	spelling -> Spellcheck using enchant.
+
+	spelling -> Spellcheck using enchant. Custom dictionary words are in dict.txt.
+
 	spider -> If this module is disabled, only a single page will be analysed. Scans all files under the domain/path as well as testing targets of external links.
 
-Configuration and for individual modules can be found in "sc_config.py".
+	readability -> Calculates the Flesch Reading Ease score and logs it if it is below the specified threshold.
+
+Configuration:
+
+	Configuration for the spider and individual modules can be found in "sc_config.py".
+
+	For site-specific configuration, copy sc_config.py to the output directory specified on the command line. The domain and path properties can be specified in the config file and subsequently omitted from the command line. This config file will be used instead of the default. The custom dictionary file for the spelling module can also be overridden by copying to the same location.

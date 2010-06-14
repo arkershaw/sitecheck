@@ -2,10 +2,11 @@
 import tidy, urlparse
 import sc_module
 
+#opts = sc_module.get_args(__name__)
+opts = {'show-warnings': True}
+
 def process(request, response):
 	if response.is_html:
-		#opts = sc_module.get_args(__name__)
-		opts = {'show-warnings': True}
 		try:
 			res = tidy.parseString(response.content, **opts)
 		except:

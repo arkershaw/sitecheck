@@ -6,13 +6,17 @@ def process(request, response):
 	if response.is_html:
 		document = sc_module.parse(response.content)
 		if document:
-			urls = set()
 			referrer = request.url_string
+
+			sc_module.RequestQueue.put_urls(__name__, gather(document, None, 'src'), referrer)
+			sc_module.RequestQueue.put_urls(__name__, gather(document, None, 'href'), referrer)
+			#sc_module.RequestQueue.put_urls(__name__, gather(document, 'script', 'src'), referrer)
+			sc_module.RequestQueue.put_urls(__name__, gather(document, 'form', 'action'), referrer)
+
+			urls = set()
 			sc_module.OutputQueue.put(__name__, 'Location: [%s]' % request.url_string)
-			elements = document('a', attrs={'href': True})
-			for e in elements:
-				sc_module.RequestQueue.put_url(__name__, e['href'], referrer)
-				urls.add(e['href'])
+			for a in document('a', attrs={'href': True}):
+				urls.add(a['href'])
 
 			out = list(urls)
 			out.sort()
@@ -22,11 +26,15 @@ def process(request, response):
 				else:
 					sc_module.OutputQueue.put(__name__, '\t-> [%s]' % url)
 
-			sc_module.RequestQueue.put_urls(__name__, gather(document, 'img', 'src'), referrer)
-			sc_module.RequestQueue.put_urls(__name__, gather(document, 'link', 'href'), referrer)
-			sc_module.RequestQueue.put_urls(__name__, gather(document, 'script', 'src'), referrer)
-
 def gather(document, element, attribute):
-	elements = document(element, attrs={attribute: True})
+	if element and attribute:
+		elements = document(element, attrs={attribute: True})
+	elif element:
+		elements = document(element)
+	elif attribute:
+		elements = document(attrs={attribute: True})
+	else:
+		return
+
 	for e in elements:
 		yield e[attribute]

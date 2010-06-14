@@ -13,6 +13,7 @@ class LogWriter(threading.Thread):
 		self.outfiles = {'sitecheck': open(sc_module.session.output + '/sitecheck.log', 'a')}
 		for name in sc_module.session.modules.iterkeys():
 			__import__('modules.' + name)
+			#sys.modules['modules.' + name].init()
 			self.outfiles[name] = open(sc_module.session.output + '/' + name + '.log', 'a')
 
 		sc_module.OutputQueue.put(None, 'Started: ' + str(datetime.datetime.now()))
@@ -189,6 +190,7 @@ if __name__ == '__main__':
 			print 'Supply either a domain, a config file or a suspended session.'
 			sys.exit()
 
+		sc_module.session.root = pth
 		sc_module.session.output = pth + sc_module.session.output
 
 		if len(sc_module.session.path) == 0: sc_module.session.path = '/'
