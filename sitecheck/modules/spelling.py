@@ -84,6 +84,7 @@ def process(request, response):
 					#sc_module.OutputQueue.put(__name__, e)
 
 def check(text, words):
+	if not text: return
 	t = text.strip()
 	l = len(t)
 	if l > 0:

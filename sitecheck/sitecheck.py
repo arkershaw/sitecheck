@@ -228,6 +228,7 @@ Any key -> Print status'''
 			suspend = True
 			break
 		else:
+			print "URLs:", len(sc_module.RequestQueue.urls)
 			print "Queue:", sc_module.RequestQueue.qsize()
 			if sc_module.RequestQueue.empty():
 				ext = True

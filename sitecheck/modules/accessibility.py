@@ -9,7 +9,7 @@ ignore.add('2.1.1') # ensure information not conveyed through color alone.
 ignore.add('6.1.1') # style sheets require testing
 ignore.add('6.2.2.2') # text equivalents require updating
 ignore.add('6.3.1.1') # programmatic objects require testing (script)
-ignore.add('7.1.1.1') # remove flicker (script).
+ignore.add('7.1.1') # remove flicker
 ignore.add('8.1.1.1') # ensure programmatic objects are accessible (script)
 
 #opts = sc_module.get_args(__name__)
