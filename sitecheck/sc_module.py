@@ -38,7 +38,7 @@ class Request(object):
 		qsin = urlparse.parse_qs(self.url.query)
 		qsout = []
 		keys = qsin.keys()
-		keys.sort()
+		keys.sort() # URL's with querystring parameters in different order are equivalent
 		for k in keys:
 			qsout.append((k, qsin[k][0]))
 		hash_url = urlparse.urljoin(self.url_string, '?' + urllib.urlencode(qsout))
@@ -91,12 +91,14 @@ class RequestQueue(Queue.Queue):
 		if len(url) == 0: return
 
 		parts = urlparse.urlparse(url)
-		if re.match('http', parts.scheme, re.IGNORECASE) or len(parts.scheme) == 0:
-			req = Request(source, url, referrer)
-			hc = req.hash()
-			if not hc in self.urls:
-				self.urls[hc] = True
-				Queue.Queue.put(self, req, block, timeout)
+		ext = os.path.splitext(parts.path)[1][1:].lower()
+		if not ext in session.ignore_ext:
+			if re.match('http', parts.scheme, re.IGNORECASE) or len(parts.scheme) == 0:
+				req = Request(source, url, referrer)
+				hc = req.hash()
+				if not hc in self.urls:
+					self.urls[hc] = True
+					Queue.Queue.put(self, req, block, timeout)
 
 	def put_url(self, source, url, referrer, block=True, timeout=None):
 		self._url_lock.acquire()

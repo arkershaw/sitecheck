@@ -100,17 +100,15 @@ class SiteChecker(threading.Thread):
 					ext = os.path.splitext(url.path)[1][1:].lower()
 					if not url.netloc == sc_module.session.domain:
 						request.verb = 'HEAD'
-					elif not url.path.startswith(sc_module.session.path) and not ext in sc_module.session.include:
+					elif not url.path.startswith(sc_module.session.path) and not ext in sc_module.session.include_ext:
 						#This is hit if path is a file
 						request.verb = 'HEAD'
-					elif ext in sc_module.session.test_only:
+					elif ext in sc_module.session.test_ext:
 						request.verb = 'HEAD'
 					elif len(request.postdata) > 0:
 						request.verb = 'POST'
 					else:
 						request.verb = 'GET'
-
-				#print request.verb, url.path, sc_module.session.path, url.path.startswith(sc_module.session.path)
 
 				response = self.fetch(url, request.verb, request.postdata, request.headers)
 				if response == None:
@@ -196,6 +194,10 @@ if __name__ == '__main__':
 		if len(sc_module.session.path) == 0: sc_module.session.path = '/'
 		if not sc_module.session.path[0] == '/': sc_module.session.path = '/' + sc_module.session.path
 		if not sc_module.session.path[-1] == '/' and len(os.path.splitext(sc_module.session.path)[1]) == 0: sc_module.session.path = sc_module.session.path + '/'
+
+	# Organise file type sets
+	sc_module.session.include_ext = sc_module.session.include_ext.difference(sc_module.session.ignore_ext)
+	sc_module.session.test_ext = sc_module.session.test_ext.difference(sc_module.session.ignore_ext.union(sc_module.session.include_ext))
 
 	threads = []
 	terminate = threading.Event()

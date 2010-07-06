@@ -20,7 +20,6 @@ else:
 	dctnry = enchant.Dict(sc_module.get_arg(__name__, 'dictionary', 'en_GB'))
 
 chkr = SpellChecker(dctnry, filters=[EmailFilter, URLFilter])
-#ignore = sc_module.get_arg(__name__, 'ignore', [])
 
 def process(request, response):
 	if response.is_html:
@@ -34,11 +33,6 @@ def process(request, response):
 		comments = doc.findAll(text=lambda text:isinstance(text, Comment))
 		[comment.extract() for comment in comments]
 
-		#enc = doc.originalEncoding
-		#if enc == None: enc = 'utf-8'
-		#ct = doc.prettify().decode(enc, 'replace')
-		#ct = re.sub('\t|\n', ' ', ct)
-		#ct = re.sub('\s+', ' ', ct)
 		words = {}
 		spell_lock.acquire()
 		try:
@@ -63,26 +57,6 @@ def process(request, response):
 			for k in keys:
 				sc_module.OutputQueue.put(__name__, '\tWord: [%s] x %d%s' % (words[k][0], words[k][1], words[k][2]))
 
-			#cl = len(ct)
-			#keys = words.keys()
-			#keys.sort()
-			#for k in keys:
-				#e = ''
-				#m = re.search('(.)\s*\\b(' + words[k][0] + ')\\b', ct)
-				#if m:
-					#if m.group(1) in '.>"' or m.group(2)[0].islower(): # First word in sentence/para or not proper noun
-						#st = max(m.start() - 20, 0)
-						#en = min(m.end() + 20, cl)
-						#e = '\tWord: [%s] x %d (%s))' % (words[k][0], words[k][1], ct[st:en])
-				#else:
-					#e = '\tWord: [%s] x %d' % (words[k][0], words[k][1])
-
-				#if len(e) > 0:
-					#if not spErr:
-						#sc_module.OutputQueue.put(__name__, 'Document: [%s]' % request.url_string)
-						#spErr = True
-					#sc_module.OutputQueue.put(__name__, e)
-
 def check(text, words):
 	if not text: return
 	t = text.strip()
@@ -103,36 +77,6 @@ def check(text, words):
 							en = min(m.end() + 20, l)
 							ctx = ' (' + re.sub('\t|\n', ' ', t[st:en]) + ')'
 							words[w] = [err.word, 1, ctx]
-
-#def check(text, words):
-	#if len(text.strip()) > 0:
-		#chkr.set_text(text.strip())
-		#for err in chkr:
-			#if err.word[1].islower(): # Ignore abbreviations
-				#w = err.word.lower()
-				#if w in words:
-					#words[w][1] += 1
-				#else:
-					#words[w] = [err.word, 1]
-
-#txt = re.compile('<script[^>]*>.*?</script>', re.IGNORECASE | re.DOTALL).sub(' ', response.content)
-#txt = re.compile('<[^>]*>', re.IGNORECASE | re.DOTALL).sub(' ',txt)
-#txt = re.compile('\s+').sub(' ', txt)
-#txt = htmldecode(txt)
-#spell_lock.acquire()
-#try:
-	#chkr.set_text(txt)
-	#first = True
-	#for err in chkr:
-		#if first:
-			#sc_module.OutputQueue.put(__name__, 'Document: [' + urlparse.urlunparse(request.url) + ']')
-			#first = False
-		#ix = err.wordpos
-		#st = max(ix - 20, 0)
-		#en = min(ix + len(err.word) + 20, len(txt))
-		#sc_module.OutputQueue.put(__name__, '\tWord: [' + err.word + '] (' + txt[st:en] + ')')
-#finally:
-	#spell_lock.release()
 
 
 ##From: http://snippets.dzone.com/posts/show/4569
