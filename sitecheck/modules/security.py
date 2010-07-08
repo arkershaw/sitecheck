@@ -3,6 +3,7 @@ import urlparse, urllib, re
 import sc_module
 
 xss = re.compile("<xss>", re.IGNORECASE)
+attacks = sc_module.get_arg(__name__, 'attacks', [])
 
 def process(request, response):
 	if request.source == __name__:
@@ -16,19 +17,21 @@ def process(request, response):
 				sc_module.OutputQueue.put(__name__, '\tPost data: [%s]' % urllib.urlencode(request.postdata))
 	elif response.is_html:
 		document = sc_module.parse(response.content)
-		inject(request, document, "1'1\'1")
-		inject(request, document, "'';!--\"<XSS>=&{()}")
+		for atk in attacks:
+			inject(request, document, atk)
+		#inject(request, document, "1'1\'1")
+		#inject(request, document, "'';!--\"<xss>=&{()}")
 
 def inject(request, document, value):
 	qs = urlparse.parse_qs(request.url.query)
 	for param in qs.iterkeys():
+		temp = qs[param]
 		qs[param] = value
-	url = urlparse.urljoin(request.url_string, '?' + urllib.urlencode(qs))
-
-	req = sc_module.Request(__name__, url, request.referrer)
-	req.modules = {__name__[8:]: None}
-
-	sc_module.RequestQueue.put(req)
+		url = urlparse.urljoin(request.url_string, '?' + urllib.urlencode(qs, True))
+		qs[param] = temp
+		req = sc_module.Request(__name__, url, request.referrer)
+		req.modules = {__name__[8:]: None}
+		sc_module.RequestQueue.put(req)
 
 	if document:
 		postdata = []

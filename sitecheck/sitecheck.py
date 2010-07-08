@@ -97,10 +97,11 @@ class SiteChecker(threading.Thread):
 				url = request.url
 
 				if len(request.verb) == 0:
+					sp = urlparse.urlparse(sc_module.session.path).path
 					ext = os.path.splitext(url.path)[1][1:].lower()
 					if not url.netloc == sc_module.session.domain:
 						request.verb = 'HEAD'
-					elif not url.path.startswith(sc_module.session.path) and not ext in sc_module.session.include_ext:
+					elif not url.path.startswith(sp) and not ext in sc_module.session.include_ext:
 						#This is hit if path is a file
 						request.verb = 'HEAD'
 					elif ext in sc_module.session.test_ext:
