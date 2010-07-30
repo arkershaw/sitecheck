@@ -3,7 +3,7 @@ import enchant
 from enchant.checker import SpellChecker
 from enchant.tokenize import EmailFilter, URLFilter
 from BeautifulSoup import Comment
-import re, urlparse, threading, os
+import re, urlparse, threading, os, sys
 import sc_module
 
 spell_lock = threading.Lock()
@@ -12,9 +12,9 @@ sentenceEnd = '!?.'
 if os.path.exists(sc_module.session.root + 'dict.txt'):
 	sc_module.OutputQueue.put(__name__, 'Using custom dictionary [%s]' % (sc_module.session.root + 'dict.txt'))
 	dctnry = enchant.DictWithPWL(sc_module.get_arg(__name__, 'dictionary', 'en_GB'), sc_module.session.root + 'dict.txt')
-elif os.path.exists('dict.txt'):
+elif os.path.exists(os.path.join(sys.path[0], 'dict.txt')):
 	sc_module.OutputQueue.put(__name__, 'Using default custom dictionary')
-	dctnry = enchant.DictWithPWL(sc_module.get_arg(__name__, 'dictionary', 'en_GB'), 'dict.txt')
+	dctnry = enchant.DictWithPWL(sc_module.get_arg(__name__, 'dictionary', 'en_GB'), os.path.join(sys.path[0], 'dict.txt'))
 else:
 	sc_module.OutputQueue.put(__name__, 'No custom dictionary found')
 	dctnry = enchant.Dict(sc_module.get_arg(__name__, 'dictionary', 'en_GB'))

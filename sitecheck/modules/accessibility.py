@@ -20,7 +20,7 @@ def process(request, response):
 		try:
 			res = tidy.parseString(response.content, **opts)
 			if len(res.errors) > 0:
-				sc_module.OutputQueue.put(__name__, 'Invalid: [%s] (%d errors)' % (request.url_string, len(res.errors)))
+				errors = list()
 				for err in res.errors:
 					mtch = acc.search(str(err))
 					ign = False
@@ -32,6 +32,11 @@ def process(request, response):
 							if txt in ignore:
 								ign = True
 								break
-						if not ign: sc_module.OutputQueue.put(__name__, '\t%s' % err)
+						if not ign: errors.append(err)
+
+				if len(errors) > 0:
+					sc_module.OutputQueue.put(__name__, 'Invalid: [%s] (%d errors)' % (request.url_string, len(errors)))
+					for err in errors:
+						sc_module.OutputQueue.put(__name__, '\t%s' % err)
 		except:
 			sc_module.OutputQueue.put(__name__, 'Error parsing: [%s]' % request.url_string)
