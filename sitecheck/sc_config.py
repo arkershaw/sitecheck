@@ -32,7 +32,7 @@ class sc_session(object):
 			'accessibility': None,
 			'metadata': None,
 			'statuslog': None,
-			'security': {'attacks': ["' -- ", "\\' -- ", "; select 1/0;", '"/><xss>']},
+			'security': {'attacks': ["1'1\'1", "' -- ", "\\' -- ", "; select 1/0;", '"/><xss>']},
 			'comments': None,
 			'spelling': {'dictionary': 'en_GB'},
 			'readability': {'threshold': 45},

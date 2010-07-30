@@ -3,6 +3,7 @@ import urlparse, urllib, re
 import sc_module
 
 xss = re.compile("<xss>", re.IGNORECASE)
+eqs = re.compile("(\w+=)(?:&|$)")
 attacks = sc_module.get_arg(__name__, 'attacks', [])
 
 def process(request, response):
@@ -29,6 +30,15 @@ def inject(request, document, value):
 		qs[param] = value
 		url = urlparse.urljoin(request.url_string, '?' + urllib.urlencode(qs, True))
 		qs[param] = temp
+		req = sc_module.Request(__name__, url, request.referrer)
+		req.modules = {__name__[8:]: None}
+		sc_module.RequestQueue.put(req)
+
+	#Empty query string parameters are not returned by urlparse.parse_qs
+	mtchs = eqs.finditer(request.url.query)
+	for mtch in mtchs:
+		qs = re.sub(mtch.group(0) + '(?:&|$)', mtch.group(0) + value, request.url.query)
+		url = urlparse.urljoin(request.url_string, '?' + qs)
 		req = sc_module.Request(__name__, url, request.referrer)
 		req.modules = {__name__[8:]: None}
 		sc_module.RequestQueue.put(req)

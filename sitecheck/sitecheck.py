@@ -133,6 +133,7 @@ class SiteChecker(threading.Thread):
 				if response.time > sc_module.session.slow_request:
 					sc_module.OutputQueue.put(None, 'Slow request: [%s] (%0.3f seconds)' % (request.url_string, response.time))
 
+				if len(request.modules) == 0: request.modules = sc_module.session.modules
 				for name, args in request.modules.iteritems():
 					if 'modules.' + name in sys.modules:
 						sys.modules['modules.' + name].process(request, response)

@@ -15,7 +15,7 @@ class Request(object):
 		self.verb = ''
 		self.redirects = 0
 		self.timeouts = 0
-		self.modules = session.modules
+		self.modules = {} #session.modules
 		self.postdata = {}
 		self.headers = {}
 
