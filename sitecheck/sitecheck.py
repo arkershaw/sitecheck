@@ -12,8 +12,6 @@ class LogWriter(threading.Thread):
 		sc_module.ensure_dir(sc_module.session.output)
 		self.outfiles = {'sitecheck': open(sc_module.session.output + '/sitecheck.log', 'a')}
 		for name in sc_module.session.modules.iterkeys():
-			__import__('modules.' + name)
-			#sys.modules['modules.' + name].init()
 			self.outfiles[name] = open(sc_module.session.output + '/' + name + '.log', 'a')
 
 		sc_module.OutputQueue.put(None, 'Started: ' + str(datetime.datetime.now()))
@@ -76,14 +74,15 @@ class SiteChecker(threading.Thread):
 
 		if res:
 			sc_module.OutputQueue.put(None, verb + ': [' + full_url + '] status: ' + str(res.status))
-			doc = sc_module.parse(res.content)
+			doc, err = sc_module.parse_html(res.content)
 			if doc == None:
-				sc_module.OutputQueue.put(None, 'ERROR: Unable to parse content [%s]' % full_url)
+				sc_module.OutputQueue.put(None, 'ERROR: Unable to parse content [%s]: %s' % (full_url, err))
 		return res
 
 	def error(self, url, message):
 		sc_module.OutputQueue.put(None, message + ': [' + url + ']')
-		sc_module.OutputQueue.put(None, str(sys.exc_info()[0]) + ' ' + str(sys.exc_info()[1]))
+		ex = sys.exc_info()
+		sc_module.OutputQueue.put(None, str(ex[0]) + ' ' + str(ex[1]))
 
 	def run(self):
 		while not self.terminate.isSet():
@@ -136,7 +135,11 @@ class SiteChecker(threading.Thread):
 				if len(request.modules) == 0: request.modules = sc_module.session.modules
 				for name, args in request.modules.iteritems():
 					if 'modules.' + name in sys.modules:
-						sys.modules['modules.' + name].process(request, response)
+						try:
+							sys.modules['modules.' + name].process(request, response)
+						except:
+							ex = sys.exc_info()
+							sc_module.OutputQueue.put(name, 'ERROR: processing result with module [%s] [%s %s]' % (name, str(ex[0]), str(ex[1])))
 
 if __name__ == '__main__':
 	from optparse import OptionParser
@@ -201,8 +204,19 @@ if __name__ == '__main__':
 	sc_module.session.include_ext = sc_module.session.include_ext.difference(sc_module.session.ignore_ext)
 	sc_module.session.test_ext = sc_module.session.test_ext.difference(sc_module.session.ignore_ext.union(sc_module.session.include_ext))
 
-	threads = []
-	terminate = threading.Event()
+	# Initialise modules
+	mods = sc_module.session.modules.keys()
+	for m in range(len(mods)):
+		name = mods[m]
+		try:
+			__import__('modules.' + name)
+			if hasattr(sys.modules['modules.' + name], 'init'): sys.modules['modules.' + name].init()
+		except:
+			ex = sys.exc_info()
+			print 'Failed to load module [%s]' % name
+			print str(ex[0]) + ' ' + str(ex[1])
+			sc_module.session.modules.pop(name)
+
 	print '''s -> Suspend
 q -> Abort
 Any key -> Print status'''
@@ -213,12 +227,15 @@ Any key -> Print status'''
 		sc_module.RequestQueue.put_url('', sc_module.session.path, '')
 	print 'Output: [' + sc_module.session.output + ']'
 
-	lw = LogWriter(terminate)
+	lw_terminate = threading.Event()
+	lw = LogWriter(lw_terminate)
 	lw.setDaemon(True)
 	lw.start()
 
+	threads = []
+	sc_terminate = threading.Event()
 	for i in range(sc_module.session.thread_pool):
-		thread = SiteChecker(terminate)
+		thread = SiteChecker(sc_terminate)
 		thread.setDaemon(True)
 		thread.start()
 		threads.append(thread)
@@ -247,11 +264,9 @@ Any key -> Print status'''
 	else:
 		print 'Finishing...'
 
-	terminate.set()
+	sc_terminate.set()
 	for thread in threads:
 		thread.join()
-
-	lw.join()
 
 	if suspend:
 		rq = []
@@ -260,5 +275,11 @@ Any key -> Print status'''
 		fl = open(suspend_file, 'w')
 		pickle.dump((sc_module.session, sc_module.RequestQueue.urls, rq), fl)
 		fl.close()
+	else:
+		for name in sc_module.session.modules.iterkeys():
+			if hasattr(sys.modules['modules.' + name], 'complete'): sys.modules['modules.' + name].complete()
+
+	lw_terminate.set()
+	lw.join()
 
 	print 'Completed.'

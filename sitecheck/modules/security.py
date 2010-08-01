@@ -17,9 +17,10 @@ def process(request, response):
 			if len(request.postdata) > 0:
 				sc_module.OutputQueue.put(__name__, '\tPost data: [%s]' % urllib.urlencode(request.postdata))
 	elif response.is_html:
-		document = sc_module.parse(response.content)
-		for atk in attacks:
-			inject(request, document, atk)
+		doc, err = sc_module.parse_html(response.content)
+		if doc:
+			for atk in attacks:
+				inject(request, doc, atk)
 		#inject(request, document, "1'1\'1")
 		#inject(request, document, "'';!--\"<xss>=&{()}")
 

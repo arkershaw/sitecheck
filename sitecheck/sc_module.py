@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import threading, Queue, urlparse, urllib, os, hashlib, re, time
+import threading, Queue, urlparse, urllib, os, hashlib, re, time, sys
 import sc_config
 from BeautifulSoup import BeautifulSoup, HTMLParseError
 
@@ -8,14 +8,12 @@ session = sc_config.sc_session()
 class Request(object):
 	def __init__(self, source, url, referrer):
 		self.source = source
-		#self.url_string = self.full_url(url, referrer)
-		#self.url = urlparse.urlparse(self.url_string)
 		self.referrer = referrer
 		self._set_url(url)
 		self.verb = ''
 		self.redirects = 0
 		self.timeouts = 0
-		self.modules = {} #session.modules
+		self.modules = {}
 		self.postdata = {}
 		self.headers = {}
 
@@ -71,11 +69,10 @@ class Response(object):
 		self.content = response.read()
 		end_time = time.time()
 		self.time = end_time - start_time
-
 		self.status = response.status
 		self.message = response.reason
 		self.version = response.version
-		if self.status < 300 and self.headers['content-type'] == 'text/html' and len(self.content) > 0:
+		if self.status < 300 and self.headers['content-type'].startswith('text/html') and len(self.content) > 0:
 			self.is_html = True
 		else:
 			self.is_html = False
@@ -145,22 +142,17 @@ class OutputQueue(Queue.Queue):
 			mod = module[8:]
 		Queue.Queue.put(self, (mod, value.encode('utf-8', 'replace') + '\n'), block, timeout)
 
-RequestQueue = RequestQueue()
-OutputQueue = OutputQueue()
-
-def parse(html):
+def parse_html(html):
 	try:
-		#BeautifulSoup treats the doctype as text
+		#BeautifulSoup treats the doctype as text (supposedly only if it is malformed)
 		ct = re.sub('<!DOCTYPE[^>]*>', '', html, re.IGNORECASE | re.MULTILINE | re.DOTALL)
 		doc = BeautifulSoup(ct, convertEntities=BeautifulSoup.HTML_ENTITIES)
-	except HTMLParseError:
-		doc = None
+		err = None
 	except:
-		#File "/usr/lib/python2.6/HTMLParser.py", line 107, in feed
-		#self.rawdata = self.rawdata + data
-		#TypeError: cannot concatenate 'str' and 'NoneType' objects
 		doc = None
-	return doc
+		ex = sys.exc_info()
+		err = str(ex[0]) + ' ' + str(ex[1])
+	return doc, err
 
 _ensure_dir_lock = threading.Lock()
 def ensure_dir(d):
@@ -185,3 +177,6 @@ def get_arg(module, name, default):
 
 def get_args(module):
 	return session.modules[module[8:]]
+
+RequestQueue = RequestQueue()
+OutputQueue = OutputQueue()

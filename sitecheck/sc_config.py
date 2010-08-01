@@ -23,6 +23,7 @@ class sc_session(object):
 		self.slow_request = 5.0 # Requests taking longer than this are logged
 		self.modules = {
 			#'persister': {'output': '', 'headers': True, 'content': True},
+			#'inboundlinks': None,
 			'regexmatch': {
 				'Email Address': re.compile("[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?", re.IGNORECASE),
 				'IP Address': re.compile("\b(?:\d{1,3}\.){3}\d{1,3}\b"),

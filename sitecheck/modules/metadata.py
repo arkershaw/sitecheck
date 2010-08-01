@@ -4,13 +4,13 @@ import re
 
 def process(request, response):
 	if response.is_html:
-		document = sc_module.parse(response.content)
-		if document:
+		doc, err = sc_module.parse_html(response.content)
+		if doc:
 			missing = []
 			empty = []
 			multiple = []
 
-			title = document('title')
+			title = doc('title')
 			if len(title) == 0:
 				missing.append('title')
 			elif len(title) > 1:
@@ -20,7 +20,7 @@ def process(request, response):
 			elif len(title[0].string) == 0:
 				empty.append('title')
 
-			desc = document('meta', attrs={'name': re.compile('description', re.IGNORECASE)})
+			desc = doc('meta', attrs={'name': re.compile('description', re.IGNORECASE)})
 			if len(desc) == 0:
 				missing.append('description')
 			elif len(desc) > 1:
@@ -32,7 +32,7 @@ def process(request, response):
 				else:
 					empty.append('description')
 
-			kw = document('meta', attrs={'name': re.compile('keywords', re.IGNORECASE)})
+			kw = doc('meta', attrs={'name': re.compile('keywords', re.IGNORECASE)})
 			if len(kw) == 0:
 				missing.append('keywords')
 			elif len(kw) > 1:

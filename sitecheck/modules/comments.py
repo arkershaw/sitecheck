@@ -5,10 +5,10 @@ import sc_module
 
 def process(request, response):
 	if response.is_html:
-		document = sc_module.parse(response.content)
-		if document:
+		doc, err = sc_module.parse_html(response.content)
+		if doc:
 			first = True
-			for comment in document.findAll(text=lambda text:isinstance(text, Comment)):
+			for comment in doc.findAll(text=lambda text:isinstance(text, Comment)):
 				c = comment.strip()
 				if c.startswith('[if') and c.endswith('<![endif]'):
 					# Ignore IE conditional comments

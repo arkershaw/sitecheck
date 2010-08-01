@@ -23,39 +23,36 @@ chkr = SpellChecker(dctnry, filters=[EmailFilter, URLFilter])
 
 def process(request, response):
 	if response.is_html:
-		doc = sc_module.parse(response.content) #Parse again so we can modify
-		if doc == None:
-			sc_module.OutputQueue.put(__name__, 'ERROR: Unable to parse content [%s]' % request.url_string)
-			return
+		doc, err = sc_module.parse_html(response.content) #Parse again so we can modify
+		if doc:
+			tags = doc.findAll(['script', 'style'])
+			[tag.extract() for tag in tags]
+			comments = doc.findAll(text=lambda text:isinstance(text, Comment))
+			[comment.extract() for comment in comments]
 
-		tags = doc.findAll(['script', 'style'])
-		[tag.extract() for tag in tags]
-		comments = doc.findAll(text=lambda text:isinstance(text, Comment))
-		[comment.extract() for comment in comments]
+			words = {}
+			spell_lock.acquire()
+			try:
+				for txt in doc.findAll(text=True):
+					check(txt, words)
+				for txt in doc.findAll(title=True):
+					check(txt['title'], words)
+				for txt in doc.findAll('img', alt=True):
+					check(txt['alt'], words)
+				for txt in doc.findAll('title'):
+					check(txt.string, words)
+				for txt in doc.findAll('meta', attrs={'name': re.compile('description|keywords')}):
+					check(txt['content'], words)
+			finally:
+				spell_lock.release()
 
-		words = {}
-		spell_lock.acquire()
-		try:
-			for txt in doc.findAll(text=True):
-				check(txt, words)
-			for txt in doc.findAll(title=True):
-				check(txt['title'], words)
-			for txt in doc.findAll('img', alt=True):
-				check(txt['alt'], words)
-			for txt in doc.findAll('title'):
-				check(txt.string, words)
-			for txt in doc.findAll('meta', attrs={'name': re.compile('description|keywords')}):
-				check(txt['content'], words)
-		finally:
-			spell_lock.release()
-
-		spErr = False
-		if len(words) > 0:
-			sc_module.OutputQueue.put(__name__, 'Document: [%s]' % request.url_string)
-			keys = words.keys()
-			keys.sort()
-			for k in keys:
-				sc_module.OutputQueue.put(__name__, '\tWord: [%s] x %d%s' % (words[k][0], words[k][1], words[k][2]))
+			spErr = False
+			if len(words) > 0:
+				sc_module.OutputQueue.put(__name__, 'Document: [%s]' % request.url_string)
+				keys = words.keys()
+				keys.sort()
+				for k in keys:
+					sc_module.OutputQueue.put(__name__, '\tWord: [%s] x %d%s' % (words[k][0], words[k][1], words[k][2]))
 
 def check(text, words):
 	if not text: return
