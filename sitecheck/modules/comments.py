@@ -7,6 +7,7 @@ def process(request, response):
 	if response.is_html:
 		doc, err = sc_module.parse_html(response.content)
 		if doc:
+			msgs = []
 			first = True
 			for comment in doc.findAll(text=lambda text:isinstance(text, Comment)):
 				c = comment.strip()
@@ -16,9 +17,10 @@ def process(request, response):
 				else:
 					if first:
 						first = False
-						sc_module.OutputQueue.put(__name__, 'Document: [%s]' % request.url_string)
+						msgs.append('URL: [%s]' % request.url_string)
 
-					try:
-						sc_module.OutputQueue.put(__name__, '\tComment:\t' + re.sub('\r?\n', '\n\t\t\t\t', comment.strip(), re.MULTILINE))
-					except UnicodeEncodeError:
-						print comment
+					#try:
+					msgs.append('\tComment:\t' + re.sub('\r?\n', '\n\t\t\t\t', comment.strip(), re.MULTILINE))
+					#except UnicodeEncodeError:
+						#print comment
+			if len(msgs) > 0: sc_module.OutputQueue.put(__name__, msgs)

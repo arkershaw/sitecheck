@@ -12,7 +12,7 @@ class sc_session(object):
 		self.domain = '' # Domain to spider
 		self.path = '' # Restrict to path under the domain
 		self.thread_pool = 10 # Number of spider threads to spawn. An extra thread is used for output.
-		self.headers = {'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-GB; rv:1.9.1.2) Gecko/20090729 Firefox/3.5.2 (.NET CLR 3.5.30729)'} # Emulate Firefox 3.5 running on Windows XP
+		self.headers = {'user-agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-GB; rv:1.9.1.2) Gecko/20090729 Firefox/3.5.2 (.NET CLR 3.5.30729)'} # Emulate Firefox 3.5 running on Windows XP
 		self.ignore_ext = set([]) # These file types are ignored
 		self.test_ext = set.union(media_files, resource_files, document_files) # Only headers are downloaded for these file types
 		self.include_ext = set([]) # Allows the inclusion of resources (images, styles etc.) in parent folder of path (if specified)
@@ -21,8 +21,9 @@ class sc_session(object):
 		self.max_retries = 3 # On socket error, a request is returned to the queue
 		self.max_redirects = 5 # Trap looping redirects
 		self.slow_request = 5.0 # Requests taking longer than this are logged
+		self.log = {'request_headers': True, 'response_headers': True, 'post_data': True}
 		self.modules = {
-			#'persister': {'output': '', 'headers': True, 'content': True},
+			#'persister': {'output': 'output', 'headers': True, 'content': True},
 			#'inboundlinks': None,
 			'regexmatch': {
 				'Email Address': re.compile("[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?", re.IGNORECASE),
@@ -33,7 +34,8 @@ class sc_session(object):
 			'accessibility': None,
 			'metadata': None,
 			'statuslog': None,
-			'security': {'attacks': ["1'1\'1", "' -- ", "\\' -- ", "; select 1/0;", '"/><xss>']},
+			'security': {'email': 'test@test.test', 'attacks': ["1'1\'1", '"/><xss>']},
+			# "' -- ", "\\' -- ", "; select 1/0;", "'';!--\"<xss>=&{()}"
 			'comments': None,
 			'spelling': {'dictionary': 'en_GB'},
 			'readability': {'threshold': 45},

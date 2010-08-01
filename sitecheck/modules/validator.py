@@ -15,9 +15,10 @@ def process(request, response):
 		else:
 			try:
 				if len(res.errors) > 0:
-					sc_module.OutputQueue.put(__name__, 'Invalid: [%s] (%d errors)' % (request.url_string, len(res.errors)))
+					msgs =['Invalid: [%s] (%d errors)' % (request.url_string, len(res.errors))]
 					for err in res.errors:
-						sc_module.OutputQueue.put(__name__, '\t%s' % str(err).replace('line', 'Line'))
+						msgs.append('\t%s' % str(err).replace('line', 'Line'))
+					sc_module.OutputQueue.put(__name__, msgs)
 			except:
 				#File "/usr/lib/python2.6/site-packages/tidy/lib.py", line 81, in __init__
 				#self.col = int(tokens[3])

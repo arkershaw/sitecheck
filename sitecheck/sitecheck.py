@@ -43,7 +43,7 @@ class SiteChecker(threading.Thread):
 		self.active = False
 		self.terminate = terminate
 
-	def fetch(self, url, verb='GET', postdata={}, headers={}):
+	def _fetch(self, url, verb='GET', postdata=[], headers={}):
 		full_path = url.path
 		if len(url.query) > 0: full_path += '?' + url.query
 		full_url = url.scheme + '://' + url.netloc + full_path
@@ -51,38 +51,30 @@ class SiteChecker(threading.Thread):
 			c = httplib.HTTPSConnection(url.netloc)
 		else:
 			c = httplib.HTTPConnection(url.netloc)
-		hdrs = sc_module.session.headers.copy()
-		hdrs.update(headers)
-		res = None
+		res = err = None
 		try:
 			c.connect()
 			c.sock.settimeout(sc_module.session.request_timeout)
 			st = time.time()
-			c.request(verb, full_path, urllib.urlencode(postdata), hdrs)
+			c.request(verb, full_path, urllib.urlencode(postdata), headers)
 			r = c.getresponse()
 			res = sc_module.Response(r, st)
 		except socket.gaierror:
-			self.error(full_url, 'DNS error') #Probably
+			ex = sys.exc_info()
+			err = 'DNS error ' + str(ex[0]) + ' ' + str(ex[1]) # Probably
 		except socket.timeout:
-			self.error(full_url, 'Timeout')
+			ex = sys.exc_info()
+			err = 'Timeout ' + str(ex[0]) + ' ' + str(ex[1])
 		except httplib.IncompleteRead:
-			self.error(full_url, 'Read error')
+			ex = sys.exc_info()
+			err = 'Read error ' + str(ex[0]) + ' ' + str(ex[1])
 		except:
-			self.error(full_url, 'Connection')
+			ex = sys.exc_info()
+			err = 'Connection ' + str(ex[0]) + ' ' + str(ex[1])
 		finally:
 			c.close()
 
-		if res:
-			sc_module.OutputQueue.put(None, verb + ': [' + full_url + '] status: ' + str(res.status))
-			doc, err = sc_module.parse_html(res.content)
-			if doc == None:
-				sc_module.OutputQueue.put(None, 'ERROR: Unable to parse content [%s]: %s' % (full_url, err))
-		return res
-
-	def error(self, url, message):
-		sc_module.OutputQueue.put(None, message + ': [' + url + ']')
-		ex = sys.exc_info()
-		sc_module.OutputQueue.put(None, str(ex[0]) + ' ' + str(ex[1]))
+		return res, err
 
 	def run(self):
 		while not self.terminate.isSet():
@@ -99,9 +91,10 @@ class SiteChecker(threading.Thread):
 					sp = urlparse.urlparse(sc_module.session.path).path
 					ext = os.path.splitext(url.path)[1][1:].lower()
 					if not url.netloc == sc_module.session.domain:
+						# External domain
 						request.verb = 'HEAD'
 					elif not url.path.startswith(sp) and not ext in sc_module.session.include_ext:
-						#This is hit if path is a file
+						# This is hit if path is a file
 						request.verb = 'HEAD'
 					elif ext in sc_module.session.test_ext:
 						request.verb = 'HEAD'
@@ -110,27 +103,52 @@ class SiteChecker(threading.Thread):
 					else:
 						request.verb = 'GET'
 
-				response = self.fetch(url, request.verb, request.postdata, request.headers)
-				if response == None:
-					sc_module.RequestQueue.retry(request)
+				hdrs = sc_module.session.headers.copy()
+				request.headers.update(hdrs)
+
+				if len(sc_module.cookie) > 0: request.headers['cookie'] = sc_module.cookie
+
+				response, err = self._fetch(url, request.verb, request.postdata, request.headers)
+
+				msgs = []
+				if response:
+					msgs.append('%s: [%s] status: %s' % (request.verb, request.url_string, str(response.status)))
+					if sc_module.session.log.get('request_headers'): msgs.append('\tREQUEST HEADERS: %s' % request.headers)
+					if sc_module.session.log.get('post_data') and len(request.postdata) > 0: msgs.append('\tPOST DATA: %s' % request.postdata)
+					if sc_module.session.log.get('response_headers'): msgs.append('\tRESPONSE HEADERS: %s' % response.headers)
+					if response.is_html:
+						doc, err = sc_module.parse_html(response.content)
+						if doc == None:
+							msgs.append('\tERROR: Unable to parse content [%s]: %s' % (request.url_string, err))
+				else:
+					if err:
+						msgs.append('ERROR: %s' % err)
+					if not sc_module.RequestQueue.retry(request):
+						msgs.append('\tERROR: Exceeded max_retries for: [%s]' % request.url_string)
 					continue
+
+				if response.headers.has_key('set-cookie'):
+					sc_module.cookie = response.headers['set-cookie']
 
 				if (response.status >= 300 and response.status < 400) and request.url.netloc == sc_module.session.domain:
 					if 'location' in response.headers:
 						locs = response.headers['location'].strip().split(' ')
 						request.redirect(locs[-1])
 						if len(locs) > 1:
-							sc_module.OutputQueue.put(None, 'Multiple redirect locations found: [%s]' % response.headers['location'])
-							sc_module.OutputQueue.put(None, '\tReferrer: [%s]' % request.referrer)
+							msgs.append('\tERROR: Multiple redirect locations found: [%s]' % response.headers['location'])
+							msgs.append('\t\tURL: [%s]' % request.url_string)
 						if request.redirects > sc_module.session.max_redirects:
-							sc_module.OutputQueue.put(None, 'Exceeded %d redirects for: [%s]' % (sc_module.session.max_redirects, request.referrer))
+							msgs.append('\tERROR: Exceeded %d redirects for: [%s]' % (sc_module.session.max_redirects, request.referrer))
 						else:
 							sc_module.RequestQueue.put(request)
 					else:
-						sc_module.OutputQueue.put(None, 'Redirect with no location: [%s]' % request.referrer)
+						msgs.append('\tERROR: Redirect with no location: [%s]' % request.referrer)
 
 				if response.time > sc_module.session.slow_request:
-					sc_module.OutputQueue.put(None, 'Slow request: [%s] (%0.3f seconds)' % (request.url_string, response.time))
+					msgs.append('\tSLOW REQUEST: [%s] (%.3f seconds)' % (request.url_string, response.time))
+
+				msgs[-1] += '\n'
+				sc_module.OutputQueue.put(None, msgs)
 
 				if len(request.modules) == 0: request.modules = sc_module.session.modules
 				for name, args in request.modules.iteritems():
@@ -159,6 +177,7 @@ if __name__ == '__main__':
 	if pth[-1] != '/': pth = pth + '/'
 	suspend_file = pth + 'suspend.pkl'
 
+	resume = False
 	if os.path.exists(suspend_file):
 		print 'Resuming session.'
 		try:
@@ -169,8 +188,10 @@ if __name__ == '__main__':
 			sc_module.RequestQueue.urls = suspend_data[1]
 			sc_module.RequestQueue.from_list(suspend_data[2])
 			os.remove(suspend_file)
+			resume = True
 		except:
 			print 'Unable to load suspend data.'
+			sys.exit()
 	else:
 		if os.path.exists(pth + 'sc_config.py'):
 			print 'Loading config.'
@@ -179,6 +200,7 @@ if __name__ == '__main__':
 				sc_module.session = imp.load_source('sc_config', pth + 'sc_config.py').sc_session()
 			except:
 				print 'Invalid config file found in directory.'
+				sys.exit()
 
 		if opts.domain:
 			d = opts.domain
@@ -210,7 +232,10 @@ if __name__ == '__main__':
 		name = mods[m]
 		try:
 			__import__('modules.' + name)
-			if hasattr(sys.modules['modules.' + name], 'init'): sys.modules['modules.' + name].init()
+			if resume:
+				if hasattr(sys.modules['modules.' + name], 'resume'): sys.modules['modules.' + name].resume()
+			else:
+				if hasattr(sys.modules['modules.' + name], 'begin'): sys.modules['modules.' + name].begin()
 		except:
 			ex = sys.exc_info()
 			print 'Failed to load module [%s]' % name

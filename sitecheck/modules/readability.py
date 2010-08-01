@@ -11,7 +11,8 @@ r_count = 0
 r_total = 0
 
 def complete():
-	sc_module.OutputQueue.put(__name__, 'SUMMARY: Min %.2f, Max %.2f, Avg %.2f' % (r_min, r_max, r_total / r_count))
+	if r_count > 0:
+		sc_module.OutputQueue.put(__name__, 'SUMMARY: Min %.2f, Max %.2f, Avg %.2f' % (r_min, r_max, r_total / r_count))
 
 def process(request, response):
 	global r_min, r_max, r_count, r_total

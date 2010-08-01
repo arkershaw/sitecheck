@@ -44,11 +44,16 @@ def process(request, response):
 				else:
 					empty.append('keywords')
 
+			msgs = []
 			if len(missing) > 0:
-				sc_module.OutputQueue.put(__name__, 'Missing: ' + str(missing) + ' in [' + request.url_string + ']')
+				msgs.append('\tMissing: %s' % str(missing))
 
 			if len(empty) > 0:
-				sc_module.OutputQueue.put(__name__, 'Empty: ' + str(empty) + ' in [' + request.url_string + ']')
+				msgs.append('\tEmpty: %s' % str(empty))
 
 			if len(multiple) > 0:
-				sc_module.OutputQueue.put(__name__, 'Multiple: ' + str(multiple) + ' in [' + request.url_string + ']')
+				msgs.append('\tMultiple: %s' % str(multiple))
+
+			if len(msgs) > 0:
+				msgs.insert(0, 'URL: %s' % request.url_string)
+				sc_module.OutputQueue.put(__name__, msgs)

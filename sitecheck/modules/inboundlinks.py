@@ -26,7 +26,7 @@ engines = {
 
 inbound = set()
 
-def init():
+def begin():
 	for se in engines.iterkeys():
 		e = engines[se]
 		e.extend([0, e[4]]) # Total results, current result offset
@@ -62,6 +62,5 @@ def process(request, response):
 def complete():
 	urls = list(inbound)
 	urls.sort()
-	for url in urls:
-		sc_module.OutputQueue.put(__name__, '%s' % url)
+	sc_module.OutputQueue.put(__name__, urls)
 	sc_module.OutputQueue.put(__name__, 'Total: %d' % len(inbound))

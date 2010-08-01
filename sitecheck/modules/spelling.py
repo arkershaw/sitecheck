@@ -48,11 +48,12 @@ def process(request, response):
 
 			spErr = False
 			if len(words) > 0:
-				sc_module.OutputQueue.put(__name__, 'Document: [%s]' % request.url_string)
+				msgs = ['Document: [%s]' % request.url_string]
 				keys = words.keys()
 				keys.sort()
 				for k in keys:
-					sc_module.OutputQueue.put(__name__, '\tWord: [%s] x %d%s' % (words[k][0], words[k][1], words[k][2]))
+					msgs.append('\tWord: [%s] x %d%s' % (words[k][0], words[k][1], words[k][2]))
+				sc_module.OutputQueue.put(__name__, msgs)
 
 def check(text, words):
 	if not text: return

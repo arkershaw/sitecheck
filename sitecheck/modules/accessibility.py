@@ -12,31 +12,32 @@ ignore.add('6.3.1.1') # programmatic objects require testing (script)
 ignore.add('7.1.1') # remove flicker
 ignore.add('8.1.1.1') # ensure programmatic objects are accessible (script)
 
-#opts = sc_module.get_args(__name__)
 opts = {'show-warnings': False, 'accessibility-check': 1}
 
 def process(request, response):
 	if response.is_html:
 		try:
 			res = tidy.parseString(response.content, **opts)
-			if len(res.errors) > 0:
-				errors = list()
-				for err in res.errors:
-					mtch = acc.search(str(err))
-					ign = False
-					if mtch:
-						txt = ''
-						for grp in mtch.groups():
-							if len(txt) > 0: txt += '.'
-							txt += grp
-							if txt in ignore:
-								ign = True
-								break
-						if not ign: errors.append(err)
-
-				if len(errors) > 0:
-					sc_module.OutputQueue.put(__name__, 'Invalid: [%s] (%d errors)' % (request.url_string, len(errors)))
-					for err in errors:
-						sc_module.OutputQueue.put(__name__, '\t%s' % err)
 		except:
 			sc_module.OutputQueue.put(__name__, 'Error parsing: [%s]' % request.url_string)
+			return
+
+		if len(res.errors) > 0:
+			errors = list()
+			for err in res.errors:
+				mtch = acc.search(str(err))
+				ign = False
+				if mtch:
+					txt = ''
+					for grp in mtch.groups():
+						if len(txt) > 0: txt += '.'
+						txt += grp
+						if txt in ignore:
+							ign = True
+							break
+					if not ign: errors.append(err)
+
+			if len(errors) > 0:
+				msgs = ['URL: %s (%d errors)' % (request.url_string, len(errors))]
+				msgs.extend(['\t%s' % e for e in errors])
+				sc_module.OutputQueue.put(__name__, msgs)

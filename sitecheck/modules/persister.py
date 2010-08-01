@@ -8,12 +8,11 @@ hdrs = sc_module.get_arg(__name__, 'headers', False)
 cntnt = sc_module.get_arg(__name__, 'content', False)
 
 def process(request, response):
-	if len(out) == 0: out = 'output'
-	out = sc_module.output + '/' + out
-
 	if not (hdrs or cntnt): return
 
-	dr = out + '/' + request.url.netloc
+	od = sc_module.session.output + '/' + out
+
+	dr = od + '/' + request.url.netloc
 	parts = request.url.path.split('/')
 	if parts[-1] == '':
 		parts[-1] = '__index'
@@ -27,16 +26,15 @@ def process(request, response):
 	if len(request.url.query) > 0: fl += '?' +  urllib.unquote_plus(request.url.query)
 	fl = re.sub('([ \\/])', '\\\1', fl)
 
-	pth = dr + '/' + fl
+	pth = os.path.join(dr, fl)
 	if os.path.exists(pth + '.hdr.xml') and os.path.exists(pth + '.html'): return
 
 	sc_module.ensure_dir(dr)
 	if hdrs:
 		write_headers(response, pth + '.hdr.xml')
-	if len(response.content) > 0 and cntnt:
-		if response.is_html:
-			if not re.search('\.html?$', pth, re.IGNORECASE):
-				pth += '.html'
+	if cntnt and len(response.content) > 0 and response.status < 300:
+		if response.is_html and not re.search('\.html?$', pth, re.IGNORECASE):
+			pth += '.html'
 		write_content(response.content, pth)
 
 def write_headers(response, outfile):
@@ -64,6 +62,7 @@ def write_headers(response, outfile):
 			txt = doc.createTextNode(value)
 			h.appendChild(txt)
 			n.appendChild(h)
+
 		doc_root.writexml(open(outfile, 'w'), addindent='\t', newl='\r\n')
 		doc_root.unlink()
 

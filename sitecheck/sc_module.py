@@ -14,7 +14,7 @@ class Request(object):
 		self.redirects = 0
 		self.timeouts = 0
 		self.modules = {}
-		self.postdata = {}
+		self.postdata = []
 		self.headers = {}
 
 	def full_url(self, url, referrer):
@@ -44,10 +44,11 @@ class Request(object):
 
 		if len(self.postdata) > 0:
 			pdout = []
-			keys = self.postdata.keys()
+			keys = [x for x, y in self.postdata]
 			keys.sort()
 			for k in keys:
-				pdout.append((k, self.postdata[k][0]))
+				for v in filter(lambda v: v[0] == k, self.postdata):
+					pdout.append((k, v[1]))
 			m.update(urllib.urlencode(pdout).encode('utf-8'))
 
 		return m.hexdigest()
@@ -129,18 +130,32 @@ class RequestQueue(Queue.Queue):
 
 	def retry(self, request):
 		if request.timeouts >= session.max_retries:
-			OutputQueue.put(None, 'Exceeded max_retries for: [%s]' % request.url_string)
+			return False
 		else:
 			request.timeouts += 1
 			Queue.Queue.put(self, request)
+			return True
 
 class OutputQueue(Queue.Queue):
+	def __init__(self):
+		Queue.Queue.__init__(self)
+		self._batch_lock = threading.Lock()
+
 	def put(self, module, value, block=True, timeout=None):
 		if module == None:
 			mod = 'sitecheck'
 		else:
 			mod = module[8:]
-		Queue.Queue.put(self, (mod, value.encode('utf-8', 'replace') + '\n'), block, timeout)
+
+		if type(value) is str:
+			Queue.Queue.put(self, (mod, value.encode('utf-8', 'replace') + '\n'), block, timeout)
+		else:
+			self._batch_lock.acquire()
+			try:
+				for val in value:
+					Queue.Queue.put(self, (mod, val.encode('utf-8', 'replace') + '\n'), block, timeout)
+			finally:
+				self._batch_lock.release()
 
 def parse_html(html):
 	try:
@@ -165,14 +180,13 @@ def ensure_dir(d):
 
 def get_arg(module, name, default):
 	val = None
-	if session.modules.has_key(module[8:]):
-		args = session.modules[module[8:]]
-		if args:
-			if args.has_key(name):
-				val = args[name]
-	if val == None:
+	args = session.modules.get(module[8:])
+	if args: val = args.get(name)
+
+	if not val:
 		val = default
 		OutputQueue.put(module, 'Argument: [' + name + '] not found - using default: [' + str(default) + ']')
+
 	return val
 
 def get_args(module):
@@ -180,3 +194,4 @@ def get_args(module):
 
 RequestQueue = RequestQueue()
 OutputQueue = OutputQueue()
+cookie = ''

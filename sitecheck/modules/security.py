@@ -4,25 +4,28 @@ import sc_module
 
 xss = re.compile("<xss>", re.IGNORECASE)
 eqs = re.compile("(\w+=)(?:&|$)")
+email = sc_module.get_arg(__name__, 'email', 'test@test.test')
 attacks = sc_module.get_arg(__name__, 'attacks', [])
 
 def process(request, response):
 	if request.source == __name__:
+		msgs = []
 		if response.status >= 500:
-			sc_module.OutputQueue.put(__name__, 'Caused error with request: [%s]' % request.url_string)
+			msgs.append('Caused error with request: [%s]' % request.url_string)
 			if len(request.postdata) > 0:
-				sc_module.OutputQueue.put(__name__, '\tPost data: [%s]' % urllib.urlencode(request.postdata))
+				msgs.append('\tPost data: [%s]' % urllib.urlencode(request.postdata))
 		elif xss.search(response.content):
-			sc_module.OutputQueue.put(__name__, 'Possible XSS found in: [%s]' % request.url_string)
+			msgs.append('Possible XSS found in: [%s]' % request.url_string)
 			if len(request.postdata) > 0:
-				sc_module.OutputQueue.put(__name__, '\tPost data: [%s]' % urllib.urlencode(request.postdata))
+				msgs.append('\tPost data: [%s]' % urllib.urlencode(request.postdata))
+
+		if len(msgs) > 0: sc_module.OutputQueue.put(__name__, msgs)
+
 	elif response.is_html:
 		doc, err = sc_module.parse_html(response.content)
 		if doc:
 			for atk in attacks:
 				inject(request, doc, atk)
-		#inject(request, document, "1'1\'1")
-		#inject(request, document, "'';!--\"<xss>=&{()}")
 
 def inject(request, document, value):
 	qs = urlparse.parse_qs(request.url.query)
@@ -31,6 +34,7 @@ def inject(request, document, value):
 		qs[param] = value
 		url = urlparse.urljoin(request.url_string, '?' + urllib.urlencode(qs, True))
 		qs[param] = temp
+
 		req = sc_module.Request(__name__, url, request.referrer)
 		req.modules = {__name__[8:]: None}
 		sc_module.RequestQueue.put(req)
@@ -46,32 +50,52 @@ def inject(request, document, value):
 
 	if document:
 		postdata = []
-		forms = document('form')
-		for f in forms:
+		for f in document('form'):
 			url = request.url_string
 			post = False
 			if ('action' in dict(f.attrs)):
 				url = f['action']
 			if ('method' in dict(f.attrs)):
 				if f['method'].upper() == 'POST': post = True
-			params = {}
+
+			params = []
 			inputs = f({'input': True, 'textarea': True, 'select': True})
 			for i in inputs:
-				if ('name' in dict(i.attrs)):
-					params[i['name']] = value
+				attrs = dict(i.attrs)
+				if 'name' in attrs:
+					name = attrs['name']
 
-			#Empty request
+					val = attrs.get('value')
+					if not val: val = ''
+					if len(val) == 0:
+						if name.lower().find('date') > -1:
+							val = '1/1/2000'
+						elif name.lower().find('email') > -1:
+							val = email
+						else:
+							val = '1'
+					params.append((name, val))
+
+			# Try an empty request
 			req = sc_module.Request(__name__, url, request.referrer)
 			req.modules = {__name__[8:]: None}
 			sc_module.RequestQueue.put(req)
 
-			if not post:
-				if len(urlparse.urlparse(url).query) > 0:
-					url = url + '&' + urllib.urlencode(params)
-				else:
-					url = url + '?' + urllib.urlencode(params)
+			for cp in params:
+				rp = [insert_param(p, cp[0], value) for p in params] # Construct new list
+				if not post:
+					if len(urlparse.urlparse(url).query) > 0:
+						url = url + '&' + urllib.urlencode(rp)
+					else:
+						url = url + '?' + urllib.urlencode(rp)
 
-			req = sc_module.Request(__name__, url, request.referrer)
-			if post: req.postdata = params
-			req.modules = {__name__[8:]: None}
-			sc_module.RequestQueue.put(req)
+				req = sc_module.Request(__name__, url, request.referrer)
+				if post: req.postdata = rp
+				req.modules = {__name__[8:]: None}
+				sc_module.RequestQueue.put(req)
+
+def insert_param(item, name, value):
+	if item[0] == name:
+		return (name, value)
+	else:
+		return item
