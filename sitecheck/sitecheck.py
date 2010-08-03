@@ -3,6 +3,9 @@
 import sys, os, threading, time, httplib, urllib, socket, Queue, datetime, urlparse, re
 import sc_module
 
+AUTH_REQUEST_KEY = '__authentication__req'
+AUTH_RESPONSE_KEY = '__authentication__res'
+
 class LogWriter(threading.Thread):
 	def __init__(self, terminate):
 		threading.Thread.__init__(self)
@@ -112,7 +115,10 @@ class SiteChecker(threading.Thread):
 
 				msgs = []
 				if response:
-					msgs.append('%s: [%s] status: %s' % (request.verb, request.url_string, str(response.status)))
+					if request.source == AUTH_RESPONSE_KEY:
+						msgs.append('Authentication %s: [%s] status: %s' % (request.verb, request.url_string, str(response.status)))
+					else:
+						msgs.append('%s: [%s] status: %s' % (request.verb, request.url_string, str(response.status)))
 					if sc_module.session.log.get('request_headers'): msgs.append('\tREQUEST HEADERS: %s' % request.headers)
 					if sc_module.session.log.get('post_data') and len(request.postdata) > 0: msgs.append('\tPOST DATA: %s' % request.postdata)
 					if sc_module.session.log.get('response_headers'): msgs.append('\tRESPONSE HEADERS: %s' % response.headers)
@@ -152,12 +158,32 @@ class SiteChecker(threading.Thread):
 
 				if len(request.modules) == 0: request.modules = sc_module.session.modules
 				for name, args in request.modules.iteritems():
-					if 'modules.' + name in sys.modules:
+					if name == 'spider' and request.source in [AUTH_REQUEST_KEY, AUTH_RESPONSE_KEY]:
+						pass
+					elif 'modules.' + name in sys.modules:
 						try:
 							sys.modules['modules.' + name].process(request, response)
 						except:
 							ex = sys.exc_info()
 							sc_module.OutputQueue.put(name, 'ERROR: processing result with module [%s] [%s %s]' % (name, str(ex[0]), str(ex[1])))
+
+				if request.source == AUTH_REQUEST_KEY:
+					if sc_module.session.auth_post:
+						url = sc_module.session.auth_url
+					else:
+						if len(urlparse.urlparse(sc_module.session.auth_url).query) > 0:
+							sep = '&'
+						else:
+							sep = '?'
+						url = '%s%s%s' % (sc_module.session.auth_url, sep, urllib.urlencode(sc_module.session.auth_params, True))
+
+					req = sc_module.Request(AUTH_RESPONSE_KEY, url, url)
+					if sc_module.session.auth_post: req.postdata = sc_module.session.auth_params
+					sc_module.RequestQueue.put(req)
+				elif request.source == AUTH_RESPONSE_KEY:
+					# Begin spidering
+					print 'Checking.'
+					sc_module.RequestQueue.put_url('', sc_module.session.page, sc_module.session.page)
 
 if __name__ == '__main__':
 	from optparse import OptionParser
@@ -204,7 +230,7 @@ if __name__ == '__main__':
 
 		if opts.domain:
 			d = opts.domain
-			if not re.match('^http', d, re.IGNORECASE): d = 'http://' + d
+			if not re.match('^http', d, re.IGNORECASE): d = '%s://%s' % (sc_module.session.scheme, d)
 			parts = urlparse.urlparse(d)
 			sc_module.session.domain = parts.netloc
 			sc_module.session.path = parts.path
@@ -215,12 +241,19 @@ if __name__ == '__main__':
 			print 'Supply either a domain, a config file or a suspended session.'
 			sys.exit()
 
+		if opts.page: sc_module.session.page = opts.page
+
 		sc_module.session.root = pth
 		sc_module.session.output = pth + sc_module.session.output
 
 		if len(sc_module.session.path) == 0: sc_module.session.path = '/'
 		if not sc_module.session.path[0] == '/': sc_module.session.path = '/' + sc_module.session.path
 		if not sc_module.session.path[-1] == '/' and len(os.path.splitext(sc_module.session.path)[1]) == 0: sc_module.session.path = sc_module.session.path + '/'
+
+		if not sc_module.session.page.lower().startswith(sc_module.session.path): sc_module.session.page = sc_module.session.path + sc_module.session.page
+
+		if sc_module.session.auth_url:
+			if not sc_module.session.auth_url.lower().startswith(sc_module.session.path): sc_module.session.auth_url = sc_module.session.path + sc_module.session.auth_url
 
 	# Organise file type sets
 	sc_module.session.include_ext = sc_module.session.include_ext.difference(sc_module.session.ignore_ext)
@@ -245,12 +278,16 @@ if __name__ == '__main__':
 	print '''s -> Suspend
 q -> Abort
 Any key -> Print status'''
-	print 'Scanning: [http://' + sc_module.session.domain + sc_module.session.path + ']'
-	if opts.page:
-		sc_module.RequestQueue.put_url('', sc_module.session.path + opts.page, '')
+
+	print 'Target: [%s://%s%s]' % (sc_module.session.scheme, sc_module.session.domain, sc_module.session.path)
+	print 'Output: [%s]' % sc_module.session.output
+
+	if sc_module.session.auth_url:
+		print 'Authenticating.'
+		sc_module.RequestQueue.put_url(AUTH_REQUEST_KEY, sc_module.session.auth_url, sc_module.session.auth_url)
 	else:
-		sc_module.RequestQueue.put_url('', sc_module.session.path, '')
-	print 'Output: [' + sc_module.session.output + ']'
+		print 'Checking.'
+		sc_module.RequestQueue.put_url('', sc_module.session.page, sc_module.session.page)
 
 	lw_terminate = threading.Event()
 	lw = LogWriter(lw_terminate)

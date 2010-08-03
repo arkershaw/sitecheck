@@ -20,14 +20,28 @@ class Request(object):
 	def full_url(self, url, referrer):
 		parts = urlparse.urlparse(url)
 		full_url = url
-		if re.match('http', parts.scheme, re.IGNORECASE) or len(parts.scheme) == 0:
-			temp = ''
-			if parts.netloc == '':
-				scheme = urlparse.urlparse(referrer).scheme
-				if len(scheme) == 0: scheme = 'http'
-				temp += scheme + '://' + session.domain
-				if len(session.path) > 0: temp += session.path
-				full_url = urlparse.urljoin(temp, url)
+
+		if len(parts.scheme) == 0:
+			scheme = urlparse.urlparse(referrer).scheme
+			if len(scheme) == 0:
+				temp = urlparse.urljoin('%s://%s%s' % (session.scheme, session.domain, session.path), referrer)
+			else:
+				temp = referrer
+
+			full_url = urlparse.urljoin(temp, url)
+
+		#print url
+		#print referrer
+		#print full_url
+		#print ''
+		#if re.match('^http', parts.scheme, re.IGNORECASE) or len(parts.scheme) == 0:
+			#temp = ''
+			#if parts.netloc == '':
+				#scheme = urlparse.urlparse(referrer).scheme
+				#if len(scheme) == 0: scheme = session.scheme
+				#temp += scheme + '://' + session.domain
+				#if len(session.path) > 0: temp += session.path
+				#full_url = urlparse.urljoin(temp, url)
 
 		return full_url.replace(' ', '%20')
 
@@ -84,19 +98,29 @@ class RequestQueue(Queue.Queue):
 		self._url_lock = threading.Lock()
 		self.urls = {}
 
-	def _put_url(self, source, url, referrer, block=True, timeout=None):
-		if url == None: return
-		if len(url) == 0: return
+	def _is_valid(self, url):
+		if url == None: return False
+		if len(url) == 0: return False
 
 		parts = urlparse.urlparse(url)
+		for ignore in session.ignore_url:
+			if parts.path.lower().endswith(ignore.lower()): return False
+
 		ext = os.path.splitext(parts.path)[1][1:].lower()
-		if not ext in session.ignore_ext:
-			if re.match('http', parts.scheme, re.IGNORECASE) or len(parts.scheme) == 0:
-				req = Request(source, url, referrer)
-				hc = req.hash()
-				if not hc in self.urls:
-					self.urls[hc] = True
-					Queue.Queue.put(self, req, block, timeout)
+		if ext in session.ignore_ext: return False
+
+		if re.match('http', parts.scheme, re.IGNORECASE) or len(parts.scheme) == 0:
+			return True
+		else:
+			return False
+
+	def _put_url(self, source, url, referrer, block=True, timeout=None):
+		if self._is_valid(url):
+			req = Request(source, url, referrer)
+			hc = req.hash()
+			if not hc in self.urls:
+				self.urls[hc] = True
+				Queue.Queue.put(self, req, block, timeout)
 
 	def put_url(self, source, url, referrer, block=True, timeout=None):
 		self._url_lock.acquire()
@@ -114,7 +138,7 @@ class RequestQueue(Queue.Queue):
 			self._url_lock.release()
 
 	def put(self, request, block=True, timeout=None):
-		if re.match('http', request.url.scheme, re.IGNORECASE) or len(request.url.scheme) == 0:
+		if self._is_valid(request.url_string):
 			self._url_lock.acquire()
 			try:
 				hc = request.hash()

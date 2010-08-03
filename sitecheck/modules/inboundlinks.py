@@ -3,7 +3,7 @@ import urlparse, re
 import sc_module
 
 #URL, page regex, link regex, page size, initial offset
-engines = {
+params = {
 	'Google': [
 		'http://www.google.co.uk/search?q=site:%s&num=100&start=%d&filter=0',
 		re.compile('<div id=resultstats>(?:page \d+ of )?(?:about )?([0-9,\.]+)', re.IGNORECASE),
@@ -24,11 +24,13 @@ engines = {
 	]
 }
 
+engines = sc_module.get_arg(__name__, 'engines', None)
 inbound = set()
 
 def begin():
-	for se in engines.iterkeys():
-		e = engines[se]
+	if not engines: engines = params.keys()
+	for se in engines:
+		e = params[se]
 		e.extend([0, e[4]]) # Total results, current result offset
 		url = e[0] % (sc_module.session.domain, 0)
 		req = sc_module.Request(__name__, url, se)
@@ -37,8 +39,8 @@ def begin():
 		sc_module.RequestQueue.put(req)
 
 def process(request, response):
-	if request.source == __name__ and response.is_html and engines.has_key(request.referrer):
-		e = engines[request.referrer]
+	if request.source == __name__ and response.is_html and request.referrer in engines:
+		e = params[request.referrer]
 		mtch = e[1].search(response.content)
 		if mtch == None:
 			sc_module.OutputQueue.put(__name__, 'ERROR: Unable to calculate pages [%s]' % request.url_string)
