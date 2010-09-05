@@ -185,6 +185,23 @@ class SiteChecker(threading.Thread):
 					print 'Checking.'
 					sc_module.RequestQueue.put_url('', sc_module.session.page, sc_module.session.page)
 
+def readinput():
+	class ReadInputThread(threading.Thread):
+		def __init__(self):
+			threading.Thread.__init__(self)
+			self.input = None
+
+		def run(self):
+			try:
+				self.input = raw_input()
+			except:
+				pass
+
+	it = ReadInputThread()
+	it.start()
+	it.join(60)
+	return it.input
+
 if __name__ == '__main__':
 	from optparse import OptionParser
 	import pickle
@@ -302,24 +319,29 @@ Any key -> Print status'''
 		thread.start()
 		threads.append(thread)
 
+	def complete():
+		cmpl = False
+		if sc_module.RequestQueue.empty():
+			cmpl = True
+			for t in threads:
+				if t.active:
+					cmpl = False
+		return cmpl
+
 	suspend = False
 	while True:
-		char = raw_input()
+		char = readinput()
 		if char == 'q':
 			break
-		if char == 's':
+		elif char == 's':
 			suspend = True
 			break
+		elif char == None:
+			if complete(): break
 		else:
 			print "URLs:", len(sc_module.RequestQueue.urls)
 			print "Queue:", sc_module.RequestQueue.qsize()
-			if sc_module.RequestQueue.empty():
-				ext = True
-				for t in threads:
-					if t.active:
-						ext = False
-						break
-				if ext: break
+			if complete(): break
 
 	if suspend:
 		print 'Suspending...'
