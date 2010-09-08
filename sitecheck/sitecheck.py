@@ -1,5 +1,23 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
+# Copyright 2009 Andrew Kershaw
+
+# This file is part of sitecheck.
+
+# Sitecheck is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# Sitecheck is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
+
 import sys, os, threading, time, httplib, urllib, socket, Queue, datetime, urlparse, re
 import sc_module
 
@@ -205,6 +223,9 @@ def readinput():
 if __name__ == '__main__':
 	from optparse import OptionParser
 	import pickle
+
+	print '''Sitecheck Copyright (C) 2009 Andrew Kershaw
+This program comes with ABSOLUTELY NO WARRANTY'''
 
 	parser = OptionParser()
 	parser.add_option('-d', '--domain', dest='domain', default=None)
