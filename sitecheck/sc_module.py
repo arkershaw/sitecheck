@@ -17,16 +17,17 @@
 # You should have received a copy of the GNU General Public License
 # along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
 
-import threading, Queue, urlparse, urllib, os, hashlib, re, time, sys
+import threading, Queue, urlparse, urllib, os, re, time, sys
 import sc_config
-from BeautifulSoup import BeautifulSoup, HTMLParseError
+#from BeautifulSoup import BeautifulSoup, HTMLParseError
+from hashlib import sha1
 
 session = sc_config.sc_session()
 
 class Request(object):
 	def __init__(self, source, url, referrer):
 		self.source = source
-		self.referrer = referrer
+		self.referrer = referrer # Set before calling _set_url
 		self._set_url(url)
 		self.verb = ''
 		self.redirects = 0
@@ -64,7 +65,7 @@ class Request(object):
 		return full_url.replace(' ', '%20')
 
 	def hash(self):
-		m = hashlib.sha1()
+		m = sha1()
 		qsin = urlparse.parse_qs(self.url.query)
 		qsout = []
 		keys = qsin.keys()
@@ -199,17 +200,17 @@ class OutputQueue(Queue.Queue):
 			finally:
 				self._batch_lock.release()
 
-def parse_html(html):
-	try:
-		#BeautifulSoup treats the doctype as text (supposedly only if it is malformed)
-		ct = re.sub('<!DOCTYPE[^>]*>', '', html, re.IGNORECASE | re.MULTILINE | re.DOTALL)
-		doc = BeautifulSoup(ct, convertEntities=BeautifulSoup.HTML_ENTITIES)
-		err = None
-	except:
-		doc = None
-		ex = sys.exc_info()
-		err = str(ex[0]) + ' ' + str(ex[1])
-	return doc, err
+#def parse_html(html):
+	#try:
+		##BeautifulSoup treats the doctype as text (supposedly only if it is malformed)
+		#ct = re.sub('<!DOCTYPE[^>]*>', '', html, re.IGNORECASE | re.MULTILINE | re.DOTALL)
+		#doc = BeautifulSoup(ct, convertEntities=BeautifulSoup.HTML_ENTITIES)
+		#err = None
+	#except:
+		#doc = None
+		#ex = sys.exc_info()
+		#err = str(ex[0]) + ' ' + str(ex[1])
+	#return doc, err
 
 _ensure_dir_lock = threading.Lock()
 def ensure_dir(d):

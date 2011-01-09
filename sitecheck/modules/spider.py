@@ -17,51 +17,48 @@
 # You should have received a copy of the GNU General Public License
 # along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
 
-import urlparse
+import urlparse, re
 import sc_module
 
 def process(request, response):
 	if response.is_html:
-		doc, err = sc_module.parse_html(response.content)
-		if doc:
-			referrer = request.url_string
+		referrer = request.url_string
+		msgs = ['Location: [%s]' % request.url_string]
 
-			sc_module.RequestQueue.put_urls(__name__, filter(valid, gather(doc, None, 'src')), referrer)
-			sc_module.RequestQueue.put_urls(__name__, filter(valid, gather(doc, None, 'href')), referrer)
-			sc_module.RequestQueue.put_urls(__name__, filter(valid, gather(doc, 'form', 'action')), referrer)
+		sc_module.RequestQueue.put_urls(__name__, map(lambda e: e[2], gather(response.content, 'src')), referrer)
+		sc_module.RequestQueue.put_urls(__name__, map(lambda e: e[2], gather(response.content, 'action', 'form')), referrer)
 
-			urls = set()
-			msgs = ['Location: [%s]' % request.url_string]
-			for a in doc('a', attrs={'href': True}):
-				urls.add(a['href'])
+		urls = set()
+		for href in gather(response.content, 'href'):
+			if href[0] == 'a':
+				urls.add(href[2])
+			sc_module.RequestQueue.put_url(__name__, href[2], referrer)
 
-			out = filter(valid, list(urls))
-			out.sort()
-			for url in out:
-				if url.count(' ') > 0:
-					msgs.append('\t-> [%s] *Unencoded' % url)
-				else:
-					msgs.append('\t-> [%s]' % url)
+		out = list(urls)
+		out.sort()
+		for url in out:
+			if url.count(' ') > 0:
+				msgs.append('\t-> [%s] *Unencoded' % url)
+			else:
+				msgs.append('\t-> [%s]' % url)
 
-			sc_module.OutputQueue.put(__name__, msgs)
+		sc_module.OutputQueue.put(__name__, msgs)
 
-def valid(url):
-	if url.startswith('#'):
-		return False
-	elif url.lower().startswith('javascript:'):
-		return False
+def gather(document, attribute, element=None):
+	# Test strings:
+	# < form name = name action = test 1 method = get>
+	# < form name = "name" action = "test 1" method = "get">
+
+	flags = re.IGNORECASE | re.DOTALL | re.MULTILINE
+	if element:
+		rx = re.compile(r'<\s*(?P<element>%s)\b[^>]*?\b%s\s*=\s*(?P<quoted>")?(?P<attr>.*?)(?(quoted)"|[\s>])' \
+			% (element, attribute), flags)
 	else:
-		return True
+		rx = re.compile(r'<\s*(?P<element>[\w]+)\b[^>]*?\b%s\s*=\s*(?P<quoted>")?(?P<attr>.*?)(?(quoted)"|[\s>])' \
+			% attribute, flags)
 
-def gather(document, element, attribute):
-	if element and attribute:
-		elements = document(element, attrs={attribute: True})
-	elif element:
-		elements = document(element)
-	elif attribute:
-		elements = document(attrs={attribute: True})
-	else:
-		return
-
-	for e in elements:
-		yield e[attribute]
+	mtchs = rx.finditer(document)
+	for m in mtchs:
+		url = m.group('attr')
+		if not url.startswith('#') and not url.lower().startswith('javascript:'):
+			yield (m.group('element'), attribute, url)

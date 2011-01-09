@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 
 # Copyright 2009 Andrew Kershaw
@@ -21,39 +21,51 @@
 import sys, os, threading, time, httplib, urllib, socket, Queue, datetime, urlparse, re
 import sc_module
 
-AUTH_REQUEST_KEY = '__authentication__req'
-AUTH_RESPONSE_KEY = '__authentication__res'
+AUTH_REQUEST_KEY = '__AUTHENTICATION__REQ'
+AUTH_RESPONSE_KEY = '__AUTHENTICATION__RES'
+
+import urllib2
+class HeadRequest(urllib2.Request):
+	def get_method(self):
+		return "HEAD"
+
+#response = urllib2.urlopen(HeadRequest("http://google.com/index.html"))
+#Headers are available via response.info() as before. Interestingly, you can 
+#find the URL that you were redirected to:
+#print response.geturl()
 
 class LogWriter(threading.Thread):
 	def __init__(self, terminate):
 		threading.Thread.__init__(self)
 		self.terminate = terminate
+		self.outfiles = {}
+	
+	def writenext(self):
+		try:
+			mod, out = sc_module.OutputQueue.get(block=False)
+		except Queue.Empty:
+			self.terminate.wait(sc_module.session.wait_seconds)
+		else:
+			if mod in self.outfiles:
+				self.outfiles[mod].write(out)
+			else:
+				self.outfiles['sitecheck'].write('Module output file not found: [%s]\n' % mod)
 
 	def run(self):
 		sc_module.ensure_dir(sc_module.session.output)
-		self.outfiles = {'sitecheck': open(sc_module.session.output + '/sitecheck.log', 'a')}
+		self.outfiles = {'sitecheck': open('%s/sitecheck.log' % sc_module.session.output, 'a')}
 		for name in sc_module.session.modules.iterkeys():
-			self.outfiles[name] = open(sc_module.session.output + '/' + name + '.log', 'a')
+			self.outfiles[name] = open('%s/%s.log' % (sc_module.session.output, name), 'a')
 
-		sc_module.OutputQueue.put(None, 'Started: ' + str(datetime.datetime.now()))
+		sc_module.OutputQueue.put(None, 'Started: %s\n' % str(datetime.datetime.now()))
 
 		while not self.terminate.isSet():
-			try:
-				mod, out = sc_module.OutputQueue.get(block=False)
-			except Queue.Empty:
-				self.terminate.wait(sc_module.session.wait_seconds)
-			else:
-				self.outfiles[mod].write(out)
+			self.writenext()
 
-		sc_module.OutputQueue.put(None, 'Completed: ' + str(datetime.datetime.now()))
+		sc_module.OutputQueue.put(None, 'Completed: %s\n' % str(datetime.datetime.now()))
 
-		while True:
-			try:
-				mod, out = sc_module.OutputQueue.get(block=False)
-			except Queue.Empty:
-				break
-			else:
-				self.outfiles[mod].write(out)
+		while not sc_module.OutputQueue.empty():
+			self.writenext()
 
 		for fl in self.outfiles.iteritems():
 			fl[1].close()
@@ -140,10 +152,10 @@ class SiteChecker(threading.Thread):
 					if sc_module.session.log.get('request_headers'): msgs.append('\tREQUEST HEADERS: %s' % request.headers)
 					if sc_module.session.log.get('post_data') and len(request.postdata) > 0: msgs.append('\tPOST DATA: %s' % request.postdata)
 					if sc_module.session.log.get('response_headers'): msgs.append('\tRESPONSE HEADERS: %s' % response.headers)
-					if response.is_html:
-						doc, err = sc_module.parse_html(response.content)
-						if doc == None:
-							msgs.append('\tERROR: Unable to parse content [%s]: %s' % (request.url_string, err))
+					#if response.is_html:
+						#doc, err = sc_module.parse_html(response.content)
+						#if doc == None:
+							#msgs.append('\tERROR: Unable to parse content [%s]: %s' % (request.url_string, err))
 				else:
 					if err:
 						msgs.append('ERROR: %s' % err)
@@ -176,14 +188,15 @@ class SiteChecker(threading.Thread):
 
 				if len(request.modules) == 0: request.modules = sc_module.session.modules
 				for name, args in request.modules.iteritems():
+					mod = 'modules.%s' % name
 					if name == 'spider' and request.source in [AUTH_REQUEST_KEY, AUTH_RESPONSE_KEY]:
 						pass
-					elif 'modules.' + name in sys.modules:
+					elif mod in sys.modules:
 						try:
-							sys.modules['modules.' + name].process(request, response)
+							sys.modules[mod].process(request, response)
 						except:
 							ex = sys.exc_info()
-							sc_module.OutputQueue.put(name, 'ERROR: processing result with module [%s] [%s %s]' % (name, str(ex[0]), str(ex[1])))
+							sc_module.OutputQueue.put(mod, 'ERROR: Processing with module [%s]\n%s' % (name, str(ex[1])))
 
 				if request.source == AUTH_REQUEST_KEY:
 					if sc_module.session.auth_post:
@@ -200,7 +213,7 @@ class SiteChecker(threading.Thread):
 					sc_module.RequestQueue.put(req)
 				elif request.source == AUTH_RESPONSE_KEY:
 					# Begin spidering
-					print 'Checking.'
+					print('Checking...')
 					sc_module.RequestQueue.put_url('', sc_module.session.page, sc_module.session.page)
 
 def readinput():
@@ -219,31 +232,40 @@ def readinput():
 	it.start()
 	it.join(60)
 	return it.input
+	
+def complete(threads):
+	cmpl = False
+	if sc_module.RequestQueue.empty():
+		cmpl = True
+		for t in threads:
+			if t.active:
+				cmpl = False
+	return cmpl
 
 if __name__ == '__main__':
-	from optparse import OptionParser
+	from argparse import ArgumentParser
 	import pickle
 
-	print '''Sitecheck Copyright (C) 2009 Andrew Kershaw
-This program comes with ABSOLUTELY NO WARRANTY'''
+	print('''Sitecheck Copyright (C) 2009 Andrew Kershaw
+This program comes with ABSOLUTELY NO WARRANTY''')
 
-	parser = OptionParser()
-	parser.add_option('-d', '--domain', dest='domain', default=None)
-	parser.add_option('-p', '--page', dest='page', default=None)
+	parser = ArgumentParser()
+	parser.add_argument('-d', '--domain', dest='domain', default=None)
+	parser.add_argument('-p', '--page', dest='page', default=None)
+	parser.add_argument('directory')
+	args = parser.parse_args()
 
-	(opts, args) = parser.parse_args()
-
-	if len(args) == 0:
-		print 'Output directory required.'
+	if len(args.directory) == 0:
+		print('Output directory required.')
 		sys.exit()
 
-	pth = args[0]
+	pth = args.directory
 	if pth[-1] != '/': pth = pth + '/'
 	suspend_file = pth + 'suspend.pkl'
 
 	resume = False
 	if os.path.exists(suspend_file):
-		print 'Resuming session.'
+		print('Resuming session...')
 		try:
 			fl = open(suspend_file, 'r')
 			suspend_data = pickle.load(fl)
@@ -254,20 +276,22 @@ This program comes with ABSOLUTELY NO WARRANTY'''
 			os.remove(suspend_file)
 			resume = True
 		except:
-			print 'Unable to load suspend data.'
+			print('Unable to load suspend data.')
 			sys.exit()
 	else:
-		if os.path.exists(pth + 'sc_config.py'):
-			print 'Loading config.'
+		#Load existing configuration
+		cfp = '%ssc_config.py' % pth
+		if os.path.exists(cfp):
+			print('Loading config...')
 			import imp
 			try:
-				sc_module.session = imp.load_source('sc_config', pth + 'sc_config.py').sc_session()
+				sc_module.session = imp.load_source('sc_config', cfp).sc_session()
 			except:
-				print 'Invalid config file found in directory.'
+				print('Invalid config file found in directory.')
 				sys.exit()
 
-		if opts.domain:
-			d = opts.domain
+		if args.domain:
+			d = args.domain
 			if not re.match('^http', d, re.IGNORECASE): d = '%s://%s' % (sc_module.session.scheme, d)
 			parts = urlparse.urlparse(d)
 			sc_module.session.domain = parts.netloc
@@ -276,10 +300,10 @@ This program comes with ABSOLUTELY NO WARRANTY'''
 		elif len(sc_module.session.domain) > 0:
 			pass
 		else:
-			print 'Supply either a domain, a config file or a suspended session.'
+			print('Supply either a domain, a config file or a suspended session.')
 			sys.exit()
 
-		if opts.page: sc_module.session.page = opts.page
+		if args.page: sc_module.session.page = args.page
 
 		sc_module.session.root = pth
 		sc_module.session.output = pth + sc_module.session.output
@@ -301,37 +325,41 @@ This program comes with ABSOLUTELY NO WARRANTY'''
 	mods = sc_module.session.modules.keys()
 	for m in range(len(mods)):
 		name = mods[m]
+		full_name = 'modules.%s' % name
 		try:
-			__import__('modules.' + name)
+			__import__(full_name)
 			if resume:
-				if hasattr(sys.modules['modules.' + name], 'resume'): sys.modules['modules.' + name].resume()
+				if hasattr(sys.modules[full_name], 'resume'): sys.modules[full_name].resume()
 			else:
-				if hasattr(sys.modules['modules.' + name], 'begin'): sys.modules['modules.' + name].begin()
+				if hasattr(sys.modules[full_name], 'begin'): sys.modules[full_name].begin()
 		except:
 			ex = sys.exc_info()
-			print 'Failed to load module [%s]' % name
-			print str(ex[0]) + ' ' + str(ex[1])
+			print('ERROR: Failed to load module [%s]' % name)
+			print('%s %s' % (str(ex[0]), str(ex[1])))
 			sc_module.session.modules.pop(name)
 
-	print '''s -> Suspend
+	print('''s -> Suspend
 q -> Abort
-Any key -> Print status'''
+Any key -> Print status''')
 
-	print 'Target: [%s://%s%s]' % (sc_module.session.scheme, sc_module.session.domain, sc_module.session.path)
-	print 'Output: [%s]' % sc_module.session.output
+	print('Target: [%s://%s%s]' % (sc_module.session.scheme, sc_module.session.domain, sc_module.session.path))
+	print('Output: [%s]' % sc_module.session.output)
 
 	if sc_module.session.auth_url:
-		print 'Authenticating.'
+		#Authenticate before spidering begins
+		print('Authenticating...')
 		sc_module.RequestQueue.put_url(AUTH_REQUEST_KEY, sc_module.session.auth_url, sc_module.session.auth_url)
 	else:
-		print 'Checking.'
+		print('Checking...')
 		sc_module.RequestQueue.put_url('', sc_module.session.page, sc_module.session.page)
 
+	#Create logging thread
 	lw_terminate = threading.Event()
 	lw = LogWriter(lw_terminate)
 	lw.setDaemon(True)
 	lw.start()
 
+	#Create worker thread pool
 	threads = []
 	sc_terminate = threading.Event()
 	for i in range(sc_module.session.thread_pool):
@@ -339,15 +367,6 @@ Any key -> Print status'''
 		thread.setDaemon(True)
 		thread.start()
 		threads.append(thread)
-
-	def complete():
-		cmpl = False
-		if sc_module.RequestQueue.empty():
-			cmpl = True
-			for t in threads:
-				if t.active:
-					cmpl = False
-		return cmpl
 
 	suspend = False
 	while True:
@@ -358,17 +377,18 @@ Any key -> Print status'''
 			suspend = True
 			break
 		elif char == None:
-			if complete(): break
+			if complete(threads): break
 		else:
-			print "URLs:", len(sc_module.RequestQueue.urls)
-			print "Queue:", sc_module.RequestQueue.qsize()
-			if complete(): break
+			print('URLs: %d' % len(sc_module.RequestQueue.urls))
+			print('Queue: %d' % sc_module.RequestQueue.qsize())
+			if complete(threads): break
 
 	if suspend:
-		print 'Suspending...'
+		print('Suspending...')
 	else:
-		print 'Finishing...'
+		print('Finishing...')
 
+	#Wait for worker threads to complete
 	sc_terminate.set()
 	for thread in threads:
 		thread.join()
@@ -378,13 +398,16 @@ Any key -> Print status'''
 		while not sc_module.RequestQueue.empty():
 			rq.append(sc_module.RequestQueue.get(block=False))
 		fl = open(suspend_file, 'w')
+		#Dump config, url's and requests to file
 		pickle.dump((sc_module.session, sc_module.RequestQueue.urls, rq), fl)
 		fl.close()
 	else:
 		for name in sc_module.session.modules.iterkeys():
-			if hasattr(sys.modules['modules.' + name], 'complete'): sys.modules['modules.' + name].complete()
+			mod = 'modules.%s' % name
+			if hasattr(sys.modules[mod], 'complete'): sys.modules[mod].complete()
 
+	#Wait for log entries to be written
 	lw_terminate.set()
 	lw.join()
 
-	print 'Completed.'
+	print('Completed.')
