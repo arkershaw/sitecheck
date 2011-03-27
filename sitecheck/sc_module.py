@@ -17,10 +17,8 @@
 # You should have received a copy of the GNU General Public License
 # along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
 
-import threading, Queue, urlparse, urllib, os, re, time, sys
+import threading, Queue, urlparse, urllib, os, re, time, sys, hashlib, htmlentitydefs
 import sc_config
-#from BeautifulSoup import BeautifulSoup, HTMLParseError
-from hashlib import sha1
 
 session = sc_config.sc_session()
 
@@ -49,23 +47,10 @@ class Request(object):
 
 			full_url = urlparse.urljoin(temp, url)
 
-		#print url
-		#print referrer
-		#print full_url
-		#print ''
-		#if re.match('^http', parts.scheme, re.IGNORECASE) or len(parts.scheme) == 0:
-			#temp = ''
-			#if parts.netloc == '':
-				#scheme = urlparse.urlparse(referrer).scheme
-				#if len(scheme) == 0: scheme = session.scheme
-				#temp += scheme + '://' + session.domain
-				#if len(session.path) > 0: temp += session.path
-				#full_url = urlparse.urljoin(temp, url)
-
 		return full_url.replace(' ', '%20')
 
 	def hash(self):
-		m = sha1()
+		m = hashlib.sha1()
 		qsin = urlparse.parse_qs(self.url.query)
 		qsout = []
 		keys = qsin.keys()
@@ -100,7 +85,11 @@ class Request(object):
 class Response(object):
 	def __init__(self, response, start_time):
 		self.headers = dict(response.getheaders())
-		self.content = response.read()
+		temp = response.read()
+		if temp:
+			self.content = unicode(temp, errors='replace')
+		else:
+			self.content = ''
 		end_time = time.time()
 		self.time = end_time - start_time
 		self.status = response.status
@@ -113,14 +102,16 @@ class Response(object):
 
 class RequestQueue(Queue.Queue):
 	def __init__(self):
+		self.ignore_protocols = ['mailto:', 'javascript:']
 		Queue.Queue.__init__(self)
 		self._url_lock = threading.Lock()
 		self.urls = {}
 
-	def _is_valid(self, url):
+	def is_valid(self, url):
 		if url == None: return False
 		if len(url) == 0: return False
-
+		if url.startswith('#') or url.lower() in self.ignore_protocols: return False
+		
 		parts = urlparse.urlparse(url)
 		for ignore in session.ignore_url:
 			if parts.path.lower().endswith(ignore.lower()): return False
@@ -134,7 +125,7 @@ class RequestQueue(Queue.Queue):
 			return False
 
 	def _put_url(self, source, url, referrer, block=True, timeout=None):
-		if self._is_valid(url):
+		if self.is_valid(url):
 			req = Request(source, url, referrer)
 			hc = req.hash()
 			if not hc in self.urls:
@@ -157,7 +148,7 @@ class RequestQueue(Queue.Queue):
 			self._url_lock.release()
 
 	def put(self, request, block=True, timeout=None):
-		if self._is_valid(request.url_string):
+		if self.is_valid(request.url_string):
 			self._url_lock.acquire()
 			try:
 				hc = request.hash()
@@ -190,27 +181,15 @@ class OutputQueue(Queue.Queue):
 		else:
 			mod = module[8:]
 
-		if type(value) is str:
-			Queue.Queue.put(self, (mod, value.encode('utf-8', 'replace') + '\n'), block, timeout)
+		if isinstance(value, basestring):
+			Queue.Queue.put(self, (mod, value), block, timeout)
 		else:
 			self._batch_lock.acquire()
 			try:
 				for val in value:
-					Queue.Queue.put(self, (mod, val.encode('utf-8', 'replace') + '\n'), block, timeout)
+					Queue.Queue.put(self, (mod, val), block, timeout)
 			finally:
 				self._batch_lock.release()
-
-#def parse_html(html):
-	#try:
-		##BeautifulSoup treats the doctype as text (supposedly only if it is malformed)
-		#ct = re.sub('<!DOCTYPE[^>]*>', '', html, re.IGNORECASE | re.MULTILINE | re.DOTALL)
-		#doc = BeautifulSoup(ct, convertEntities=BeautifulSoup.HTML_ENTITIES)
-		#err = None
-	#except:
-		#doc = None
-		#ex = sys.exc_info()
-		#err = str(ex[0]) + ' ' + str(ex[1])
-	#return doc, err
 
 _ensure_dir_lock = threading.Lock()
 def ensure_dir(d):
@@ -234,6 +213,83 @@ def get_arg(module, name, default):
 
 def get_args(module):
 	return session.modules[module[8:]]
+
+class HtmlHelper(object):
+	def __init__(self, document):
+		self.document = document
+		self.flags = re.IGNORECASE | re.DOTALL # | re.MULTILINE
+
+	def get_element(self, element):
+		rx = re.compile(r'<\s*%s\b.*?>' % element, self.flags)
+		mtchs = rx.finditer(self.document)
+		for m in mtchs:
+			e = HtmlHelper(m.group(0))
+			yield e
+
+	def get_attribute(self, attribute, element=None):
+		# Test strings:
+		# < form name = name action = test 1 method = get>
+		# < form name = "name" action = "test 1" method = "get">
+
+		if element:
+			rx = re.compile(r'<\s*(?P<element>%s)\s[^>]*?(?<=\s)%s\s*=\s*(?P<quoted>")?(?P<attr>.*?)(?(quoted)"|[\s>])' \
+				% (element, attribute), self.flags)
+		else:
+			rx = re.compile(r'<\s*(?P<element>[^\s>]+)\s[^>]*?(?<=\s)%s\s*=\s*(?P<quoted>")?(?P<attr>.*?)(?(quoted)"|[\s>])' \
+				% attribute, self.flags)
+
+		mtchs = rx.finditer(self.document)
+		for m in mtchs:
+			yield (m.group('element'), attribute, m.group('attr'))
+
+	def get_text(self, element=None):
+		if element:
+			rx = re.compile(r'<\s*%s\b[^>]*?>(?P<text>[^<]+?\w[^<]+?)(?:<|$)' % element, self.flags)
+		else:
+			rx = re.compile(r'(?:^[^<]|>)(?P<text>[^<]+?\w[^<]+?)(?:<|$)', self.flags)
+
+		mtchs = rx.finditer(self.document)
+		for m in mtchs:
+			yield m.group('text')
+
+	def strip_element(self, elements):
+		names = elements
+		if type(elements) is str:
+			names = (elements)
+
+		for e in names:
+			self.document = re.sub(r'<\s*%s\b.*?>.*?<\s*/\s*%s\s*>' % (e, e), \
+				'', self.document, flags=self.flags)
+
+	def strip_comments(self):
+		self.document = re.sub(r'<\s*!\s*-\s*-.*?-\s*-\s*>', '', self.document, flags=self.flags)
+
+	def get_comments(self):
+		rx = re.compile(r'<\s*!\s*-\s*-(?P<comment>.*?)-\s*-\s*>', self.flags)
+
+		mtchs = rx.finditer(self.document)
+		for m in mtchs:
+			yield m.group('comment')
+
+#http://effbot.org/zone/re-sub.htm#unescape-html
+def html_decode(text):
+    def fixup(m):
+        text = m.group(0)
+        if text[:2] == "&#":
+            try:
+                if text[:3] == "&#x":
+                    return unichr(int(text[3:-1], 16))
+                else:
+                    return unichr(int(text[2:-1]))
+            except ValueError:
+                pass
+        else:
+            try:
+                text = unichr(htmlentitydefs.name2codepoint[text[1:-1]])
+            except KeyError:
+                pass
+        return text
+    return re.sub("&#?\w+;", fixup, text)
 
 RequestQueue = RequestQueue()
 OutputQueue = OutputQueue()

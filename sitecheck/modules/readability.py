@@ -17,7 +17,6 @@
 # You should have received a copy of the GNU General Public License
 # along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
 
-from BeautifulSoup import Comment
 import re
 import sc_module
 
@@ -35,41 +34,38 @@ def complete():
 def process(request, response):
 	global r_min, r_max, r_count, r_total
 	if response.is_html:
-		doc, err = sc_module.parse_html(response.content) #Parse again so we can modify
-		if doc:
-			tags = doc.findAll(['script', 'style'])
-			[tag.extract() for tag in tags]
-			comments = doc.findAll(text=lambda text:isinstance(text, Comment))
-			[comment.extract() for comment in comments]
+		doc = sc_module.HtmlHelper(response.content)
+		doc.strip_comments()
+		doc.strip_element(('script', 'style'))
 
-			allText = ''
-			for txt in doc.findAll(text=True):
-				if len(txt.strip()) > 0:
-					allText += txt.strip()
-					if allText[-1] in sentenceEnd:
-						allText += ' '
-					else:
-						allText += '. '
-
-			if len(allText.strip()) > 0:
-				twrd = float(words(allText))
-				tsnt = float(sentences(allText))
-				tsyl = float(syllables(allText))
-				fkre = 206.835 - 1.015 * (twrd / tsnt) - 84.6 * (tsyl / twrd)
-
-				r_count += 1
-				r_total += fkre
-				if r_min == None:
-					r_min = fkre
+		allText = ''
+		for txt in doc.get_text():
+			if len(txt.strip()) > 0:
+				allText += txt.strip()
+				if allText[-1] in sentenceEnd:
+					allText += ' '
 				else:
-					r_min = min(r_min, fkre)
-				if r_max == None:
-					r_max = fkre
-				else:
-					r_max = max(r_max, fkre)
+					allText += '. '
 
-				if fkre < threshold:
-					sc_module.OutputQueue.put(__name__, 'Document: [%s] readability: [%.2f]' % (request.url_string, fkre))
+		if len(allText.strip()) > 0:
+			twrd = float(words(allText))
+			tsnt = float(sentences(allText))
+			tsyl = float(syllables(allText))
+			fkre = 206.835 - 1.015 * (twrd / tsnt) - 84.6 * (tsyl / twrd)
+
+			r_count += 1
+			r_total += fkre
+			if r_min == None:
+				r_min = fkre
+			else:
+				r_min = min(r_min, fkre)
+			if r_max == None:
+				r_max = fkre
+			else:
+				r_max = max(r_max, fkre)
+
+			if fkre < threshold:
+				sc_module.OutputQueue.put(__name__, 'Document: [%s] readability: [%.2f]' % (request.url_string, fkre))
 
 def words(text):
 	return len(text.split(' '))

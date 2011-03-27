@@ -18,16 +18,16 @@
 # You should have received a copy of the GNU General Public License
 # along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
 
-import sys, os, threading, time, httplib, urllib, socket, Queue, datetime, urlparse, re
+import sys, os, threading, time, httplib, urllib, socket, Queue, datetime, urlparse, re, codecs
 import sc_module
 
 AUTH_REQUEST_KEY = '__AUTHENTICATION__REQ'
 AUTH_RESPONSE_KEY = '__AUTHENTICATION__RES'
 
-import urllib2
-class HeadRequest(urllib2.Request):
-	def get_method(self):
-		return "HEAD"
+#import urllib2
+#class HeadRequest(urllib2.Request):
+#	def get_method(self):
+#		return "HEAD"
 
 #response = urllib2.urlopen(HeadRequest("http://google.com/index.html"))
 #Headers are available via response.info() as before. Interestingly, you can 
@@ -48,14 +48,15 @@ class LogWriter(threading.Thread):
 		else:
 			if mod in self.outfiles:
 				self.outfiles[mod].write(out)
+				self.outfiles[mod].write('\n')
 			else:
 				self.outfiles['sitecheck'].write('Module output file not found: [%s]\n' % mod)
 
 	def run(self):
 		sc_module.ensure_dir(sc_module.session.output)
-		self.outfiles = {'sitecheck': open('%s/sitecheck.log' % sc_module.session.output, 'a')}
+		self.outfiles = {'sitecheck': codecs.open('%s%ssitecheck.log' % (sc_module.session.output, os.sep), mode='a', encoding='utf-8', errors='replace')}
 		for name in sc_module.session.modules.iterkeys():
-			self.outfiles[name] = open('%s/%s.log' % (sc_module.session.output, name), 'a')
+			self.outfiles[name] = codecs.open('%s%s%s.log' % (sc_module.session.output, os.sep, name), mode='a', encoding='utf-8', errors='replace')
 
 		sc_module.OutputQueue.put(None, 'Started: %s\n' % str(datetime.datetime.now()))
 
@@ -94,16 +95,16 @@ class SiteChecker(threading.Thread):
 			res = sc_module.Response(r, st)
 		except socket.gaierror:
 			ex = sys.exc_info()
-			err = 'DNS error ' + str(ex[0]) + ' ' + str(ex[1]) # Probably
+			err = 'DNS error %s %s' % (str(ex[0]), str(ex[1])) # Probably
 		except socket.timeout:
 			ex = sys.exc_info()
-			err = 'Timeout ' + str(ex[0]) + ' ' + str(ex[1])
+			err = 'Timeout %s %s' % (str(ex[0]), str(ex[1]))
 		except httplib.IncompleteRead:
 			ex = sys.exc_info()
-			err = 'Read error ' + str(ex[0]) + ' ' + str(ex[1])
-		except:
-			ex = sys.exc_info()
-			err = 'Connection ' + str(ex[0]) + ' ' + str(ex[1])
+			err = 'Read error %s %s' % (str(ex[0]), str(ex[1]))
+		#except:
+		#	ex = sys.exc_info()
+		#	err = 'Error %s %s' % (str(ex[0]), str(ex[1]))
 		finally:
 			c.close()
 
@@ -152,10 +153,6 @@ class SiteChecker(threading.Thread):
 					if sc_module.session.log.get('request_headers'): msgs.append('\tREQUEST HEADERS: %s' % request.headers)
 					if sc_module.session.log.get('post_data') and len(request.postdata) > 0: msgs.append('\tPOST DATA: %s' % request.postdata)
 					if sc_module.session.log.get('response_headers'): msgs.append('\tRESPONSE HEADERS: %s' % response.headers)
-					#if response.is_html:
-						#doc, err = sc_module.parse_html(response.content)
-						#if doc == None:
-							#msgs.append('\tERROR: Unable to parse content [%s]: %s' % (request.url_string, err))
 				else:
 					if err:
 						msgs.append('ERROR: %s' % err)
@@ -192,11 +189,11 @@ class SiteChecker(threading.Thread):
 					if name == 'spider' and request.source in [AUTH_REQUEST_KEY, AUTH_RESPONSE_KEY]:
 						pass
 					elif mod in sys.modules:
-						try:
+						#try:
 							sys.modules[mod].process(request, response)
-						except:
-							ex = sys.exc_info()
-							sc_module.OutputQueue.put(mod, 'ERROR: Processing with module [%s]\n%s' % (name, str(ex[1])))
+						#except:
+						#	ex = sys.exc_info()
+						#	sc_module.OutputQueue.put(mod, 'ERROR: Processing with module [%s]\n%s' % (name, str(ex[1])))
 
 				if request.source == AUTH_REQUEST_KEY:
 					if sc_module.session.auth_post:
@@ -260,7 +257,7 @@ This program comes with ABSOLUTELY NO WARRANTY''')
 		sys.exit()
 
 	pth = args.directory
-	if pth[-1] != '/': pth = pth + '/'
+	if pth[-1] != os.sep: pth = pth + os.sep
 	suspend_file = pth + 'suspend.pkl'
 
 	resume = False
@@ -308,9 +305,9 @@ This program comes with ABSOLUTELY NO WARRANTY''')
 		sc_module.session.root = pth
 		sc_module.session.output = pth + sc_module.session.output
 
-		if len(sc_module.session.path) == 0: sc_module.session.path = '/'
-		if not sc_module.session.path[0] == '/': sc_module.session.path = '/' + sc_module.session.path
-		if not sc_module.session.path[-1] == '/' and len(os.path.splitext(sc_module.session.path)[1]) == 0: sc_module.session.path = sc_module.session.path + '/'
+		if len(sc_module.session.path) == 0: sc_module.session.path = os.sep
+		if not sc_module.session.path[0] == os.sep: sc_module.session.path = os.sep + sc_module.session.path
+		if not sc_module.session.path[-1] == os.sep and len(os.path.splitext(sc_module.session.path)[1]) == 0: sc_module.session.path = sc_module.session.path + os.sep
 
 		if not sc_module.session.page.lower().startswith(sc_module.session.path): sc_module.session.page = sc_module.session.path + sc_module.session.page
 

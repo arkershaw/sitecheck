@@ -2,8 +2,7 @@ Licensed under the MIT license (see "LICENSE" file).
 
 Dependencies:
 
-	beautiful-soup (spider, spelling, comments, metadata, security, readability)
-	python-utidylib (validation, accessibility)
+	uTidylib (validation, accessibility)
 	pyenchant (spelling)
 
 Installation:
@@ -12,10 +11,8 @@ Installation:
 
 		Download and install the following:
 		Python 2.6 http://www.python.org/download/
-		setuptools http://pypi.python.org/pypi/setuptools#files
 		pyenchant http://www.rfk.id.au/software/pyenchant/download.html
 		uTidylib http://developer.berlios.de/project/showfiles.php?group_id=1810
-		Find easy install from the command prompt (default C:\Python26\Scripts) and run: easy_install BeautifulSoup
 		Run the sitecheck installer
 
 	Linux:

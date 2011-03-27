@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
 
-import os, threading, re, urllib#, pipes
+import os, threading, re, urllib
 import sc_module
 from xml.dom.minidom import getDOMImplementation
 
@@ -28,21 +28,21 @@ cntnt = sc_module.get_arg(__name__, 'content', False)
 def process(request, response):
 	if not (hdrs or cntnt): return
 
-	od = sc_module.session.output + '/' + out
+	od = sc_module.session.output + os.sep + out
 
-	dr = od + '/' + request.url.netloc
-	parts = request.url.path.split('/')
+	dr = od + os.sep + request.url.netloc
+	parts = request.url.path.split(os.sep)
 	if parts[-1] == '':
 		parts[-1] = '__index'
 
 	if len(parts) > 1:
-		dr += '/'.join(parts[0:-1])
+		dr += os.sep.join(parts[0:-1])
 		fl = parts[-1]
 	else:
 		fl = '__index'
 
 	if len(request.url.query) > 0: fl += '?' +  urllib.unquote_plus(request.url.query)
-	fl = re.sub('([ \\/])', '\\\1', fl)
+	fl = re.sub(r'([ \/])', '', fl)
 
 	pth = os.path.join(dr, fl)
 	if os.path.exists(pth + '.hdr.xml') and os.path.exists(pth + '.html'): return

@@ -17,28 +17,24 @@
 # You should have received a copy of the GNU General Public License
 # along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
 
-from BeautifulSoup import Comment
 import re
 import sc_module
 
 def process(request, response):
 	if response.is_html:
-		doc, err = sc_module.parse_html(response.content)
-		if doc:
-			msgs = []
-			first = True
-			for comment in doc.findAll(text=lambda text:isinstance(text, Comment)):
-				c = comment.strip()
-				if c.startswith('[if') and c.endswith('<![endif]'):
-					# Ignore IE conditional comments
-					pass
-				else:
-					if first:
-						first = False
-						msgs.append('URL: [%s]' % request.url_string)
+		doc = sc_module.HtmlHelper(response.content)
+		msgs = []
+		first = True
+		for comment in doc.get_comments():
+			c = comment.strip()
+			if c.startswith('[if') and c.endswith('<![endif]'):
+				# Ignore IE conditional comments
+				pass
+			else:
+				if first:
+					first = False
+					msgs.append('URL: [%s]' % request.url_string)
 
-					#try:
-					msgs.append('\tComment:\t' + re.sub('\r?\n', '\n\t\t\t\t', comment.strip(), re.MULTILINE))
-					#except UnicodeEncodeError:
-						#print comment
-			if len(msgs) > 0: sc_module.OutputQueue.put(__name__, msgs)
+				msgs.append('\tComment:\t' + re.sub('\r?\n', '\n\t\t\t\t', comment.strip(), re.MULTILINE))
+
+		if len(msgs) > 0: sc_module.OutputQueue.put(__name__, msgs)

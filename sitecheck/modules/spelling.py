@@ -20,7 +20,6 @@
 import enchant
 from enchant.checker import SpellChecker
 from enchant.tokenize import EmailFilter, URLFilter
-from BeautifulSoup import Comment
 import re, urlparse, threading, os, sys
 import sc_module
 
@@ -41,41 +40,42 @@ chkr = SpellChecker(dctnry, filters=[EmailFilter, URLFilter])
 
 def process(request, response):
 	if response.is_html:
-		doc, err = sc_module.parse_html(response.content) #Parse again so we can modify
-		if doc:
-			tags = doc.findAll(['script', 'style'])
-			[tag.extract() for tag in tags]
-			comments = doc.findAll(text=lambda text:isinstance(text, Comment))
-			[comment.extract() for comment in comments]
+		doc = sc_module.HtmlHelper(response.content)
+		doc.strip_comments()
+		doc.strip_element(('script', 'style'))
 
-			words = {}
-			spell_lock.acquire()
-			try:
-				for txt in doc.findAll(text=True):
-					check(txt, words)
-				for txt in doc.findAll(title=True):
-					check(txt['title'], words)
-				for txt in doc.findAll('img', alt=True):
-					check(txt['alt'], words)
-				for txt in doc.findAll('title'):
-					check(txt.string, words)
-				for txt in doc.findAll('meta', attrs={'name': re.compile('description|keywords')}):
-					check(txt['content'], words)
-			finally:
-				spell_lock.release()
+		words = {}
+		spell_lock.acquire()
+		try:
+			for txt in doc.get_text():
+				check(txt, words)
+			for txt in doc.get_attribute('title'):
+				check(txt[2], words)
+			for txt in doc.get_attribute('alt'):
+				check(txt[2], words)
+			for e in doc.get_element('meta'):
+				names = [n for n in e.get_attribute('name')]
+				if len(names) > 0:
+					name = names[0][2].lower()
+					if name == 'description' or name == 'keywords':
+						content = [c for c in e.get_attribute('content')]
+						if len(content) > 0:
+							check(content[0][2], words)
+		finally:
+			spell_lock.release()
 
-			spErr = False
-			if len(words) > 0:
-				msgs = ['Document: [%s]' % request.url_string]
-				keys = words.keys()
-				keys.sort()
-				for k in keys:
-					msgs.append('\tWord: [%s] x %d%s' % (words[k][0], words[k][1], words[k][2]))
-				sc_module.OutputQueue.put(__name__, msgs)
+		spErr = False
+		if len(words) > 0:
+			msgs = ['Document: [%s]' % request.url_string]
+			keys = words.keys()
+			keys.sort()
+			for k in keys:
+				msgs.append('\tWord: [%s] x %d%s' % (words[k][0], words[k][1], words[k][2]))
+			sc_module.OutputQueue.put(__name__, msgs)
 
 def check(text, words):
 	if not text: return
-	t = text.strip()
+	t = sc_module.html_decode(text.strip())
 	l = len(t)
 	if l > 0:
 		chkr.set_text(t)
@@ -86,32 +86,10 @@ def check(text, words):
 					words[w][1] += 1
 				else:
 					ctx = ''
-					m = re.search('(.)?\s*\\b(' + err.word + ')\\b', t)
+					m = re.search(r'(.)?\s*\b(%s)\b' % err.word, t)
 					if m:
 						if m.start() == 0 or m.group(1) in sentenceEnd or m.group(2)[0].islower(): # First word in sentence/para or not proper noun
 							st = max(m.start() - 20, 0)
 							en = min(m.end() + 20, l)
 							ctx = ' (' + re.sub('\t|\n', ' ', t[st:en]) + ')'
 							words[w] = [err.word, 1, ctx]
-
-
-##From: http://snippets.dzone.com/posts/show/4569
-#def substitute_entity(match):
-	#ent = match.group(3)
-
-	#if match.group(1) == "#":
-		#if match.group(2) == '':
-			#return unichr(int(ent))
-		#elif match.group(2) == 'x':
-			#return unichr(int('0x'+ent, 16))
-	#else:
-		#cp = n2cp.get(ent)
-
-		#if cp:
-			#return unichr(cp)
-		#else:
-			#return match.group()
-
-#def htmldecode(string):
-	#entity_re = re.compile(r'&(#?)(x?)(\d{1,5}|\w{1,8});')
-	#return entity_re.subn(substitute_entity, string)[0]

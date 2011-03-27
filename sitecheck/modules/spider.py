@@ -22,16 +22,18 @@ import sc_module
 
 def process(request, response):
 	if response.is_html:
+		doc = sc_module.HtmlHelper(response.content)
+
 		referrer = request.url_string
 		msgs = ['Location: [%s]' % request.url_string]
 
-		sc_module.RequestQueue.put_urls(__name__, map(lambda e: e[2], gather(response.content, 'src')), referrer)
-		sc_module.RequestQueue.put_urls(__name__, map(lambda e: e[2], gather(response.content, 'action', 'form')), referrer)
+		sc_module.RequestQueue.put_urls(__name__, map(lambda e: e[2], doc.get_attribute('src')), referrer)
+		sc_module.RequestQueue.put_urls(__name__, map(lambda e: e[2], doc.get_attribute('action', 'form')), referrer)
 
 		urls = set()
-		for href in gather(response.content, 'href'):
+		for href in doc.get_attribute('href'):
 			if href[0] == 'a':
-				urls.add(href[2])
+				if sc_module.RequestQueue.is_valid(href[2]): urls.add(href[2])
 			sc_module.RequestQueue.put_url(__name__, href[2], referrer)
 
 		out = list(urls)
@@ -43,22 +45,3 @@ def process(request, response):
 				msgs.append('\t-> [%s]' % url)
 
 		sc_module.OutputQueue.put(__name__, msgs)
-
-def gather(document, attribute, element=None):
-	# Test strings:
-	# < form name = name action = test 1 method = get>
-	# < form name = "name" action = "test 1" method = "get">
-
-	flags = re.IGNORECASE | re.DOTALL | re.MULTILINE
-	if element:
-		rx = re.compile(r'<\s*(?P<element>%s)\b[^>]*?\b%s\s*=\s*(?P<quoted>")?(?P<attr>.*?)(?(quoted)"|[\s>])' \
-			% (element, attribute), flags)
-	else:
-		rx = re.compile(r'<\s*(?P<element>[\w]+)\b[^>]*?\b%s\s*=\s*(?P<quoted>")?(?P<attr>.*?)(?(quoted)"|[\s>])' \
-			% attribute, flags)
-
-	mtchs = rx.finditer(document)
-	for m in mtchs:
-		url = m.group('attr')
-		if not url.startswith('#') and not url.lower().startswith('javascript:'):
-			yield (m.group('element'), attribute, url)

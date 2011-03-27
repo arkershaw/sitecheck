@@ -22,56 +22,50 @@ import re
 
 def process(request, response):
 	if response.is_html:
-		doc, err = sc_module.parse_html(response.content)
-		if doc:
-			missing = []
-			empty = []
-			multiple = []
+		doc = sc_module.HtmlHelper(response.content)
+		missing = []
+		empty = []
+		multiple = []
 
-			title = doc('title')
-			if len(title) == 0:
-				missing.append('title')
-			elif len(title) > 1:
-				multiple.append('title')
-			elif title[0].string == None:
-				empty.append('title')
-			elif len(title[0].string) == 0:
-				empty.append('title')
+		title = [t for t in doc.get_text(element='title')]
+		if len(title) == 0:
+			missing.append('title')
+		elif len(title) > 1:
+			multiple.append('title')
+		elif title[0] == None:
+			empty.append('title')
+		elif len(title[0]) == 0:
+			empty.append('title')
 
-			desc = doc('meta', attrs={'name': re.compile('description', re.IGNORECASE)})
-			if len(desc) == 0:
-				missing.append('description')
-			elif len(desc) > 1:
-				multiple.append('description')
-			else:
-				if 'content' in dict(desc[0].attrs):
-					if len(desc[0]['content']) == 0:
-						empty.append('description')
-				else:
-					empty.append('description')
+		meta = {'description': [0, ''], 'keywords': [0, '']}
+		for e in doc.get_element('meta'):
+			names = [n for n in e.get_attribute('name')]
+			if len(names) > 0:
+				name = names[0][2].lower()
+				if name in meta:
+					meta[name][0] += 1
+					content = [c for c in e.get_attribute('content')]
+					if len(content[0][2]) > 0:
+						meta[name][1] = content[0][2]
 
-			kw = doc('meta', attrs={'name': re.compile('keywords', re.IGNORECASE)})
-			if len(kw) == 0:
-				missing.append('keywords')
-			elif len(kw) > 1:
-				multiple.append('keywords')
-			else:
-				if 'content' in dict(kw[0].attrs):
-					if len(kw[0]['content']) == 0:
-						empty.append('keywords')
-				else:
-					empty.append('keywords')
+		for m in meta:
+			if meta[m][0] == 0:
+				missing.append(m)
+			elif meta[m][0] > 1:
+				multiple.append(m)
+			elif len(meta[m][1]) == 0:
+				empty.append(m)
 
-			msgs = []
-			if len(missing) > 0:
-				msgs.append('\tMissing: %s' % str(missing))
+		msgs = []
+		if len(missing) > 0:
+			msgs.append('\tMissing: %s' % str(missing))
 
-			if len(empty) > 0:
-				msgs.append('\tEmpty: %s' % str(empty))
+		if len(empty) > 0:
+			msgs.append('\tEmpty: %s' % str(empty))
 
-			if len(multiple) > 0:
-				msgs.append('\tMultiple: %s' % str(multiple))
+		if len(multiple) > 0:
+			msgs.append('\tMultiple: %s' % str(multiple))
 
-			if len(msgs) > 0:
-				msgs.insert(0, 'URL: %s' % request.url_string)
-				sc_module.OutputQueue.put(__name__, msgs)
+		if len(msgs) > 0:
+			msgs.insert(0, 'URL: %s' % request.url_string)
+			sc_module.OutputQueue.put(__name__, msgs)
