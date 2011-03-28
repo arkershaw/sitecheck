@@ -54,9 +54,9 @@ class LogWriter(threading.Thread):
 
 	def run(self):
 		sc_module.ensure_dir(sc_module.session.output)
-		self.outfiles = {'sitecheck': codecs.open('%s%ssitecheck.log' % (sc_module.session.output, os.sep), mode='a', encoding='utf-8', errors='replace')}
+		self.outfiles = {'sitecheck': codecs.open('%s%ssitecheck.log' % (sc_module.session.output, os.sep), mode='a', encoding='utf8', errors='replace')}
 		for name in sc_module.session.modules.iterkeys():
-			self.outfiles[name] = codecs.open('%s%s%s.log' % (sc_module.session.output, os.sep, name), mode='a', encoding='utf-8', errors='replace')
+			self.outfiles[name] = codecs.open('%s%s%s.log' % (sc_module.session.output, os.sep, name), mode='a', encoding='utf8', errors='replace')
 
 		sc_module.OutputQueue.put(None, 'Started: %s\n' % str(datetime.datetime.now()))
 
@@ -88,7 +88,7 @@ class SiteChecker(threading.Thread):
 		res = err = None
 		try:
 			c.connect()
-			c.sock.settimeout(sc_module.session.request_timeout)
+			c.sock.settimeout(sc_module.session.request_timeout) #TODO: This does not seem to work
 			st = time.time()
 			c.request(verb, full_path, urllib.urlencode(postdata), headers)
 			r = c.getresponse()
@@ -190,11 +190,11 @@ class SiteChecker(threading.Thread):
 					if name == 'spider' and request.source in [AUTH_REQUEST_KEY, AUTH_RESPONSE_KEY]:
 						pass
 					elif mod in sys.modules:
-						try:
-							sys.modules[mod].process(request, response)
-						except:
-							ex = sys.exc_info()
-							sc_module.OutputQueue.put(mod, 'ERROR: Processing with module [%s]\n%s' % (name, str(ex[1])))
+						#try:
+						sys.modules[mod].process(request, response)
+						#except:
+						#	ex = sys.exc_info()
+						#	sc_module.OutputQueue.put(mod, 'ERROR: Processing with module [%s]\n%s' % (name, str(ex[1])))
 
 				if request.source == AUTH_REQUEST_KEY:
 					if sc_module.session.auth_post:
@@ -244,7 +244,7 @@ if __name__ == '__main__':
 	from argparse import ArgumentParser
 	import pickle
 
-	print('''Sitecheck Copyright (C) 2009 Andrew Kershaw
+	print('''Sitecheck Copyright (C) 2009-2011 Andrew Kershaw
 This program comes with ABSOLUTELY NO WARRANTY''')
 
 	parser = ArgumentParser()

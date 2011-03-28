@@ -75,7 +75,7 @@ def process(request, response):
 
 def check(text, words):
 	if not text: return
-	t = sc_module.html_decode(text.strip())
+	t = sc_module.html_decode(text.strip().decode('utf8'))
 	l = len(t)
 	if l > 0:
 		chkr.set_text(t)

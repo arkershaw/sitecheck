@@ -30,7 +30,7 @@ ignore.add('6.3.1.1') # programmatic objects require testing (script)
 ignore.add('7.1.1') # remove flicker
 ignore.add('8.1.1.1') # ensure programmatic objects are accessible (script)
 
-opts = {'show-warnings': False, 'accessibility-check': 1}
+opts = {'show-warnings': False, 'accessibility-check': 1, 'char-encoding': 'utf8'}
 
 def process(request, response):
 	if response.is_html:

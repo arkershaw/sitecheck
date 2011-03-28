@@ -58,7 +58,7 @@ class Request(object):
 		for k in keys:
 			qsout.append((k, qsin[k][0]))
 		hash_url = urlparse.urljoin(self.url_string, '?' + urllib.urlencode(qsout))
-		m.update(hash_url.encode('utf-8'))
+		m.update(hash_url) #.encode('utf-8')
 
 		if len(self.postdata) > 0:
 			pdout = []
@@ -67,7 +67,7 @@ class Request(object):
 			for k in keys:
 				for v in filter(lambda v: v[0] == k, self.postdata):
 					pdout.append((k, v[1]))
-			m.update(urllib.urlencode(pdout).encode('utf-8'))
+			m.update(urllib.urlencode(pdout)) #.encode('utf-8')
 
 		return m.hexdigest()
 
@@ -87,7 +87,7 @@ class Response(object):
 		self.headers = dict(response.getheaders())
 		temp = response.read()
 		if temp:
-			self.content = unicode(temp, errors='replace')
+			self.content = unicode(temp, errors='replace').encode('utf8')
 		else:
 			self.content = ''
 		end_time = time.time()
@@ -220,12 +220,11 @@ class HtmlHelper(object):
 		self.flags = re.IGNORECASE | re.DOTALL # | re.MULTILINE
 
 	def get_element(self, element):
-		#rx = re.compile(r'<\s*%s\b.*?/?>.*?</%s>' % (element, element), self.flags)
-		rx = re.compile(r'<\s*%s\b(?:[^>]*/\s*>)|(?:.*?>.*?<\s*/\s*%s\s*>)' % (element, element), self.flags)
+		#rx = re.compile(r'<\s*%s\b.*?>' % element, self.flags)
+		rx = re.compile(r'<\s*%s\b[^>]*(?:/\s*>)|(?:>.*?<\s*/\s*%s\s*>)' % (element, element), self.flags)
 		mtchs = rx.finditer(self.document)
 		for m in mtchs:
-			e = HtmlHelper(m.group(0))
-			yield e
+			yield HtmlHelper(m.group(0))
 
 	def get_attribute(self, attribute, element=None):
 		# Test strings:

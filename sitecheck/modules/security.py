@@ -82,7 +82,6 @@ def inject(request, document, value):
 		get_fields(f, 'input', params)
 		get_fields(f, 'textarea', params)
 		get_fields(f, 'select', params)
-		print(params)
 
 		# Try an empty request
 		req = sc_module.Request(__name__, url, request.referrer)

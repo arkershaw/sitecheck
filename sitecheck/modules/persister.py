@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
 
-import os, threading, re, urllib
+import os, threading, re, urllib, codecs
 import sc_module
 from xml.dom.minidom import getDOMImplementation
 
@@ -86,4 +86,5 @@ def write_headers(response, outfile):
 
 def write_content(content, outfile):
 	if not os.path.exists(outfile):
-		open(outfile, 'w').write(content)
+		#open(outfile, 'w').write(content)
+		codecs.open(outfile, mode='w', encoding='utf8', errors='replace').write(content.decode('utf8'))
