@@ -102,9 +102,9 @@ class SiteChecker(threading.Thread):
 		except httplib.IncompleteRead:
 			ex = sys.exc_info()
 			err = 'Read error %s %s' % (str(ex[0]), str(ex[1]))
-		#except:
-		#	ex = sys.exc_info()
-		#	err = 'Error %s %s' % (str(ex[0]), str(ex[1]))
+		except:
+			ex = sys.exc_info()
+			err = 'Error %s %s' % (str(ex[0]), str(ex[1]))
 		finally:
 			c.close()
 
@@ -160,8 +160,9 @@ class SiteChecker(threading.Thread):
 						msgs.append('\tERROR: Exceeded max_retries for: [%s]' % request.url_string)
 					continue
 
+				# TODO: Proper cookie support
 				if response.headers.has_key('set-cookie'):
-					sc_module.cookie = response.headers['set-cookie']
+					if len(sc_module.cookie) == 0: sc_module.cookie = response.headers['set-cookie']
 
 				if (response.status >= 300 and response.status < 400) and request.url.netloc == sc_module.session.domain:
 					if 'location' in response.headers:
@@ -189,11 +190,11 @@ class SiteChecker(threading.Thread):
 					if name == 'spider' and request.source in [AUTH_REQUEST_KEY, AUTH_RESPONSE_KEY]:
 						pass
 					elif mod in sys.modules:
-						#try:
+						try:
 							sys.modules[mod].process(request, response)
-						#except:
-						#	ex = sys.exc_info()
-						#	sc_module.OutputQueue.put(mod, 'ERROR: Processing with module [%s]\n%s' % (name, str(ex[1])))
+						except:
+							ex = sys.exc_info()
+							sc_module.OutputQueue.put(mod, 'ERROR: Processing with module [%s]\n%s' % (name, str(ex[1])))
 
 				if request.source == AUTH_REQUEST_KEY:
 					if sc_module.session.auth_post:
@@ -213,7 +214,7 @@ class SiteChecker(threading.Thread):
 					print('Checking...')
 					sc_module.RequestQueue.put_url('', sc_module.session.page, sc_module.session.page)
 
-def readinput():
+def read_input():
 	class ReadInputThread(threading.Thread):
 		def __init__(self):
 			threading.Thread.__init__(self)
@@ -318,6 +319,10 @@ This program comes with ABSOLUTELY NO WARRANTY''')
 	sc_module.session.include_ext = sc_module.session.include_ext.difference(sc_module.session.ignore_ext)
 	sc_module.session.test_ext = sc_module.session.test_ext.difference(sc_module.session.ignore_ext.union(sc_module.session.include_ext))
 
+	print('''s -> Suspend
+q -> Abort
+Any key -> Print status''')
+
 	# Initialise modules
 	mods = sc_module.session.modules.keys()
 	for m in range(len(mods)):
@@ -334,10 +339,6 @@ This program comes with ABSOLUTELY NO WARRANTY''')
 			print('ERROR: Failed to load module [%s]' % name)
 			print('%s %s' % (str(ex[0]), str(ex[1])))
 			sc_module.session.modules.pop(name)
-
-	print('''s -> Suspend
-q -> Abort
-Any key -> Print status''')
 
 	print('Target: [%s://%s%s]' % (sc_module.session.scheme, sc_module.session.domain, sc_module.session.path))
 	print('Output: [%s]' % sc_module.session.output)
@@ -367,7 +368,7 @@ Any key -> Print status''')
 
 	suspend = False
 	while True:
-		char = readinput()
+		char = read_input()
 		if char == 'q':
 			break
 		elif char == 's':

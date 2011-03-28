@@ -46,6 +46,7 @@ engines = sc_module.get_arg(__name__, 'engines', None)
 inbound = set()
 
 def begin():
+	global engines
 	if not engines: engines = params.keys()
 	for se in engines:
 		e = params[se]

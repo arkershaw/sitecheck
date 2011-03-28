@@ -40,10 +40,9 @@ def process(request, response):
 		if len(msgs) > 0: sc_module.OutputQueue.put(__name__, msgs)
 
 	elif response.is_html:
-		doc, err = sc_module.parse_html(response.content)
-		if doc:
-			for atk in attacks:
-				inject(request, doc, atk)
+		doc = sc_module.HtmlHelper(response.content)
+		for atk in attacks:
+			inject(request, doc, atk)
 
 def inject(request, document, value):
 	qs = urlparse.parse_qs(request.url.query)
@@ -57,7 +56,7 @@ def inject(request, document, value):
 		req.modules = {__name__[8:]: None}
 		sc_module.RequestQueue.put(req)
 
-	#Empty query string parameters are not returned by urlparse.parse_qs
+	# Empty query string parameters are not returned by urlparse.parse_qs
 	mtchs = eqs.finditer(request.url.query)
 	for mtch in mtchs:
 		qs = re.sub(mtch.group(0) + '(?:&|$)', mtch.group(0) + value, request.url.query)
@@ -66,51 +65,65 @@ def inject(request, document, value):
 		req.modules = {__name__[8:]: None}
 		sc_module.RequestQueue.put(req)
 
-	if document:
-		postdata = []
-		for f in document('form'):
-			url = request.url_string
-			post = False
-			if ('action' in dict(f.attrs)):
-				url = f['action']
-			if ('method' in dict(f.attrs)):
-				if f['method'].upper() == 'POST': post = True
+	postdata = []
+	for f in document.get_element('form'):
+		url = request.url_string
+		post = False
 
-			params = []
-			inputs = f({'input': True, 'textarea': True, 'select': True})
-			for i in inputs:
-				attrs = dict(i.attrs)
-				if 'name' in attrs:
-					name = attrs['name']
+		for a in f.get_attribute('action', 'form'):
+			if len(a[2]) > 0: url = a[2]
+			break
 
-					val = attrs.get('value')
-					if not val: val = ''
-					if len(val) == 0:
-						if name.lower().find('date') > -1:
-							val = '1/1/2000'
-						elif name.lower().find('email') > -1:
-							val = email
-						else:
-							val = '1'
-					params.append((name, val))
+		for m in f.get_attribute('method', 'form'):
+			if m[2].upper() == 'POST': post = True
+			break
 
-			# Try an empty request
+		params = []
+		get_fields(f, 'input', params)
+		get_fields(f, 'textarea', params)
+		get_fields(f, 'select', params)
+		print(params)
+
+		# Try an empty request
+		req = sc_module.Request(__name__, url, request.referrer)
+		req.modules = {__name__[8:]: None}
+		sc_module.RequestQueue.put(req)
+
+		for cp in params:
+			rp = [insert_param(p, cp[0], value) for p in params] # Construct new list
+			if not post:
+				if len(urlparse.urlparse(url).query) > 0:
+					url = url + '&' + urllib.urlencode(rp)
+				else:
+					url = url + '?' + urllib.urlencode(rp)
+
 			req = sc_module.Request(__name__, url, request.referrer)
+			if post: req.postdata = rp
 			req.modules = {__name__[8:]: None}
 			sc_module.RequestQueue.put(req)
 
-			for cp in params:
-				rp = [insert_param(p, cp[0], value) for p in params] # Construct new list
-				if not post:
-					if len(urlparse.urlparse(url).query) > 0:
-						url = url + '&' + urllib.urlencode(rp)
-					else:
-						url = url + '?' + urllib.urlencode(rp)
+def get_fields(form, element, params):
+	for e in form.get_element(element):
+		name = ''
+		for n in e.get_attribute('name', element):
+			name = n[2]
+			break
 
-				req = sc_module.Request(__name__, url, request.referrer)
-				if post: req.postdata = rp
-				req.modules = {__name__[8:]: None}
-				sc_module.RequestQueue.put(req)
+		if len(name) > 0:
+			val = ''
+			for v in e.get_attribute('value', element):
+				val = v[2]
+				break
+
+			if len(val) == 0:
+				if name.lower().find('date') > -1:
+					val = '2000-1-1'
+				elif name.lower().find('email') > -1:
+					val = email
+				else:
+					val = '1'
+
+			params.append((name, val))
 
 def insert_param(item, name, value):
 	if item[0] == name:

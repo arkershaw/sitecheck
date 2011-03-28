@@ -220,7 +220,8 @@ class HtmlHelper(object):
 		self.flags = re.IGNORECASE | re.DOTALL # | re.MULTILINE
 
 	def get_element(self, element):
-		rx = re.compile(r'<\s*%s\b.*?>' % element, self.flags)
+		#rx = re.compile(r'<\s*%s\b.*?/?>.*?</%s>' % (element, element), self.flags)
+		rx = re.compile(r'<\s*%s\b(?:[^>]*/\s*>)|(?:.*?>.*?<\s*/\s*%s\s*>)' % (element, element), self.flags)
 		mtchs = rx.finditer(self.document)
 		for m in mtchs:
 			e = HtmlHelper(m.group(0))
