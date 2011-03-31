@@ -17,7 +17,8 @@
 # You should have received a copy of the GNU General Public License
 # along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
 
-import tidy, urlparse, re
+import urlparse, re
+from tidylib import tidy_document
 import sc_module
 
 acc = re.compile(' - Access: \[([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)\]')
@@ -30,20 +31,21 @@ ignore.add('6.3.1.1') # programmatic objects require testing (script)
 ignore.add('7.1.1') # remove flicker
 ignore.add('8.1.1.1') # ensure programmatic objects are accessible (script)
 
-opts = {'show-warnings': False, 'accessibility-check': 1, 'char-encoding': 'utf8'}
+opts = {'show-warnings': False, 'accessibility-check': 1}  #'char-encoding': 'utf8'
 
 def process(request, response):
 	if response.is_html:
 		try:
-			res = tidy.parseString(response.content, **opts)
+			doc, err = tidy_document(response.content, options=opts)
 		except:
 			sc_module.OutputQueue.put(__name__, 'Error parsing: [%s]' % request.url_string)
 			return
 
-		if len(res.errors) > 0:
-			errors = list()
-			for err in res.errors:
-				mtch = acc.search(str(err))
+		errors = err.splitlines()
+		if len(errors) > 0:
+			errors_out = list()
+			for e in errors:
+				mtch = acc.search(str(e))
 				ign = False
 				if mtch:
 					txt = ''
@@ -53,9 +55,9 @@ def process(request, response):
 						if txt in ignore:
 							ign = True
 							break
-					if not ign: errors.append(err)
+					if not ign: errors_out.append(e)
 
-			if len(errors) > 0:
-				msgs = ['URL: %s (%d errors)' % (request.url_string, len(errors))]
-				msgs.extend(['\t%s' % e for e in errors])
+			if len(errors_out) > 0:
+				msgs = ['URL: %s (%d errors)' % (request.url_string, len(errors_out))]
+				msgs.extend(['\t%s' % e.replace('line', 'Line') for e in errors_out])
 				sc_module.OutputQueue.put(__name__, msgs)

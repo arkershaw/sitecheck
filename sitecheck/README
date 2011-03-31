@@ -2,7 +2,7 @@ Licensed under the MIT license (see "LICENSE" file).
 
 Dependencies:
 
-	uTidylib (validation, accessibility)
+	pytidylib (validation, accessibility)
 	pyenchant (spelling)
 
 Installation:
@@ -10,24 +10,29 @@ Installation:
 	Windows:
 
 		Download and install the following:
-		Python 2.6 http://www.python.org/download/
+		Python 2.6+ http://www.python.org/download/
+		Enchant/ASpell http://www.abisource.com/projects/enchant/
 		pyenchant http://www.rfk.id.au/software/pyenchant/download.html
-		uTidylib http://developer.berlios.de/project/showfiles.php?group_id=1810
+		HTML tidy http://tidy.sourceforge.net/#binaries
+		pytidylib http://countergram.com/open-source/pytidylib
+
 		Run the sitecheck installer
 
 	Linux:
 
-		Packages for dependencies should be available from your distribution's package manager. Install all dependencies and then extract the archive.
+		Packages for dependencies should be available from your distribution's package manager or from the links above. Install all dependencies and then extract the archive and run:
+
+		python setup.py install
 
 Usage:
 
 	Windows:
 
-		C:\Python26\Lib\site-packages\sitecheck\sitecheck.py -d http://www.domain-goes-here /path/to/output
+		C:\path\to\python\site-packages\sitecheck\sitecheck.py -d http://www.domain-goes-here /path/to/output
 
 	Linux:
 
-		/usr/lib/python2.6/site-packages/sitecheck/sitecheck.py -d http://www.domain-goes-here /path/to/output
+		/path/to/python/site-packages/sitecheck/sitecheck.py -d http://www.domain-goes-here /path/to/output
 
 	To specify the default page, use the -p switch:
 

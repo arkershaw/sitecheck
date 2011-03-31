@@ -20,29 +20,31 @@
 import urlparse, re
 import sc_module
 
-#URL, page regex, link regex, page size, initial offset
+#URL, page regex, page size, initial offset
 params = {
 	'Google': [
-		'http://www.google.co.uk/search?q=site:%s&num=100&start=%d&filter=0',
-		re.compile('<div id=resultstats>(?:page \d+ of )?(?:about )?([0-9,\.]+)', re.IGNORECASE),
-		re.compile('"(https?://' + re.escape(sc_module.session.domain) + '[^"]*)"', re.IGNORECASE),
+		'http://www.google.co.uk/search?num=100&q=site:%s&start=%i&as_qdr=all',
+		re.compile('(?:About )?([0-9,]+) results', re.IGNORECASE),
 		100, 0
 	],
-	'Yahoo': [
-		'http://siteexplorer.search.yahoo.com/uk/search?p=%s&b=%d',
-		re.compile('<span class="btn">pages \(([0-9,\.]+)', re.IGNORECASE),
-		re.compile('"(https?://' + re.escape(sc_module.session.domain) + '[^"]*)"', re.IGNORECASE),
-		100, 1
-	],
 	'Bing': [
-		'http://www.bing.com/search?q=site%%3a%s&first=%d',
-		re.compile('<span class="sb_count" id="count">[0-9,\.]+-[0-9,\.]+ of ([0-9,\.]+)', re.IGNORECASE),
-		re.compile('"(https?://' + re.escape(sc_module.session.domain) + '[^"]*)"', re.IGNORECASE),
+		'http://www.bing.com/search?q=site%%3A%s&first=%i',
+		re.compile('[0-9,]+-[0-9,]+ of ([0-9,]+) results', re.IGNORECASE),
 		10, 1
 	]
 }
 
+# Google is limited to 1000 results
+# Yahoo requires verification
+
+#	'Yahoo': [
+#		'http://siteexplorer.search.yahoo.com/uk/search?p=%s&b=%i',
+#		re.compile('<span class="btn">pages \(([0-9,\.]+)', re.IGNORECASE),
+#		100, 1
+#	],
+
 engines = sc_module.get_arg(__name__, 'engines', None)
+link = re.compile('"(https?://%s[^"]*)"' % re.escape(sc_module.session.domain), re.IGNORECASE)
 inbound = set()
 
 def begin():
@@ -50,8 +52,8 @@ def begin():
 	if not engines: engines = params.keys()
 	for se in engines:
 		e = params[se]
-		e.extend([0, e[4]]) # Total results, current result offset
-		url = e[0] % (sc_module.session.domain, 0)
+		e.extend([0, e[3]]) # Total results, current result offset
+		url = e[0] % (sc_module.session.domain, e[3])
 		req = sc_module.Request(__name__, url, se)
 		req.modules = {__name__[8:]: None}
 		req.verb = 'GET'
@@ -65,16 +67,16 @@ def process(request, response):
 			sc_module.OutputQueue.put(__name__, 'ERROR: Unable to calculate pages [%s]' % request.url_string)
 			return
 		else:
-			e[5] = int(re.sub('[^0-9]', '', mtch.groups()[0]))
+			e[4] = int(re.sub('[^0-9]', '', mtch.groups()[0]))
 
-		for m in e[2].finditer(response.content):
+		for m in link.finditer(response.content):
 			url = m.groups()[0]
 			inbound.add(url)
 			sc_module.RequestQueue.put_url(__name__, url, request.url_string)
 
-		e[6] += e[3]
-		if e[6] < e[5]:
-			url = e[0] % (sc_module.session.domain, e[6])
+		e[5] += e[2]
+		if e[5] < e[4]:
+			url = e[0] % (sc_module.session.domain, e[5])
 			req = sc_module.Request(__name__, url, request.referrer)
 			req.modules = {__name__[8:]: None}
 			req.verb = 'GET'

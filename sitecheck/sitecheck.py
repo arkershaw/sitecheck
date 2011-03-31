@@ -190,11 +190,11 @@ class SiteChecker(threading.Thread):
 					if name == 'spider' and request.source in [AUTH_REQUEST_KEY, AUTH_RESPONSE_KEY]:
 						pass
 					elif mod in sys.modules:
-						#try:
-						sys.modules[mod].process(request, response)
-						#except:
-						#	ex = sys.exc_info()
-						#	sc_module.OutputQueue.put(mod, 'ERROR: Processing with module [%s]\n%s' % (name, str(ex[1])))
+						try:
+							sys.modules[mod].process(request, response)
+						except:
+							ex = sys.exc_info()
+							sc_module.OutputQueue.put(mod, 'ERROR: Processing with module [%s]\n%s' % (name, str(ex[1])))
 
 				if request.source == AUTH_REQUEST_KEY:
 					if sc_module.session.auth_post:
@@ -244,7 +244,7 @@ if __name__ == '__main__':
 	from argparse import ArgumentParser
 	import pickle
 
-	print('''Sitecheck Copyright (C) 2009-2011 Andrew Kershaw
+	print('''Sitecheck Copyright (C) 2009 Andrew Kershaw
 This program comes with ABSOLUTELY NO WARRANTY''')
 
 	parser = ArgumentParser()

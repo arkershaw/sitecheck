@@ -17,22 +17,23 @@
 # You should have received a copy of the GNU General Public License
 # along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
 
-import tidy, urlparse
+import urlparse
+from tidylib import tidy_document
 import sc_module
 
 #opts = sc_module.get_args(__name__)
-opts = {'show-warnings': True, 'input-encoding': 'utf8'}
+opts = {'show-warnings': True} #'input-encoding': 'utf8'
 
 def process(request, response):
 	if response.is_html:
 		try:
-			res = tidy.parseString(response.content, **opts)
+			doc, err = tidy_document(response.content, options=opts)
 		except:
 			sc_module.OutputQueue.put(__name__, 'Error parsing: [%s]' % request.url_string)
 			return
 		else:
-			if len(res.errors) > 0:
-				msgs =['Invalid: [%s] (%d errors)' % (request.url_string, len(res.errors))]
-				for err in res.errors:
-					msgs.append('\t%s' % str(err).replace('line', 'Line'))
+			errors = err.splitlines()
+			if len(errors) > 0:
+				msgs =['Invalid: [%s] (%d errors)' % (request.url_string, len(errors))]
+				msgs.extend(['\t%s' % e.replace('line', 'Line') for e in errors])
 				sc_module.OutputQueue.put(__name__, msgs)
