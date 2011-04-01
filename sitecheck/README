@@ -2,8 +2,8 @@ Licensed under the MIT license (see "LICENSE" file).
 
 Dependencies:
 
-	pytidylib (validation, accessibility)
-	pyenchant (spelling)
+	HTML Tidy, pytidylib (validation, accessibility)
+	Enchant, pyenchant (spelling)
 
 Installation:
 
@@ -11,10 +11,13 @@ Installation:
 
 		Download and install the following:
 		Python 2.6+ http://www.python.org/download/
-		Enchant/ASpell http://www.abisource.com/projects/enchant/
-		pyenchant http://www.rfk.id.au/software/pyenchant/download.html
-		HTML tidy http://tidy.sourceforge.net/#binaries
+		pyenchant http://www.rfk.id.au/software/pyenchant/download.html (Windows installer includes the Enchant library)
+		HTML Tidy http://tidy.sourceforge.net/#binaries (make sure you use the installer)
 		pytidylib http://countergram.com/open-source/pytidylib
+
+		To install pytidylib, download and extract the archive then open a command window in the same directory as the extracted files and type:
+
+		python setup.py install
 
 		Run the sitecheck installer
 
@@ -42,13 +45,15 @@ While running:
 
 	s -> Suspend
 	q -> Abort
-	return -> Print number of urls in queue
+	Return key -> Print number of urls in queue
 
 	To resume a suspended job, call with the path to an existing output directory.
 
 Modules:
 
 	persister -> Saves downloaded html headers and responses to disk for further analysis. Disabled by default.
+
+	inboundlinks -> Checks URL's in the search result listings from the Google and Bing search engines.
 
 	regexmatch -> Checks for regular expression match in headers and content. To search for headers which don't match a regular expression, prefix the name with ^ and to search for content which doesn't match, prefix with _
 
@@ -64,7 +69,7 @@ Modules:
 
 	comments -> Logs the content of any HTML comments found.
 
-	spelling -> Spellcheck using enchant. Custom dictionary words are in dict.txt.
+	spelling -> Spellcheck using Enchant. Custom dictionary words are in dict.txt.
 
 	spider -> If this module is disabled, only a single page will be analysed. Scans all files under the domain/path as well as testing targets of external links.
 

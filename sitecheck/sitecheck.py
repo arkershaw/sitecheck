@@ -29,6 +29,13 @@ AUTH_RESPONSE_KEY = '__AUTHENTICATION__RES'
 #	def get_method(self):
 #		return "HEAD"
 
+#proxy_handler = urllib2.ProxyHandler({'http': 'http://www.example.com:3128/'})
+#proxy_auth_handler = urllib2.ProxyBasicAuthHandler()
+#proxy_auth_handler.add_password('realm', 'host', 'username', 'password')
+#opener = urllib2.build_opener(proxy_handler, proxy_auth_handler)
+#urllib2.install_opener(opener)
+#opener.addheaders = [('User-agent', 'Mozilla/5.0')]
+
 #response = urllib2.urlopen(HeadRequest("http://google.com/index.html"))
 #Headers are available via response.info() as before. Interestingly, you can 
 #find the URL that you were redirected to:
@@ -81,6 +88,7 @@ class SiteChecker(threading.Thread):
 		full_path = url.path
 		if len(url.query) > 0: full_path += '?' + url.query
 		full_url = url.scheme + '://' + url.netloc + full_path
+		
 		if url.scheme == 'https':
 			c = httplib.HTTPSConnection(url.netloc)
 		else:
@@ -321,7 +329,7 @@ This program comes with ABSOLUTELY NO WARRANTY''')
 
 	print('''s -> Suspend
 q -> Abort
-Any key -> Print status''')
+Return key -> Print status''')
 
 	# Initialise modules
 	mods = sc_module.session.modules.keys()
@@ -369,13 +377,13 @@ Any key -> Print status''')
 	suspend = False
 	while True:
 		char = read_input()
-		if char == 'q':
+		if char == None:
+			if complete(threads): break
+		elif char.lower() == 'q':
 			break
-		elif char == 's':
+		elif char.lower() == 's':
 			suspend = True
 			break
-		elif char == None:
-			if complete(threads): break
 		else:
 			print('URLs: %d' % len(sc_module.RequestQueue.urls))
 			print('Queue: %d' % sc_module.RequestQueue.qsize())
