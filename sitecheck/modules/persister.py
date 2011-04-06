@@ -31,7 +31,7 @@ def process(request, response):
 	od = sc_module.session.output + os.sep + out
 
 	dr = od + os.sep + request.url.netloc
-	parts = request.url.path.split(os.sep)
+	parts = request.url.path.split('/')
 	if parts[-1] == '':
 		parts[-1] = '__index'
 

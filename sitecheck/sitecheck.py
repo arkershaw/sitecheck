@@ -314,9 +314,9 @@ This program comes with ABSOLUTELY NO WARRANTY''')
 		sc_module.session.root = pth
 		sc_module.session.output = pth + sc_module.session.output
 
-		if len(sc_module.session.path) == 0: sc_module.session.path = os.sep
-		if not sc_module.session.path[0] == os.sep: sc_module.session.path = os.sep + sc_module.session.path
-		if not sc_module.session.path[-1] == os.sep and len(os.path.splitext(sc_module.session.path)[1]) == 0: sc_module.session.path = sc_module.session.path + os.sep
+		if len(sc_module.session.path) == 0: sc_module.session.path = '/'
+		if not sc_module.session.path[0] == '/': sc_module.session.path = '/' + sc_module.session.path
+		if not sc_module.session.path[-1] == '/' and len(os.path.splitext(sc_module.session.path)[1]) == 0: sc_module.session.path = sc_module.session.path + '/'
 
 		if not sc_module.session.page.lower().startswith(sc_module.session.path): sc_module.session.page = sc_module.session.path + sc_module.session.page
 

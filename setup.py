@@ -18,14 +18,14 @@
 # You should have received a copy of the GNU General Public License
 # along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
 
-from setuptools import setup
+from distutils.core import setup
 
 setup(name='sitecheck',
 	version='0.9',
 	description='Modular web site spider for web developers',
 	author='Andrew Kershaw',
+	author_email='arkershaw@users.sourceforge.net',
 	url='http://sourceforge.net/projects/sitecheck/',
 	packages=['sitecheck', 'sitecheck.modules'],
-	data_files=[('sitecheck', ['sitecheck/LICENSE', 'sitecheck/README', 'sitecheck/dict.txt'])],
-	install_requires=['pytidylib', 'pyenchant']
+	package_data={'sitecheck': ['LICENSE', 'README', 'dict.txt']}
 )
