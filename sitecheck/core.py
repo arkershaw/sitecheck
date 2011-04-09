@@ -64,7 +64,7 @@ class SiteCheck(object):
 	def resume(self, suspend_file):
 		if self._started: raise SiteCheckStartedException()
 
-		f = open(suspend_file, 'r')
+		f = open(suspend_file, 'rb')
 		sd = pickle.load(f)
 		f.close()
 
@@ -187,7 +187,7 @@ class SiteCheck(object):
 		self._flush_logs()
 
 		dat = self.request_queue.save()
-		fl = open(suspend_file, 'w')
+		fl = open(suspend_file, 'wb')
 		# Dump config, url's and requests to file
 		pickle.dump((self.session, dat[0], dat[1]), fl)
 		fl.close()
