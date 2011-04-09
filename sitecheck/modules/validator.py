@@ -1,4 +1,3 @@
-#!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 
 # Copyright 2009 Andrew Kershaw
@@ -18,14 +17,23 @@
 # You should have received a copy of the GNU General Public License
 # along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
 
-from distutils.core import setup
+import urlparse
+from tidylib import tidy_document
+import sc_module
 
-setup(name='sitecheck',
-	version='0.9',
-	description='Modular web site spider for web developers',
-	author='Andrew Kershaw',
-	author_email='arkershaw@users.sourceforge.net',
-	url='http://sourceforge.net/projects/sitecheck/',
-	packages=['sitecheck', 'sitecheck.modules'],
-	package_data={'sitecheck': ['LICENSE', 'README', 'dict.txt']}
-)
+#opts = sc_module.get_args(__name__)
+opts = {'show-warnings': True} #'input-encoding': 'utf8'
+
+def process(request, response):
+	if response.is_html:
+		try:
+			doc, err = tidy_document(response.content, options=opts)
+		except:
+			sc_module.OutputQueue.put(__name__, 'Error parsing: [%s]' % request.url_string)
+			return
+		else:
+			errors = err.splitlines()
+			if len(errors) > 0:
+				msgs =['Invalid: [%s] (%d errors)' % (request.url_string, len(errors))]
+				msgs.extend(['\t%s' % e.replace('line', 'Line') for e in errors])
+				sc_module.OutputQueue.put(__name__, msgs)

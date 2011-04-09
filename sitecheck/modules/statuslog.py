@@ -1,4 +1,3 @@
-#!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 
 # Copyright 2009 Andrew Kershaw
@@ -18,14 +17,12 @@
 # You should have received a copy of the GNU General Public License
 # along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
 
-from distutils.core import setup
+import urlparse
+import sc_module
 
-setup(name='sitecheck',
-	version='0.9',
-	description='Modular web site spider for web developers',
-	author='Andrew Kershaw',
-	author_email='arkershaw@users.sourceforge.net',
-	url='http://sourceforge.net/projects/sitecheck/',
-	packages=['sitecheck', 'sitecheck.modules'],
-	package_data={'sitecheck': ['LICENSE', 'README', 'dict.txt']}
-)
+def process(request, response):
+	if response.status >= 400:
+		msgs = ['URL: [%s] returned [%d %s]' % (request.url_string, response.status, response.message)]
+		if len(request.referrer) > 0:
+			msgs.append('\tReferrer: [%s]' % request.referrer)
+		sc_module.OutputQueue.put(__name__, msgs)

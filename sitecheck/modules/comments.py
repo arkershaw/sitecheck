@@ -1,4 +1,3 @@
-#!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 
 # Copyright 2009 Andrew Kershaw
@@ -18,14 +17,24 @@
 # You should have received a copy of the GNU General Public License
 # along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
 
-from distutils.core import setup
+import re
+import sc_module
 
-setup(name='sitecheck',
-	version='0.9',
-	description='Modular web site spider for web developers',
-	author='Andrew Kershaw',
-	author_email='arkershaw@users.sourceforge.net',
-	url='http://sourceforge.net/projects/sitecheck/',
-	packages=['sitecheck', 'sitecheck.modules'],
-	package_data={'sitecheck': ['LICENSE', 'README', 'dict.txt']}
-)
+def process(request, response):
+	if response.is_html:
+		doc = sc_module.HtmlHelper(response.content)
+		msgs = []
+		first = True
+		for comment in doc.get_comments():
+			c = comment.strip()
+			if c.startswith('[if') and c.endswith('<![endif]'):
+				# Ignore IE conditional comments
+				pass
+			else:
+				if first:
+					first = False
+					msgs.append('URL: [%s]' % request.url_string)
+
+				msgs.append('\tComment:\t' + re.sub('\r?\n', '\n\t\t\t\t', comment.strip(), re.MULTILINE))
+
+		if len(msgs) > 0: sc_module.OutputQueue.put(__name__, msgs)
