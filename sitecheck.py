@@ -24,6 +24,7 @@ if __name__ == '__main__':
 	import sys
 	import re
 	import urlparse
+	import datetime
 
 	from sitecheck import *
 
