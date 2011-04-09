@@ -10,31 +10,33 @@ Installation:
 	Windows:
 
 		Download and install the following:
-		Python 2: http://www.python.org/download/
-		pyenchant: http://www.rfk.id.au/software/pyenchant/download.html (Windows installer includes the Enchant library)
-
+		Python 3.2: http://www.python.org/download/
+		pyenchant: http://www.rfk.id.au/software/pyenchant/download.html (the Windows installer includes the Enchant library)
 		pytidylib: http://countergram.com/open-source/pytidylib
-		To install pytidylib, download and extract the archive then open a command window in the same directory as the extracted files and type:
 
-		python setup.py install
+		To install pytidylib and sitecheck, download and extract each archive then open a command window in the same directory as the extracted files and type:
 
-		You will also need the HTML Tidy library. Either follow the instructions on the pytidylib page or download a binary from here and place the DLL somewhere on your path:
+		setup.py install
+
+		You will also need the HTML Tidy library. Instructions are available on the pytidylib page. Alternatively, download a binary from here:
 
 		HTML Tidy: http://tidy.sourceforge.net/#binaries
 
-		Run the sitecheck installer
+		You will need to place the DLL somewhere on your path. The easiest way is to copy it to the sitecheck folder. By default this will be at:
+
+		C:\Python32\Lib\site-packages\sitecheck
 
 	Linux:
 
 		Packages for dependencies should be available from your distribution's package manager or from the links above. Install all dependencies and then extract the archive and run:
 
-		python setup.py install
+		./setup.py install
 
 Usage:
 
 	Windows:
 
-		C:\path\to\python\Scripts\sitecheck.py -d http://www.domain-goes-here C:\path\to\output
+		C:\Python32\Scripts\sitecheck.py -d http://www.domain-goes-here C:\path\to\output
 
 	Linux:
 
