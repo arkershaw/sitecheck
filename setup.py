@@ -1,7 +1,7 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 
-# Copyright 2009 Andrew Kershaw
+# Copyright 2009-2011 Andrew Kershaw
 
 # This file is part of sitecheck.
 
@@ -21,11 +21,37 @@
 from distutils.core import setup
 
 setup(name='sitecheck',
-	version='0.9',
+	version='1.0',
 	description='Modular web site spider for web developers',
 	author='Andrew Kershaw',
 	author_email='arkershaw@users.sourceforge.net',
 	url='http://sourceforge.net/projects/sitecheck/',
-	packages=['sitecheck', 'sitecheck.modules'],
-	package_data={'sitecheck': ['LICENSE', 'README', 'dict.txt']}
+	packages=['sitecheck'],
+	scripts=['sitecheck.py'],
+	package_data={'sitecheck': ['dict.txt']},
+
+	long_description = 'Modular web site spider for web developers. Checks for many common problems including missing documents (HTTP 400), server errors (HTTP 500), spelling mistakes, validation errors, missing meta tags and potential SQL injection/XSS.',
+	download_url = 'http://sourceforge.net/projects/sitecheck/files/',
+	license = 'GNU Affero General Public License v3',
+	platforms = ['Any'],
+
+	classifiers = [
+		'Development Status :: 5 - Production/Stable',
+		'Environment :: Console',
+		'Intended Audience :: Developers',
+		'Intended Audience :: System Administrators',
+		'License :: OSI Approved :: GNU Affero General Public License v3',
+		'Natural Language :: English',
+		'Operating System :: OS Independent',
+		'Programming Language :: Python :: 2.7',
+		'Topic :: Internet :: WWW/HTTP :: Site Management',
+		'Topic :: Internet :: WWW/HTTP :: Site Management :: Link Checking',
+		'Topic :: Security',
+		'Topic :: Software Development :: Libraries',
+		'Topic :: Software Development :: Libraries :: Python Modules',
+		'Topic :: Software Development :: Testing',
+		'Topic :: System :: Archiving :: Mirroring',
+		'Topic :: System :: Systems Administration',
+		'Topic :: Text Processing :: Markup :: HTML'
+	]
 )

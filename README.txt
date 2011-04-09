@@ -10,14 +10,17 @@ Installation:
 	Windows:
 
 		Download and install the following:
-		Python 2.6+ http://www.python.org/download/
-		pyenchant http://www.rfk.id.au/software/pyenchant/download.html (Windows installer includes the Enchant library)
-		HTML Tidy http://tidy.sourceforge.net/#binaries (make sure you use the installer)
-		pytidylib http://countergram.com/open-source/pytidylib
+		Python 2: http://www.python.org/download/
+		pyenchant: http://www.rfk.id.au/software/pyenchant/download.html (Windows installer includes the Enchant library)
 
+		pytidylib: http://countergram.com/open-source/pytidylib
 		To install pytidylib, download and extract the archive then open a command window in the same directory as the extracted files and type:
 
 		python setup.py install
+
+		You will also need the HTML Tidy library. Either follow the instructions on the pytidylib page or download a binary from here and place the DLL somewhere on your path:
+
+		HTML Tidy: http://tidy.sourceforge.net/#binaries
 
 		Run the sitecheck installer
 
@@ -31,11 +34,11 @@ Usage:
 
 	Windows:
 
-		C:\path\to\python\site-packages\sitecheck\sitecheck.py -d http://www.domain-goes-here /path/to/output
+		C:\path\to\python\Scripts\sitecheck.py -d http://www.domain-goes-here C:\path\to\output
 
 	Linux:
 
-		/path/to/python/site-packages/sitecheck/sitecheck.py -d http://www.domain-goes-here /path/to/output
+		sitecheck.py -d http://www.domain-goes-here /path/to/output
 
 	To specify the default page, use the -p switch:
 
