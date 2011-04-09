@@ -21,15 +21,14 @@ import sys
 import os
 import threading
 import time
-import httplib
-import urllib
-import Cookie
+import http.client
+import urllib.request, urllib.parse, urllib.error
+import http.cookies
 import socket
-import Queue
+import queue
 import datetime
-import urlparse
+import urllib.parse
 import re
-import codecs
 import hashlib
 import uuid
 import pickle
@@ -99,7 +98,7 @@ class SiteCheck(object):
 		append(self.session.output, os.sep)
 		append(self.session._config, os.sep)
 		
-		if len(urlparse.urlparse(self.session.domain).netloc) == 0: raise Exception('Invalid domain')
+		if len(urllib.parse.urlparse(self.session.domain).netloc) == 0: raise Exception('Invalid domain')
 
 		# Organise file type sets
 		self.session.include_ext = self.session.include_ext.difference(self.session.ignore_ext)
@@ -208,17 +207,17 @@ class LogWriter(threading.Thread):
 	def _write_next(self):
 		try:
 			fl, msg = self._output_queue.get(block=False)
-		except Queue.Empty:
+		except queue.Empty:
 			LogWriter.terminate.wait(self._session.wait_seconds)
 		else:
 			if fl == None: fl = self.default_log_file
 			if not fl in self._outfiles:
-				self._outfiles[fl] = codecs.open('{}{}{}{}'.format(self._session.output, os.sep, fl, self.extension), mode='w', encoding='utf8', errors='replace')
-			self._outfiles[fl].write(msg.decode('utf8'))
+				self._outfiles[fl] = open('{}{}{}{}'.format(self._session.output, os.sep, fl, self.extension), mode='w')
+			self._outfiles[fl].write(msg)
 			self._outfiles[fl].write('\n')
 
 	def run(self):
-		log = codecs.open('{}{}{}{}'.format(self._session.output, os.sep, self.default_log_file, self.extension), mode='w', encoding='utf8', errors='replace')
+		log = open('{}{}{}{}'.format(self._session.output, os.sep, self.default_log_file, self.extension), mode='w')
 		self._outfiles = {self.default_log_file: log}
 
 		log.write('Started: {}\n\n'.format(datetime.datetime.now()))
@@ -231,7 +230,7 @@ class LogWriter(threading.Thread):
 		while not self._output_queue.empty():
 			self._write_next()
 
-		for fl in self._outfiles.iteritems():
+		for fl in self._outfiles.items():
 			fl[1].close()
 
 class Checker(threading.Thread):
@@ -247,7 +246,7 @@ class Checker(threading.Thread):
 
 	def set_verb(self, request):
 		if len(request.verb) == 0:
-			dom = urlparse.urlparse(self._session.domain)
+			dom = urllib.parse.urlparse(self._session.domain)
 			if not request.domain == dom.netloc:
 				# External domain
 				request.verb = 'HEAD'
@@ -262,9 +261,7 @@ class Checker(threading.Thread):
 	def set_headers(self, request):
 		hdrs = self._session.headers.copy()
 		request.headers.update(hdrs)
-		if request.headers.has_key('Content-Type'):
-			pass
-		elif request.headers.has_key('content-type'):
+		if 'Content-Type' in request.headers or 'content-type' in request.headers:
 			pass
 		else:
 			request.headers['Content-Type'] = request.encoding
@@ -272,9 +269,9 @@ class Checker(threading.Thread):
 	def set_cookie(self, request):
 		if hasattr(self._session, '_cookie'):
 			c = self._session._cookie.output(['key', 'coded_value'], '', ';').strip()
-			if request.headers.has_key('Cookie'):
+			if 'Cookie' in request.headers:
 				request.headers['Cookie'] += c
-			elif request.headers.has_key('cookie'):
+			elif 'cookie' in request.headers:
 				request.headers['cookie'] += c
 			else:
 				request.headers['Cookie'] = c
@@ -282,7 +279,7 @@ class Checker(threading.Thread):
 	def get_cookie(self, response):
 		cookies = response.get_headers('set-cookie')
 		if len(cookies) > 0:
-			if not hasattr(self._session, '_cookie'): self._session._cookie = Cookie.SimpleCookie()
+			if not hasattr(self._session, '_cookie'): self._session._cookie = http.cookies.SimpleCookie()
 			for c in cookies:
 				self._session._cookie.load(c)
 
@@ -300,9 +297,9 @@ class Checker(threading.Thread):
 		if len(request.query) > 0: full_path += '?' + request.query
 
 		if request.protocol == 'https':
-			c = httplib.HTTPSConnection(request.domain, timeout=self._session.request_timeout)
+			c = http.client.HTTPSConnection(request.domain, timeout=self._session.request_timeout)
 		elif request.protocol == 'http':
-			c = httplib.HTTPConnection(request.domain, timeout=self._session.request_timeout)
+			c = http.client.HTTPConnection(request.domain, timeout=self._session.request_timeout)
 		else:
 			raise Exception('Unrecognised protocol: {}'.format(request.protocol))
 
@@ -319,7 +316,7 @@ class Checker(threading.Thread):
 		except socket.timeout:
 			ex = sys.exc_info()
 			err = 'Timeout {} {}'.format(str(ex[0]), str(ex[1]))
-		except httplib.IncompleteRead:
+		except http.client.IncompleteRead:
 			ex = sys.exc_info()
 			err = 'Read error {} {}'.format(str(ex[0]), str(ex[1]))
 		except:
@@ -335,7 +332,7 @@ class Checker(threading.Thread):
 			Checker.terminate.wait(self._session.wait_seconds)
 			try:
 				req = self._request_queue.get(block=False)
-			except Queue.Empty:
+			except queue.Empty:
 				self.active = False
 			else:
 				self.active = True
@@ -349,7 +346,7 @@ class Checker(threading.Thread):
 				msgs = []
 
 				if res:
-					dom = urlparse.urlparse(self._session.domain)
+					dom = urllib.parse.urlparse(self._session.domain)
 					if req.domain == dom.netloc: self.get_cookie(res)
 
 					msgs.append('{}: [{}] status: {}'.format(req.verb, str(req), str(res.status)))
@@ -402,12 +399,12 @@ class Request(object):
 
 	def _set_url(self, url):
 		url = url.replace(' ', '%20')
-		url_parts = urlparse.urlparse(url)
+		url_parts = urllib.parse.urlparse(url)
 
 		if len(url_parts.scheme) == 0:
 			# Relative URL - join with referrer
-			url = urlparse.urljoin(self.referrer, url)
-			url_parts = urlparse.urlparse(url)
+			url = urllib.parse.urljoin(self.referrer, url)
+			url_parts = urllib.parse.urlparse(url)
 
 		self.protocol = url_parts.scheme.lower()
 		self.domain = url_parts.netloc.lower()
@@ -417,13 +414,13 @@ class Request(object):
 		if len(url_parts.query) == 0:
 			self.query = ''
 		else:
-			qsin = urlparse.parse_qs(url_parts.query, keep_blank_values=True)
+			qsin = urllib.parse.parse_qs(url_parts.query, keep_blank_values=True)
 			qsout = []
-			keys = qsin.keys()
+			keys = list(qsin.keys())
 			keys.sort() # URL's with querystring parameters in different order are equivalent
 			for k in keys:
 				qsout.append((k, qsin[k][0]))
-			self.query = urllib.urlencode(qsout)
+			self.query = urllib.parse.urlencode(qsout)
 
 	def get_post_data(self):
 		if self.encoding == 'multipart/form-data':
@@ -438,14 +435,14 @@ class Request(object):
 			dat.append('')
 			return r'\r\n'.join(dat)
 		else:
-			return urllib.urlencode(self.postdata)
+			return urllib.parse.urlencode(self.postdata)
 
 	def set_post_data(self, postdata):
 		self.postdata = []
 		keys = [x for x, y in postdata]
 		keys.sort()
 		for k in keys:
-			for v in filter(lambda v: v[0] == k, postdata):
+			for v in [v for v in postdata if v[0] == k]:
 				self.postdata.append((k, v[1]))
 
 	def __str__(self):
@@ -457,10 +454,10 @@ class Request(object):
 	def hash(self):
 		# Relies on query and post being sorted
 		m = hashlib.sha1()
-		m.update(self.verb)
-		m.update(self.__str__())
+		m.update(self.verb.encode())
+		m.update(self.__str__().encode())
 		pd = self.get_post_data()
-		if len(pd) > 0: m.update(pd)
+		if len(pd) > 0: m.update(pd.encode())
 		return m.hexdigest()
 
 	def redirect(self, url):
@@ -482,10 +479,7 @@ class Response(object):
 		html = self.get_header('content-type').startswith('text/html')
 		temp = response.read()
 		if temp:
-			if html:
-				self.content = unicode(temp, errors='replace').encode('utf8')
-			else:
-				self.content = bytearray(temp)
+			self.content = temp.decode('utf-8', errors='replace')
 		else:
 			self.content = ''
 		self.time = end_time - start_time
@@ -505,12 +499,12 @@ class Response(object):
 			return ''
 
 	def get_headers(self, name):
-		hdrs = filter(lambda h: h[0].lower() == name.lower(), self.headers)
-		return map(lambda h: h[1], hdrs)
+		hdrs = [h for h in self.headers if h[0].lower() == name.lower()]
+		return [h[1] for h in hdrs]
 
-class RequestQueue(Queue.Queue):
+class RequestQueue(queue.Queue):
 	def __init__(self, session):
-		Queue.Queue.__init__(self)
+		queue.Queue.__init__(self)
 		self.session = session
 		self._url_lock = threading.Lock()
 		self.urls = {}
@@ -520,7 +514,7 @@ class RequestQueue(Queue.Queue):
 		if len(url) == 0: return False
 		if url.startswith('#') or url.lower() in self.session.ignore_protocol: return False
 
-		parts = urlparse.urlparse(url)
+		parts = urllib.parse.urlparse(url)
 		for ignore in self.session.ignore_url:
 			if parts.path.lower().endswith(ignore.lower()): return False
 
@@ -538,7 +532,7 @@ class RequestQueue(Queue.Queue):
 			hc = req.hash()
 			if not hc in self.urls:
 				self.urls[hc] = True
-				Queue.Queue.put(self, req, block, timeout)
+				queue.Queue.put(self, req, block, timeout)
 
 	def put_url(self, source, url, referrer, block=True, timeout=None):
 		with self._url_lock:
@@ -554,12 +548,12 @@ class RequestQueue(Queue.Queue):
 				hc = request.hash()
 				if not hc in self.urls:
 					self.urls[hc] = True
-					Queue.Queue.put(self, request, block, timeout)
+					queue.Queue.put(self, request, block, timeout)
 
 	def load(self, urls, requests, block=True, timeout=None):
 		self.urls = urls
 		for r in requests:
-			Queue.Queue.put(self, r, block, timeout)
+			queue.Queue.put(self, r, block, timeout)
 
 	def save(self, block=False):
 		rq = []
@@ -572,19 +566,19 @@ class RequestQueue(Queue.Queue):
 			return False
 		else:
 			request.timeouts += 1
-			Queue.Queue.put(self, request)
+			queue.Queue.put(self, request)
 			return True
 
-class OutputQueue(Queue.Queue):
+class OutputQueue(queue.Queue):
 	def __init__(self):
-		Queue.Queue.__init__(self)
+		queue.Queue.__init__(self)
 
 	def put(self, file_name, value, block=True, timeout=None):
 		if isinstance(value, list):
 			for val in value:
-				Queue.Queue.put(self, (file_name, val), block, timeout)
+				queue.Queue.put(self, (file_name, val), block, timeout)
 		else:
-			Queue.Queue.put(self, (file_name, str(value)), block, timeout)
+			queue.Queue.put(self, (file_name, str(value)), block, timeout)
 
 class HtmlHelper(object):
 	def __init__(self, document):
@@ -715,11 +709,11 @@ class Authenticate(ModuleBase):
 			if a.post:
 				url = a.login_url
 			else:
-				if len(urlparse.urlparse(a.login_url).query) > 0:
+				if len(urllib.parse.urlparse(a.login_url).query) > 0:
 					sep = '&'
 				else:
 					sep = '?'
-				url = '{}{}{}'.format(a.login_url, sep, urllib.urlencode(a.params, True))
+				url = '{}{}{}'.format(a.login_url, sep, urllib.parse.urlencode(a.params, True))
 
 			r = Request(Authenticate.AUTH_RESPONSE_KEY, url, str(request))
 			if a.post: r.set_post_data(a.params)

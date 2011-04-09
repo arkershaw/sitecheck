@@ -19,7 +19,7 @@
 
 import threading
 import os
-import htmlentitydefs
+import html.entities
 import re
 
 # From: http://code.activestate.com/recipes/52308/
@@ -65,13 +65,13 @@ def read_input():
 
 		def run(self):
 			try:
-				self.input = raw_input()
+				self.input = input()
 			except:
 				pass
 
 	it = ReadInputThread()
 	it.start()
-	it.join(60)
+	it.join(30)
 	return it.input
 
 # From: http://effbot.org/zone/re-sub.htm#unescape-html
@@ -81,14 +81,14 @@ def html_decode(text):
         if text[:2] == "&#":
             try:
                 if text[:3] == "&#x":
-                    return unichr(int(text[3:-1], 16))
+                    return chr(int(text[3:-1], 16))
                 else:
-                    return unichr(int(text[2:-1]))
+                    return chr(int(text[2:-1]))
             except ValueError:
                 pass
         else:
             try:
-                text = unichr(htmlentitydefs.name2codepoint[text[1:-1]])
+                text = chr(html.entities.name2codepoint[text[1:-1]])
             except KeyError:
                 pass
         return text

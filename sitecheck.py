@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 # Copyright 2009-2011 Andrew Kershaw
@@ -23,7 +23,7 @@ if __name__ == '__main__':
 	import os
 	import sys
 	import re
-	import urlparse
+	import urllib.parse
 	import datetime
 
 	from sitecheck import *
@@ -33,7 +33,7 @@ This program comes with ABSOLUTELY NO WARRANTY''')
 
 	parser = ArgumentParser()
 	parser.add_argument('-d', '--domain', dest='domain', default=None, help='The domain to spider. This can also be set in the config file.')
-	parser.add_argument('-p', '--page', dest='page', default=None, help='The first page to reqeust. This can also be set in the config file.')
+	parser.add_argument('-p', '--page', dest='page', default=None, help='The first page to request. This can also be set in the config file.')
 	parser.add_argument('directory', help='The directory containing the configuration and output.')
 	args = parser.parse_args()
 
@@ -74,7 +74,7 @@ This program comes with ABSOLUTELY NO WARRANTY''')
 				sc.session.domain = args.domain
 			else:
 				sc.session.domain = 'http://{}'.format(args.domain)
-			output_dir = output_dir + urlparse.urlparse(sc.session.domain).netloc + os.sep
+			output_dir = output_dir + urllib.parse.urlparse(sc.session.domain).netloc + os.sep
 
 		if args.page: sc.session.page = args.page
 

@@ -19,8 +19,8 @@
 
 import re
 import os
-import urlparse
-import urllib
+import urllib.parse
+import urllib.request, urllib.parse, urllib.error
 
 try:
 	from tidylib import tidy_document
@@ -50,8 +50,8 @@ class Spider(ModuleBase):
 			referrer = str(request)
 			messages.add('Location: [{}]'.format(referrer))
 
-			self.add_request(map(lambda e: e[2], doc.get_attribute('src')), referrer)
-			self.add_request(map(lambda e: e[2], doc.get_attribute('action', 'form')), referrer)
+			self.add_request([e[2] for e in doc.get_attribute('src')], referrer)
+			self.add_request([e[2] for e in doc.get_attribute('action', 'form')], referrer)
 
 			urls = set()
 			for href in doc.get_attribute('href'):
@@ -104,8 +104,8 @@ class Accessibility(ModuleBase):
 				messages.add('Error parsing: [{}]'.format(str(request)))
 			else:
 				for e in err.splitlines():
-					if self.log(str(e)):
-						messages.add('\t{}'.format(re.sub('^line\\b', 'Line', str(e))))
+					if self.log(e):
+						messages.add('\t{}'.format(re.sub('^line\\b', 'Line', e)))
 
 				messages.set_header('URL: {} ({} errors)'.format(str(request), len(messages)))
 
@@ -283,7 +283,7 @@ class RegexMatch(ModuleBase):
 	@message_batch
 	def process(self, messages, request, response):
 		messages.set_header('URL: {}'.format(str(request)))
-		for rx in self.expressions.iteritems():
+		for rx in self.expressions.items():
 			inv_h = inv_b = False
 			if rx[0][0] == '^':
 				inv_h = True
@@ -312,7 +312,7 @@ class Persister(ModuleBase):
 		self.directory = directory
 
 	def process(self, request, response):
-		if request.verb == 'HEAD' and request.domain == urlparse.urlparse(self.sitecheck.session.domain).netloc:
+		if request.verb == 'HEAD' and request.domain == urllib.parse.urlparse(self.sitecheck.session.domain).netloc:
 			request.set_verb()
 			request.modules = [self]
 			self.sitecheck.request_queue.put(request)
@@ -331,14 +331,14 @@ class Persister(ModuleBase):
 
 			ensure_dir(od)
 
-			if len(request.query) > 0: fl += '?' +  urllib.unquote_plus(request.query)
+			if len(request.query) > 0: fl += '?' +  urllib.parse.unquote_plus(request.query)
 			fl = re.sub(r'([ \/])', '', fl)
 
 			pth = os.path.join(od, fl)
 			if response.is_html and not re.search('\.html?$', pth, re.IGNORECASE):
 				pth += '.html'
 
-			open(pth, mode='wb').write(response.content)
+			open(pth, mode='wb').write(response.content.decode())
 
 class Spelling(ModuleBase):
 	def __init__(self, language='en_US'):
@@ -397,14 +397,14 @@ class Spelling(ModuleBase):
 
 			if len(words) > 0:
 				messages.set_header('Document: [{}]'.format(str(request)))
-				keys = words.keys()
+				keys = list(words.keys())
 				keys.sort()
 				for k in keys:
 					messages.add('\tWord: [{}] x {} ({})'.format(words[k][0], words[k][1], words[k][2]))
 
 	def check(self, text, words):
 		if not text: return
-		t = html_decode(text.strip().decode('utf8'))
+		t = html_decode(text.strip())
 		l = len(t)
 		if l > 0:
 			self.spell_checker.set_text(t)
@@ -420,8 +420,8 @@ class Spelling(ModuleBase):
 							if m.start() == 0 or m.group(1) in self.sentence_end or m.group(2)[0].islower(): # First word in sentence/para or not proper noun
 								st = max(m.start() - 20, 0)
 								en = min(m.end() + 20, l)
-								ctx = re.sub('\t|\n', ' ', t[st:en]).encode('utf8')
-								words[w] = [err.word.encode('utf8'), 1, ctx]
+								ctx = re.sub('\t|\n', ' ', t[st:en])
+								words[w] = [err.word, 1, ctx]
 
 class InboundLinks(ModuleBase):
 	def __init__(self, engines=None):
@@ -448,10 +448,10 @@ class InboundLinks(ModuleBase):
 
 	def begin(self):
 		self.link = re.compile('"(https?://{}[^"]*)"'.format(re.escape(self.sitecheck.session.domain), re.IGNORECASE))
-		if not self.engines: self.engines = self.engine_parameters.keys()
+		if not self.engines: self.engines = list(self.engine_parameters.keys())
 		for ei in range(len(self.engines)):
 			se = self.engines[ei]
-			if self.engine_parameters.has_key(se):
+			if se in self.engine_parameters:
 				e = self.engine_parameters[se]
 				e.extend([0, e[3]]) # Total results, current result offset
 				url = e[0].format(self.sitecheck.session.domain, e[3])
@@ -464,7 +464,7 @@ class InboundLinks(ModuleBase):
 				self.engines.pop(ei)
 
 	def process(self, request, response):
-		if request.source == self.name and response.is_html and self.engine_parameters.has_key(request.referrer):
+		if request.source == self.name and response.is_html and request.referrer in self.engine_parameters:
 			with self.sync_lock:
 				e = self.engine_parameters[request.referrer]
 				mtch = e[1].search(response.content)
@@ -504,22 +504,22 @@ class Security(ModuleBase):
 			if response.status >= 500:
 				messages.add('Caused error with request: [{}]'.format(str(request)))
 				if len(request.postdata) > 0:
-					messages.add('\tPost data: [{}]'.format(urllib.urlencode(request.postdata)))
+					messages.add('\tPost data: [{}]'.format(urllib.parse.urlencode(request.postdata)))
 			elif self.xss.search(response.content):
 				messages.add('Possible XSS found in: [{}]'.format(str(request)))
 				if len(request.postdata) > 0:
-					messages.add('\tPost data: [{}]'.format(urllib.urlencode(request.postdata)))
+					messages.add('\tPost data: [{}]'.format(urllib.parse.urlencode(request.postdata)))
 		elif response.is_html:
 			doc = HtmlHelper(response.content)
 			for atk in self.attacks:
 				self.inject(request, doc, atk)
 
 	def inject(self, request, document, value):
-		qs = urlparse.parse_qs(request.query, True)
-		for param in qs.iterkeys():
+		qs = urllib.parse.parse_qs(request.query, True)
+		for param in qs.keys():
 			temp = qs[param]
 			qs[param] = value
-			url = urlparse.urljoin(str(request), '?' + urllib.urlencode(qs, True))
+			url = urllib.parse.urljoin(str(request), '?' + urllib.parse.urlencode(qs, True))
 			qs[param] = temp
 
 			req = Request(self.name, url, request.referrer)
@@ -547,10 +547,10 @@ class Security(ModuleBase):
 			for cp in params:
 				rp = [self.insert_param(p, cp[0], value) for p in params] # Construct new list
 				if not post:
-					if len(urlparse.urlparse(url).query) > 0:
-						url = url + '&' + urllib.urlencode(rp)
+					if len(urllib.parse.urlparse(url).query) > 0:
+						url = url + '&' + urllib.parse.urlencode(rp)
 					else:
-						url = url + '?' + urllib.urlencode(rp)
+						url = url + '?' + urllib.parse.urlencode(rp)
 
 				req = Request(self.name, url, request.referrer)
 				if post: req.postdata = rp

@@ -58,7 +58,7 @@ class Session(object):
 			Accessibility(),
 			MetaData(),
 			StatusLog(),
-			Security(email='user@example.com', attacks=["1'1\\'1", '"/><xss>']),
+			#Security(email='user@example.com', attacks=["1'1\\'1", '"/><xss>']),
 			# "' -- ", "\\' -- ", "; select 1/0;", "'';!--\"<xss>=&{()}"
 			Comments(),
 			Spelling(language='en_GB'),
