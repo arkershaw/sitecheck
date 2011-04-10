@@ -22,12 +22,13 @@ import os
 import threading
 import time
 import http.client
-import urllib.request, urllib.parse, urllib.error
+import urllib.request
+import urllib.parse
+import urllib.error
 import http.cookies
 import socket
 import queue
 import datetime
-import urllib.parse
 import re
 import hashlib
 import uuid
@@ -45,13 +46,14 @@ class SiteCheckStartedException(Exception):
 	pass
 
 class SiteCheck(object):
-	def __init__(self):
+	def __init__(self, root_path):
+		self.root_path = root_path
 		self.session = None
 		self.output_queue = OutputQueue()
 		self.request_queue = None
+		self._request_queue = None
 
 		self._started = False
-		self._resume = False
 		self._threads = []
 		self._log_writer = None
 
@@ -61,18 +63,19 @@ class SiteCheck(object):
 		self.session = session
 		self.request_queue = RequestQueue(session)
 
-	def resume(self, suspend_file):
-		if self._started: raise SiteCheckStartedException()
+	def initialise_module(self, module):
+		try:
+			if not hasattr(module, 'process'): raise Exception('Process method not defined')
 
-		f = open(suspend_file, 'rb')
-		sd = pickle.load(f)
-		f.close()
+			module.initialise(self)
 
-		self.session = sd[0]
-		self.request_queue = RequestQueue(sd[0])
-		self.request_queue.load(sd[1], sd[2])
-
-		self._resume = True
+			if not self._request_queue:
+				if hasattr(module, 'begin'): module.begin()
+		except:
+			self.output_queue.put(module.log_file, 'ERROR: ' + str(sys.exc_info()[1]))
+			return False
+		else:
+			return True
 
 	def is_complete(self):
 		if self.session == None: raise SessionNotSetException()
@@ -95,8 +98,11 @@ class SiteCheck(object):
 		if not self.session.domain[-1] == '/' and len(os.path.splitext(self.session.domain)[1]) == 0:
 			self.session.domain = self.session.domain + '/'
 
-		append(self.session.output, os.sep)
-		append(self.session._config, os.sep)
+		if not re.match('^http', self.session.domain, re.IGNORECASE):
+			self.session.domain = 'http://{}'.format(self.session.domain)
+
+		self.root_path = append(self.root_path, os.sep)
+		self.session.output = append(self.session.output, os.sep)
 		
 		if len(urllib.parse.urlparse(self.session.domain).netloc) == 0: raise Exception('Invalid domain')
 
@@ -110,24 +116,7 @@ class SiteCheck(object):
 		self._log_writer.start()
 
 		# Initialise modules
-		for m in range(len(self.session.modules)):
-			mod = self.session.modules[m]
-			try:
-				if not hasattr(mod, 'process'): raise Exception('Process method not defined')
-
-				mod.initialise(self)
-
-				if self._resume:
-					if hasattr(mod, 'resume'): mod.resume()
-				else:
-					if hasattr(mod, 'begin'): mod.begin()
-			except:
-				if hasattr(mod, 'name'):
-					self.output_queue.put(mod.log_file, 'ERROR: ' + str(sys.exc_info()))
-				else:
-					# If intialise fails, log_file is not populated
-					self.output_queue.put(None, 'ERROR: ' + str(sys.exc_info()))
-				self.session.modules.pop(m)
+		self.session.modules = [m for m in self.session.modules if self.initialise_module(m)]
 
 		# Create worker thread pool
 		for i in range(self.session.thread_pool):
@@ -136,11 +125,15 @@ class SiteCheck(object):
 			thread.start()
 			self._threads.append(thread)
 
-		# Add initial URL to queue
 		a = self.session.authenticate
 		if a.login_url == None or len(a.login_url) == 0:
+			# Add initial URL to queue - will be ignored on resume if already downloaded
 			self.request_queue.put_url('', self.session.page, self.session.domain)
 		else:
+			if not self._request_queue:
+				self._request_queue = RequestQueue(self.session)
+				self._request_queue.put_url('', self.session.page, self.session.domain)
+
 			# Authenticate before spidering begins
 			if not a.logout_url == None:
 				if not a.logout_url in self.session.ignore_url: self.session.ignore_url.append(a.logout_url)
@@ -151,7 +144,7 @@ class SiteCheck(object):
 			r.modules = [a]
 			self.request_queue.put(r)
 
-	def _stop_threads(self):
+	def end(self):
 		if self.session == None: raise SessionNotSetException()
 
 		# Wait for worker threads to complete
@@ -159,47 +152,38 @@ class SiteCheck(object):
 		for thread in self._threads:
 			thread.join()
 
-	def _flush_logs(self):
-		if self.session == None: raise SessionNotSetException()
+		if self.is_complete():
+			for mod in self.session.modules:
+				if hasattr(mod, 'complete'): mod.complete()
 
 		# Wait for log entries to be written
 		LogWriter.terminate.set()
 		self._log_writer.join()
 
-	def end(self):
+	def suspend(self):
 		if self.session == None: raise SessionNotSetException()
-
-		self._stop_threads()
-
-		for mod in self.session.modules:
-			if hasattr(mod, 'complete'): mod.complete()
-
-		self._flush_logs()
-
-	def suspend(self, suspend_file):
-		if self.session == None: raise SessionNotSetException()
-
-		self._stop_threads()
-
-		for mod in self.session.modules:
-			if hasattr(mod, 'suspend'): mod.suspend()
-
-		self._flush_logs()
 
 		dat = self.request_queue.save()
-		fl = open(suspend_file, 'wb')
-		# Dump config, url's and requests to file
-		pickle.dump((self.session, dat[0], dat[1]), fl)
-		fl.close()
+
+		return pickle.dumps((self.session, dat[0], dat[1]))
+
+	def resume(self, suspend_data):
+		if self._started: raise SiteCheckStartedException()
+
+		dat = pickle.loads(suspend_data)
+		self.set_session(dat[0])
+		del self.session._cookie
+		self._request_queue = RequestQueue(dat[0])
+		self._request_queue.load(dat[1], dat[2])
 
 class LogWriter(threading.Thread):
 	terminate = threading.Event()
 
 	def __init__(self, sitecheck):
 		threading.Thread.__init__(self)
-		self.sitecheck = sitecheck
 		self._session = sitecheck.session
 		self._output_queue = sitecheck.output_queue
+		self.root_path = sitecheck.root_path
 		self._outfiles = {}
 		self.default_log_file = 'sitecheck'
 		self.extension = '.log'
@@ -212,12 +196,12 @@ class LogWriter(threading.Thread):
 		else:
 			if fl == None: fl = self.default_log_file
 			if not fl in self._outfiles:
-				self._outfiles[fl] = open('{}{}{}{}'.format(self._session.output, os.sep, fl, self.extension), mode='w')
+				self._outfiles[fl] = open('{}{}{}{}{}'.format(self.root_path, self._session.output, os.sep, fl, self.extension), mode='a')
 			self._outfiles[fl].write(msg)
 			self._outfiles[fl].write('\n')
 
 	def run(self):
-		log = open('{}{}{}{}'.format(self._session.output, os.sep, self.default_log_file, self.extension), mode='w')
+		log = open('{}{}{}{}{}'.format(self.root_path, self._session.output, os.sep, self.default_log_file, self.extension), mode='a')
 		self._outfiles = {self.default_log_file: log}
 
 		log.write('Started: {}\n\n'.format(datetime.datetime.now()))
@@ -225,10 +209,10 @@ class LogWriter(threading.Thread):
 		while not LogWriter.terminate.isSet():
 			self._write_next()
 
-		log.write('Completed: {}\n\n'.format(datetime.datetime.now()))
-
 		while not self._output_queue.empty():
 			self._write_next()
+
+		log.write('Completed: {}\n\n'.format(datetime.datetime.now()))
 
 		for fl in self._outfiles.items():
 			fl[1].close()
@@ -354,6 +338,9 @@ class Checker(threading.Thread):
 					if self._session.log.post_data and len(req.postdata) > 0: msgs.append('\tPOST DATA: {}'.format(req.get_post_data()))
 					if self._session.log.response_headers: msgs.append('\tRESPONSE HEADERS: {}'.format(res.headers))
 
+					if res.time > self._session.slow_request:
+						msgs.append('\tSLOW REQUEST: [{}] ({:.3f} seconds)'.format(str(req), res.time))
+
 					if (res.status >= 300 and res.status < 400) and req.domain == dom.netloc:
 						loc = res.get_headers('location')
 						if len(loc) > 0:
@@ -367,11 +354,8 @@ class Checker(threading.Thread):
 								self._request_queue.put(req)
 						else:
 							msgs.append('\tERROR: Redirect with no location: [{}]'.format(req.referrer))
-
-					if res.time > self._session.slow_request:
-						msgs.append('\tSLOW REQUEST: [{}] ({:.3f} seconds)'.format(str(req), res.time))
-
-					self.process(req, res)
+					else:
+						self.process(req, res)
 				else:
 					msgs.append('{}: [{}]'.format(req.verb, str(req)))
 					if err:
@@ -463,6 +447,8 @@ class Request(object):
 	def redirect(self, url):
 		if self.redirects == 0:
 			self.referrer = self.__str__()
+			self.postdata = [] # Reset to get on redirect
+			self.verb = 'GET'
 		self._set_url(url)
 		self.redirects += 1
 
@@ -478,8 +464,10 @@ class Response(object):
 		self.headers = response.getheaders()
 		html = self.get_header('content-type').startswith('text/html')
 		temp = response.read()
-		if temp:
+		if temp and html:
 			self.content = temp.decode('utf-8', errors='replace')
+		elif temp:
+			self.content = temp
 		else:
 			self.content = ''
 		self.time = end_time - start_time
@@ -506,7 +494,7 @@ class RequestQueue(queue.Queue):
 	def __init__(self, session):
 		queue.Queue.__init__(self)
 		self.session = session
-		self._url_lock = threading.Lock()
+		self._lock = threading.Lock()
 		self.urls = {}
 
 	def is_valid(self, url):
@@ -535,7 +523,7 @@ class RequestQueue(queue.Queue):
 				queue.Queue.put(self, req, block, timeout)
 
 	def put_url(self, source, url, referrer, block=True, timeout=None):
-		with self._url_lock:
+		with self._lock:
 			if isinstance(url, list):
 				for u in url:
 					self._put_url(source, u, referrer, block, timeout)
@@ -544,7 +532,7 @@ class RequestQueue(queue.Queue):
 
 	def put(self, request, block=True, timeout=None):
 		if self.is_valid(str(request)):
-			with self._url_lock:
+			with self._lock:
 				hc = request.hash()
 				if not hc in self.urls:
 					self.urls[hc] = True
@@ -572,11 +560,13 @@ class RequestQueue(queue.Queue):
 class OutputQueue(queue.Queue):
 	def __init__(self):
 		queue.Queue.__init__(self)
+		self._lock = threading.Lock()
 
 	def put(self, file_name, value, block=True, timeout=None):
 		if isinstance(value, list):
-			for val in value:
-				queue.Queue.put(self, (file_name, val), block, timeout)
+			with self._lock:
+				for val in value:
+					queue.Queue.put(self, (file_name, val), block, timeout)
 		else:
 			queue.Queue.put(self, (file_name, str(value)), block, timeout)
 
@@ -672,10 +662,12 @@ def message_batch(method):
 	return inner
 
 class ModuleBase(object):
-	def initialise(self, sitecheck):
-		self.sitecheck = sitecheck
+	def __init__(self):
 		self.name = self.__class__.__name__
 		self.log_file = self.__class__.__name__.lower()
+
+	def initialise(self, sitecheck):
+		self.sitecheck = sitecheck
 		self.sync_lock = threading.Lock()
 
 	def add_message(self, message, log_file=None):
@@ -694,9 +686,6 @@ class ModuleBase(object):
 		del state['sitecheck']
 		return state
 
-	#def __setstate__(self, state):
-		 #self.__dict__.update(state)
-
 class Authenticate(ModuleBase):
 	AUTH_REQUEST_KEY = '__AUTHENTICATION__REQ'
 	AUTH_RESPONSE_KEY = '__AUTHENTICATION__RES'
@@ -704,7 +693,7 @@ class Authenticate(ModuleBase):
 	def process(self, request, response):
 		a = self.sitecheck.session.authenticate
 		if request.source == Authenticate.AUTH_REQUEST_KEY:
-			self.add_message('Authenticating {}: [{}] status: {}'.format(request.verb, str(request), str(response.status)))
+			self.sitecheck.output_queue.put(None, 'AUTHENTICATING\n')
 
 			if a.post:
 				url = a.login_url
@@ -720,6 +709,8 @@ class Authenticate(ModuleBase):
 			r.modules = [self]
 			self.sitecheck.request_queue.put(r)
 		elif request.source == Authenticate.AUTH_RESPONSE_KEY:
-			self.add_message('Response {}: [{}] status: {}'.format(request.verb, str(request), str(response.status)))
+			self.sitecheck.output_queue.put(None, 'AUTHENTICATED\n')
+
 			# Begin spidering
-			self.sitecheck.request_queue.put_url('', self.sitecheck.session.page, self.sitecheck.session.domain)
+			self.sitecheck.request_queue.load(*self.sitecheck._request_queue.save())
+			del self.sitecheck._request_queue

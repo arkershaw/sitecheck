@@ -93,3 +93,17 @@ def html_decode(text):
                 pass
         return text
     return re.sub("&#?\w+;", fixup, text)
+
+def suspend(sitecheck, suspend_file):
+	sd = sitecheck.suspend()
+
+	f = open(suspend_file, 'wb')
+	f.write(sd)
+	f.close()
+
+def resume(sitecheck, suspend_file):
+	f = open(suspend_file, 'rb')
+	sd = f.read()
+	f.close()
+
+	sitecheck.resume(sd)

@@ -25,8 +25,11 @@ if __name__ == '__main__':
 	import re
 	import urllib.parse
 	import datetime
+	import shutil
+	import imp
 
 	from sitecheck import *
+	from sitecheck.utils import read_input, append, ensure_dir, suspend, resume
 
 	print('''Sitecheck Copyright (C) 2009-2011 Andrew Kershaw
 This program comes with ABSOLUTELY NO WARRANTY''')
@@ -37,44 +40,42 @@ This program comes with ABSOLUTELY NO WARRANTY''')
 	parser.add_argument('directory', help='The directory containing the configuration and output.')
 	args = parser.parse_args()
 
-	sc = SiteCheck()
+	sc = SiteCheck(append(args.directory, os.sep))
 
-	config_dir = output_dir = append(args.directory, os.sep)
-	suspend_file = config_dir + 'suspend.pkl'
+	suspend_file = sc.root_path + 'suspend.pkl'
+	config_file = sc.root_path + 'config.py'
+	conf = None
+	if os.path.exists(config_file):
+		# Load existing configuration (must be done before unpickle)
+		try:
+			conf = imp.load_source('savedconfig', config_file)
+		except:
+			print('Invalid config file found in directory.')
+			sys.exit()
 
 	if os.path.exists(suspend_file):
 		print('Resuming session...')
 		try:
-			sc.resume(suspend_file)
+			resume(sc, suspend_file)
 		except:
 			print('Unable to load suspend data.')
 			sys.exit()
-
-		try:
-			os.remove(suspend_file)
-		except:
-			print('WARNING: Unable to remove suspend data.')
 	else:
-		cfp = config_dir + 'config.py'
-		if os.path.exists(cfp):
-			# Load existing configuration
+		if conf:
 			print('Loading config...')
-			import imp
-			try:
-				sc.set_session(imp.load_source('config', cfp).Session())
-			except:
-				print('Invalid config file found in directory.')
-				sys.exit()
+			sc.set_session(conf.Session())
 		else:
 			# Load default configuration
 			sc.set_session(Session())
 
+		op = ''
 		if args.domain:
+			print('asdfadsfad')
 			if re.match('^http', args.domain, re.IGNORECASE):
 				sc.session.domain = args.domain
 			else:
 				sc.session.domain = 'http://{}'.format(args.domain)
-			output_dir = output_dir + urllib.parse.urlparse(sc.session.domain).netloc + os.sep
+			op = urllib.parse.urlparse(sc.session.domain).netloc + os.sep
 
 		if args.page: sc.session.page = args.page
 
@@ -83,24 +84,41 @@ This program comes with ABSOLUTELY NO WARRANTY''')
 			sys.exit()
 
 		if sc.session.output == None or len(sc.session.output) == 0:
-			sc.session.output = output_dir + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-		else:
-			sc.session.output = append(output_dir, sc.session.output)
-		ensure_dir(sc.session.output)
+			op += datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S') + os.sep
 
-		sc.session._config = config_dir
+		sc.session.output = op + sc.session.output
+
+		# Clear output directory
+		od = sc.root_path + sc.session.output
+		if os.path.exists(od):
+			try:
+				shutil.rmtree(od)
+			except:
+				print('Unable to clear output directory.')
+				sys.exit()
+		try:
+			ensure_dir(od)
+		except:
+			print('Unable to create output directory.')
+			sys.exit()
 
 	print('\nTarget: [{}]'.format(sc.session.domain))
-	print('Output: [{}]\n'.format(sc.session.output))
+	print('Output: [{}]\n'.format(sc.root_path + sc.session.output))
 
 	sc.begin()
+
+	if os.path.exists(suspend_file):
+		try:
+			os.remove(suspend_file)
+		except:
+			print('WARNING: Unable to remove suspend data.')
 
 	print('Checking...')
 	print('''s -> Suspend
 q -> Abort
 Return key -> Print status''')
 
-	suspend = False
+	susp = False
 	while True:
 		char = read_input()
 		if char == None:
@@ -108,17 +126,19 @@ Return key -> Print status''')
 		elif char.lower() == 'q':
 			break
 		elif char.lower() == 's':
-			suspend = True
+			susp = True
 			break
 		else:
 			print('URLs: {}, Queue: {}'.format(len(sc.request_queue.urls), sc.request_queue.qsize()))
 			if sc.is_complete(): break
 
-	if suspend:
+	if susp:
 		print('Suspending...')
-		sc.suspend(suspend_file)
 	else:
 		print('Finishing...')
-		sc.end()
+
+	sc.end()
+
+	if susp: suspend(sc, suspend_file)
 
 	print('Completed.')

@@ -19,4 +19,3 @@
 
 from sitecheck.core import SiteCheck
 from sitecheck.config import Session
-from sitecheck.utils import read_input, append, ensure_dir

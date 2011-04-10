@@ -20,7 +20,8 @@
 import re
 import os
 import urllib.parse
-import urllib.request, urllib.parse, urllib.error
+import urllib.request
+import urllib.error
 
 try:
 	from tidylib import tidy_document
@@ -77,6 +78,7 @@ class StatusLog(ModuleBase):
 
 class Accessibility(ModuleBase):
 	def __init__(self):
+		ModuleBase.__init__(self)
 		self.accessibility = re.compile(' - Access: \[([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)\]')
 		self.ignore = set()
 		self.ignore.add('1.1.2.1') # <img> missing 'longdesc' and d-link
@@ -188,6 +190,7 @@ class MetaData(ModuleBase):
 
 class Readability(ModuleBase):
 	def __init__(self, threshold=45):
+		ModuleBase.__init__(self)
 		self.threshold = threshold
 		self.sentence_end = '!?.'
 		self.min = None
@@ -255,6 +258,7 @@ class Readability(ModuleBase):
 
 class Validator(ModuleBase):
 	def __init__(self):
+		ModuleBase.__init__(self)
 		self.options = {'show-warnings': True}
 
 	def begin(self):
@@ -278,6 +282,7 @@ class Validator(ModuleBase):
 
 class RegexMatch(ModuleBase):
 	def __init__(self, expressions={}):
+		ModuleBase.__init__(self)
 		self.expressions = expressions
 
 	@message_batch
@@ -309,6 +314,7 @@ class RegexMatch(ModuleBase):
 
 class Persister(ModuleBase):
 	def __init__(self, directory='output'):
+		ModuleBase.__init__(self)
 		self.directory = directory
 
 	def process(self, request, response):
@@ -317,7 +323,7 @@ class Persister(ModuleBase):
 			request.modules = [self]
 			self.sitecheck.request_queue.put(request)
 		elif len(response.content) > 0 and response.status < 300:
-			od = self.sitecheck.session.output + os.sep
+			od = self.sitecheck.root_path + self.sitecheck.session.output + os.sep
 			if len(self.directory) >  0: od += self.directory + os.sep
 			od += request.domain
 
@@ -338,10 +344,14 @@ class Persister(ModuleBase):
 			if response.is_html and not re.search('\.html?$', pth, re.IGNORECASE):
 				pth += '.html'
 
-			open(pth, mode='wb').write(response.content.decode())
+			if response.is_html:
+				open(pth, mode='w').write(response.content)
+			else:
+				open(pth, mode='wb').write(response.content)
 
 class Spelling(ModuleBase):
 	def __init__(self, language='en_US'):
+		ModuleBase.__init__(self)
 		self.language = language
 		self.sentence_end = '!?.'
 
@@ -354,7 +364,7 @@ class Spelling(ModuleBase):
 		global enchant_available
 		if enchant_available:
 			ddp = os.path.dirname(os.path.abspath(__file__)) + 'dict.txt'
-			cdp = self.sitecheck.session._config + 'dict.txt'
+			cdp = self.sitecheck.root_path + 'dict.txt'
 			
 			if os.path.exists(cdp):
 				self.add_message('Using custom dictionary [{}]'.format(cdp))
@@ -425,6 +435,7 @@ class Spelling(ModuleBase):
 
 class InboundLinks(ModuleBase):
 	def __init__(self, engines=None):
+		ModuleBase.__init__(self)
 		self.engines = engines
 		#URL, page regex, page size, initial offset
 		self.engine_parameters = {
@@ -494,6 +505,7 @@ class InboundLinks(ModuleBase):
 
 class Security(ModuleBase):
 	def __init__(self, email='', attacks=[]):
+		ModuleBase.__init__(self)
 		self.xss = re.compile("<xss>", re.IGNORECASE)
 		self.email = email
 		self.attacks = attacks

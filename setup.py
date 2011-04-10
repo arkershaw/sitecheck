@@ -27,7 +27,7 @@ setup(name='sitecheck',
 	author_email='arkershaw@users.sourceforge.net',
 	url='http://sourceforge.net/projects/sitecheck/',
 	packages=['sitecheck'],
-	scripts=['sitecheck.py'],
+	scripts=['runsitecheck.py'],
 	package_data={'sitecheck': ['dict.txt']},
 
 	long_description = 'Modular web site spider for web developers. Checks for many common problems including missing documents (HTTP 400), server errors (HTTP 500), spelling mistakes, validation errors, missing meta tags and potential SQL injection/XSS.',

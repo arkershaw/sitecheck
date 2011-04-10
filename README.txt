@@ -1,4 +1,5 @@
-Licensed under the MIT license (see "LICENSE" file).
+Copyright 2009-2011 Andrew Kershaw
+Licensed under the GNU Affero General Public License v3 (see "LICENSE" file).
 
 Dependencies:
 
@@ -36,15 +37,15 @@ Usage:
 
 	Windows:
 
-		C:\Python32\Scripts\sitecheck.py -d http://www.domain-goes-here C:\path\to\output
+		C:\Python32\Scripts\runsitecheck.py -d http://www.domain-goes-here C:\path\to\output
 
 	Linux:
 
-		sitecheck.py -d http://www.domain-goes-here /path/to/output
+		runsitecheck.py -d http://www.domain-goes-here /path/to/output
 
 	To specify the default page, use the -p switch:
 
-		sitecheck.py -d http://www.domain-goes-here -p home.html /path/to/output
+		runsitecheck.py -d http://www.domain-goes-here -p home.html /path/to/output
 
 While running:
 
@@ -56,32 +57,32 @@ While running:
 
 Modules:
 
-	persister -> Saves downloaded html headers and responses to disk for further analysis. Disabled by default.
+	Persister -> Saves downloaded html headers and responses to disk for further analysis. Disabled by default.
 
-	inboundlinks -> Checks URL's in the search result listings from the Google and Bing search engines.
+	InboundLinks -> Checks URL's in the search result listings from the Google, Yahoo and Bing search engines.
 
-	regexmatch -> Checks for regular expression match in headers and content. To search for headers which don't match a regular expression, prefix the name with ^ and to search for content which doesn't match, prefix with _
+	RegexMatch -> Checks for regular expression match in headers and content. To search for headers which don't match a regular expression, prefix the name with ^ and to search for content which doesn't match, prefix with _
 
-	validator -> Outputs validation errors.
+	Validator -> Outputs validation errors.
 
-	accessibility -> Outputs selected accessibility warnings (those that can be automatically tested).
+	Accessibility -> Outputs selected accessibility warnings (those that can be automatically tested).
 
-	metadata -> Checks for missing/empty/duplicate meta title, description and keywords.
+	MetaData -> Checks for missing/empty/duplicate meta title, description and keywords.
 
-	statuslog -> Logs any 4xx and 5xx responses.
+	StatusLog -> Logs any 4xx and 5xx responses.
 
-	security -> Attempts basic SQL injection and XSS attacks on get and post parameters.
+	Security -> Attempts basic SQL injection and XSS attacks on get and post parameters.
 
-	comments -> Logs the content of any HTML comments found.
+	Comments -> Logs the content of any HTML comments found.
 
-	spelling -> Spellcheck using Enchant. Custom dictionary words are in dict.txt.
+	Spelling -> Spellcheck using Enchant. Custom dictionary words are in dict.txt.
 
-	spider -> If this module is disabled, only a single page will be analysed. Scans all files under the domain/path as well as testing targets of external links.
+	Spider -> If this module is disabled, only a single page will be analysed. Scans all files under the domain/path as well as testing targets of external links.
 
-	readability -> Calculates the Flesch Reading Ease score and logs it if it is below the specified threshold.
+	Readability -> Calculates the Flesch Reading Ease score and logs it if it is below the specified threshold.
 
 Configuration:
 
-	Configuration for the spider and individual modules can be found in "sc_config.py".
+	Configuration for the spider and individual modules can be found in "config.py".
 
-	For site-specific configuration, copy sc_config.py to the output directory specified on the command line. The domain and path properties can be specified in the config file and subsequently omitted from the command line. This config file will be used instead of the default. The custom dictionary file for the spelling module can also be overridden by copying to the same location.
+	For site-specific configuration, copy config.py to the output directory specified on the command line. The domain and path properties can be specified in the config file and subsequently omitted from the command line. This config file will be used instead of the default. The custom dictionary file for the spelling module (dict.txt) can also be overridden by copying to the same location.
