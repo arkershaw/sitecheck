@@ -19,13 +19,13 @@ Installation:
 
 		setup.py install
 
-		You will also need the HTML Tidy library. Instructions are available on the pytidylib page. Alternatively, download a binary from here:
+		You will also need the HTML Tidy library. Instructions are available here:
+
+		http://countergram.com/open-source/pytidylib/docs/index.html
+
+		Alternatively, download a binary from here and place it somewhere on your path:
 
 		HTML Tidy: http://tidy.sourceforge.net/#binaries
-
-		You will need to place the DLL somewhere on your path. The easiest way is to copy it to the sitecheck folder. By default this will be at:
-
-		C:\Python32\Lib\site-packages\sitecheck
 
 	Linux:
 

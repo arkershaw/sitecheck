@@ -123,9 +123,9 @@ Return key -> Print status''')
 		char = read_input()
 		if char == None:
 			if sc.is_complete(): break
-		elif char.lower() == 'q':
+		elif char.strip().lower() == 'q':
 			break
-		elif char.lower() == 's':
+		elif char.strip().lower() == 's':
 			susp = True
 			break
 		else:
