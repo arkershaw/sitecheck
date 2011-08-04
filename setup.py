@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 # Copyright 2009-2011 Andrew Kershaw
@@ -21,7 +21,7 @@
 from distutils.core import setup
 
 setup(name='sitecheck',
-	version='1.0',
+	version='1.1',
 	description='Modular web site spider for web developers',
 	author='Andrew Kershaw',
 	author_email='arkershaw@users.sourceforge.net',
