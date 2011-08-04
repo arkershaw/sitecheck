@@ -6,6 +6,8 @@ Dependencies:
 	HTML Tidy, pytidylib (validation, accessibility)
 	Enchant, pyenchant (spelling)
 
+	*The version of pytidylib in PyPI is not yet updated for Python 3 so easy_install or pip will not install the latest version.
+
 Installation:
 
 	Windows:

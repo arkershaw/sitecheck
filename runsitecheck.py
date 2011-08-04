@@ -139,6 +139,9 @@ Return key -> Print status''')
 
 	sc.end()
 
-	if susp: suspend(sc, suspend_file)
+	if susp:
+		suspend(sc, suspend_file)
+	else:
+		print('URLs: {}'.format(len(sc.request_queue.urls)))
 
 	print('Completed.')

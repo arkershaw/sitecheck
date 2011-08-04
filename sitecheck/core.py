@@ -39,9 +39,6 @@ from sitecheck.utils import append
 class SessionNotSetException(Exception):
 	pass
 
-class SessionNotSetException(Exception):
-	pass
-
 class SiteCheckStartedException(Exception):
 	pass
 
@@ -103,7 +100,7 @@ class SiteCheck(object):
 
 		self.root_path = append(self.root_path, os.sep)
 		self.session.output = append(self.session.output, os.sep)
-		
+
 		if len(urllib.parse.urlparse(self.session.domain).netloc) == 0: raise Exception('Invalid domain')
 
 		# Organise file type sets
@@ -172,7 +169,8 @@ class SiteCheck(object):
 
 		dat = pickle.loads(suspend_data)
 		self.set_session(dat[0])
-		del self.session._cookie
+		if hasattr(self.session, '_cookie'):
+			del self.session._cookie
 		self._request_queue = RequestQueue(dat[0])
 		self._request_queue.load(dat[1], dat[2])
 
@@ -180,7 +178,7 @@ class LogWriter(threading.Thread):
 	terminate = threading.Event()
 
 	def __init__(self, sitecheck):
-		threading.Thread.__init__(self)
+		super(LogWriter, self).__init__()
 		self._session = sitecheck.session
 		self._output_queue = sitecheck.output_queue
 		self.root_path = sitecheck.root_path
@@ -221,7 +219,7 @@ class Checker(threading.Thread):
 	terminate = threading.Event()
 
 	def __init__(self, sitecheck):
-		threading.Thread.__init__(self)
+		super(Checker, self).__init__()
 		self.active = False # For determining whether a request is in progress
 		self.sitecheck = sitecheck
 		self._session = sitecheck.session
@@ -341,6 +339,10 @@ class Checker(threading.Thread):
 					if res.time > self._session.slow_request:
 						msgs.append('\tSLOW REQUEST: [{}] ({:.3f} seconds)'.format(str(req), res.time))
 
+					# Only process markup of error pages once
+					if not hasattr(self._session, '_processed'):
+						self._session._processed = []
+
 					if (res.status >= 300 and res.status < 400) and req.domain == dom.netloc:
 						loc = res.get_headers('location')
 						if len(loc) > 0:
@@ -354,7 +356,17 @@ class Checker(threading.Thread):
 								self._request_queue.put(req)
 						else:
 							msgs.append('\tERROR: Redirect with no location: [{}]'.format(req.referrer))
+					elif res.status >= 400 and not res.status in self._session._processed and req.domain == dom.netloc and req.verb == 'HEAD':
+						# If first error page is on a HEAD request, get the resource again
+						req.set_verb()
+						self._request_queue.put(req)
 					else:
+						if res.status >= 400:
+							if res.status in self._session._processed:
+								res.is_html = False
+							else:
+								self._session._processed.append(res.status)
+
 						self.process(req, res)
 				else:
 					msgs.append('{}: [{}]'.format(req.verb, str(req)))
@@ -474,7 +486,8 @@ class Response(object):
 		self.status = response.status
 		self.message = response.reason
 		self.version = response.version
-		if self.status < 300 and html and len(self.content) > 0:
+		# self.status < 300 and
+		if html and len(self.content) > 0:
 			self.is_html = True
 		else:
 			self.is_html = False
@@ -492,7 +505,7 @@ class Response(object):
 
 class RequestQueue(queue.Queue):
 	def __init__(self, session):
-		queue.Queue.__init__(self)
+		super(RequestQueue, self).__init__()
 		self.session = session
 		self._lock = threading.Lock()
 		self.urls = {}
@@ -559,7 +572,7 @@ class RequestQueue(queue.Queue):
 
 class OutputQueue(queue.Queue):
 	def __init__(self):
-		queue.Queue.__init__(self)
+		super(OutputQueue, self).__init__()
 		self._lock = threading.Lock()
 
 	def put(self, file_name, value, block=True, timeout=None):
@@ -630,22 +643,41 @@ class HtmlHelper(object):
 class MessageBatch(object):
 	def __init__(self, log_file):
 		self.log_file = log_file
-		self.header = None
-		self.messages = []
+		self.headers = {}
+		self.messages = {}
 
 	def set_header(self, message, log_file=None):
 		if log_file == None: log_file = self.log_file
-		self.header = (log_file, message)
+		self.headers[log_file] = message
 
 	def add(self, message, log_file=None):
 		if log_file == None: log_file = self.log_file
+		if not log_file in self.messages:
+			self.messages[log_file] = []
 		if isinstance(message, list):
-			self.messages.extend([(log_file, m) for m in message])
+			self.messages[log_file].extend(str(m) for m in message)
 		else:
-			self.messages.append((log_file, str(message)))
+			self.messages[log_file].append(str(message))
+
+	def count(self, log_file=None):
+		if log_file == None: log_file = self.log_file
+		if log_file in self.messages:
+			return len(self.messages[log_file])
+		else:
+			return 0
 
 	def __len__(self):
-		return len(self.messages)
+		if self.log_file in self.messages:
+			return len(self.messages[self.log_file])
+		else:
+			return 0
+
+	def get_messages(self):
+		for lf in self.messages:
+			m = list(self.messages[lf])
+			if lf in self.headers:
+				m.insert(0, self.headers[lf])
+			yield (lf, m)
 
 def message_batch(method):
 	def inner(self, *args, **kwargs):
@@ -653,10 +685,7 @@ def message_batch(method):
 		try:
 			return method(self, mb, *args, **kwargs)
 		finally:
-			if len(mb.messages) > 0 and mb.header:
-				self.sitecheck.output_queue.put(*mb.header)
-
-			for m in mb.messages:
+			for m in mb.get_messages():
 				self.sitecheck.output_queue.put(*m)
 
 	return inner

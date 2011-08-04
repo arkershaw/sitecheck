@@ -78,7 +78,7 @@ class StatusLog(ModuleBase):
 
 class Accessibility(ModuleBase):
 	def __init__(self):
-		ModuleBase.__init__(self)
+		super(Accessibility, self).__init__()
 		self.accessibility = re.compile(' - Access: \[([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)\]')
 		self.ignore = set()
 		self.ignore.add('1.1.2.1') # <img> missing 'longdesc' and d-link
@@ -190,7 +190,7 @@ class MetaData(ModuleBase):
 
 class Readability(ModuleBase):
 	def __init__(self, threshold=45):
-		ModuleBase.__init__(self)
+		super(Readability, self).__init__()
 		self.threshold = threshold
 		self.sentence_end = '!?.'
 		self.min = None
@@ -258,7 +258,7 @@ class Readability(ModuleBase):
 
 class Validator(ModuleBase):
 	def __init__(self):
-		ModuleBase.__init__(self)
+		super(Validator, self).__init__()
 		self.options = {'show-warnings': True}
 
 	def begin(self):
@@ -282,7 +282,7 @@ class Validator(ModuleBase):
 
 class RegexMatch(ModuleBase):
 	def __init__(self, expressions={}):
-		ModuleBase.__init__(self)
+		super(RegexMatch, self).__init__()
 		self.expressions = expressions
 
 	@message_batch
@@ -314,11 +314,11 @@ class RegexMatch(ModuleBase):
 
 class Persister(ModuleBase):
 	def __init__(self, directory='output'):
-		ModuleBase.__init__(self)
+		super(Persister, self).__init__()
 		self.directory = directory
 
 	def process(self, request, response):
-		if request.verb == 'HEAD' and request.domain == urllib.parse.urlparse(self.sitecheck.session.domain).netloc:
+		if request.verb == 'HEAD' and response.status < 300 and request.domain == urllib.parse.urlparse(self.sitecheck.session.domain).netloc:
 			request.set_verb()
 			request.modules = [self]
 			self.sitecheck.request_queue.put(request)
@@ -351,7 +351,7 @@ class Persister(ModuleBase):
 
 class Spelling(ModuleBase):
 	def __init__(self, language='en_US'):
-		ModuleBase.__init__(self)
+		super(Spelling, self).__init__()
 		self.language = language
 		self.sentence_end = '!?.'
 
@@ -365,7 +365,7 @@ class Spelling(ModuleBase):
 		if enchant_available:
 			ddp = os.path.dirname(os.path.abspath(__file__)) + 'dict.txt'
 			cdp = self.sitecheck.root_path + 'dict.txt'
-			
+
 			if os.path.exists(cdp):
 				self.add_message('Using custom dictionary [{}]'.format(cdp))
 				d = enchant.DictWithPWL(self.language, cdp)
@@ -435,7 +435,7 @@ class Spelling(ModuleBase):
 
 class InboundLinks(ModuleBase):
 	def __init__(self, engines=None):
-		ModuleBase.__init__(self)
+		super(InboundLinks, self).__init__()
 		self.engines = engines
 		#URL, page regex, page size, initial offset
 		self.engine_parameters = {
@@ -505,7 +505,7 @@ class InboundLinks(ModuleBase):
 
 class Security(ModuleBase):
 	def __init__(self, email='', attacks=[]):
-		ModuleBase.__init__(self)
+		super(Security, self).__init__()
 		self.xss = re.compile("<xss>", re.IGNORECASE)
 		self.email = email
 		self.attacks = attacks
