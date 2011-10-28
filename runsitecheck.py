@@ -70,7 +70,6 @@ This program comes with ABSOLUTELY NO WARRANTY''')
 
 		op = ''
 		if args.domain:
-			print('asdfadsfad')
 			if re.match('^http', args.domain, re.IGNORECASE):
 				sc.session.domain = args.domain
 			else:

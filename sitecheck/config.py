@@ -33,7 +33,7 @@ class Session(object):
 		# Page is populated by the -p parameter
 		self.page = '' # Start with this page
 		self.thread_pool = 10 # Number of spider threads to spawn. An extra thread is used for output.
-		self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; rv:2.0) Gecko/20110319 Firefox/4.0'} # Emulate Firefox 4 running on Windows 7
+		self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; rv:6.0) Gecko/20110814 Firefox/6.0'} # Emulate Firefox 6 running on Windows 7
 		self.ignore_ext = set([]) # These file types are ignored
 		self.test_ext = set.union(media_files, resource_files, document_files) # Only headers are downloaded for these file types
 		self.include_ext = set([]) # Allows the inclusion of resources (images, styles etc.) in parent folder of path (if specified)
