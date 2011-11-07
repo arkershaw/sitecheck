@@ -49,13 +49,17 @@ Usage:
 
 		runsitecheck.py -d http://www.domain-goes-here -p home.html /path/to/output
 
+	See "configuration" below for running repeated tests against the same domain.
+
 While running:
 
 	s -> Suspend
 	q -> Abort
 	Return key -> Print number of urls in queue
 
-	To resume a suspended job, call with the path to an existing output directory.
+	To resume a suspended job, run the script with the path to an existing output directory:
+
+		runsitecheck.py /path/to/output
 
 Modules:
 
@@ -87,4 +91,4 @@ Configuration:
 
 	Configuration for the spider and individual modules can be found in "config.py".
 
-	For site-specific configuration, copy config.py to the output directory specified on the command line. The domain and path properties can be specified in the config file and subsequently omitted from the command line. This config file will be used instead of the default. The custom dictionary file for the spelling module (dict.txt) can also be overridden by copying to the same location.
+	For site-specific configuration, copy config.py to the output directory specified on the command line. The domain and path properties can be specified in the config file and subsequently omitted from the command line (as with resuming a suspended job above). This config file will be used instead of the default. The custom dictionary file for the spelling module (dict.txt) can also be overridden by copying to the same location.
