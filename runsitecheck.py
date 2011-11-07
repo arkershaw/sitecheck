@@ -24,9 +24,12 @@ if __name__ == '__main__':
 	import sys
 	import re
 	import urllib.parse
+	import urllib.request
 	import datetime
 	import shutil
 	import imp
+	from io import StringIO
+	import json
 
 	from sitecheck import *
 	from sitecheck.utils import read_input, append, ensure_dir, suspend, resume
@@ -50,16 +53,14 @@ This program comes with ABSOLUTELY NO WARRANTY''')
 		try:
 			conf = imp.load_source('savedconfig', config_file)
 		except:
-			print('Invalid config file found in directory.')
-			sys.exit()
+			sys.exit('Invalid config file found in directory.')
 
 	if os.path.exists(suspend_file):
 		print('Resuming session...')
 		try:
 			resume(sc, suspend_file)
 		except:
-			print('Unable to load suspend data.')
-			sys.exit()
+			sys.exit('Unable to load suspend data.')
 	else:
 		if conf:
 			print('Loading config...')
@@ -67,6 +68,18 @@ This program comes with ABSOLUTELY NO WARRANTY''')
 		else:
 			# Load default configuration
 			sc.set_session(Session())
+
+		if hasattr(sc.session, 'check_for_updates') and sc.session.check_for_updates:
+			try:
+				settings = urllib.request.urlopen('http://sitecheck.sourceforge.net/settings.js').read().decode('utf-8')
+				ss = StringIO(settings)
+				sd = json.load(ss)
+			except:
+				print('Update check failed - please notify: arkershaw@users.sourceforge.net')
+			else:
+				if not SiteCheck.VERSION == sd['Version']:
+					print('A new version is available. Please check: http://sourceforge.net/projects/sitecheck/files/')
+				sc.session.headers['User-Agent'] = sd['User-Agent']
 
 		op = ''
 		if args.domain:
@@ -79,8 +92,7 @@ This program comes with ABSOLUTELY NO WARRANTY''')
 		if args.page: sc.session.page = args.page
 
 		if len(sc.session.domain) == 0:
-			print('Please supply either a domain, a config file or a suspended session.')
-			sys.exit()
+			sys.exit('Please supply either a domain, a config file or a suspended session.')
 
 		if sc.session.output == None or len(sc.session.output) == 0:
 			op += datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S') + os.sep
@@ -93,13 +105,11 @@ This program comes with ABSOLUTELY NO WARRANTY''')
 			try:
 				shutil.rmtree(od)
 			except:
-				print('Unable to clear output directory.')
-				sys.exit()
+				sys.exit('Unable to clear output directory.')
 		try:
 			ensure_dir(od)
 		except:
-			print('Unable to create output directory.')
-			sys.exit()
+			sys.exit('Unable to create output directory.')
 
 	print('\nTarget: [{}]'.format(sc.session.domain))
 	print('Output: [{}]\n'.format(sc.root_path + sc.session.output))

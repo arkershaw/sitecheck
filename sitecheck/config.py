@@ -27,6 +27,7 @@ document_files = set(['zip', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv'])
 
 class Session(object):
 	def __init__(self):
+		self.check_for_updates = True # Checks online for: current version, user agent and search engines in inbound links module
 		self.output = '' # Override output folder
 		# Domain is populated by the -d parameter
 		self.domain = '' # Domain to spider
@@ -51,7 +52,7 @@ class Session(object):
 			#InboundLinks(engines=['Google', 'Yahoo', 'Bing']),
 			RegexMatch(expressions={
 				'Email Address': re.compile("[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?", re.IGNORECASE),
-				'IP Address': re.compile('\b(?:\d{1,3}\.){3}\d{1,3}\b'),
+				'IP Address': re.compile('(?:\d{1,3}\.){3}\d{1,3}'),
 				'Lorem Ipsum': re.compile('lorem ipsum', re.IGNORECASE)
 			}),
 			Validator(),

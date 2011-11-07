@@ -43,6 +43,8 @@ class SiteCheckStartedException(Exception):
 	pass
 
 class SiteCheck(object):
+	VERSION = '1.2'
+
 	def __init__(self, root_path):
 		self.root_path = root_path
 		self.session = None
@@ -62,6 +64,7 @@ class SiteCheck(object):
 
 	def initialise_module(self, module):
 		try:
+			if not hasattr(module, 'initialise'): raise Exception('Initialise method not defined')
 			if not hasattr(module, 'process'): raise Exception('Process method not defined')
 
 			module.initialise(self)
@@ -613,7 +616,7 @@ class HtmlHelper(object):
 
 	def get_text(self, element=None):
 		if element:
-			rx = re.compile(r'<\s*%s\b[^>]*?>(?P<text>[^<]+?\w[^<]+?)(?:<|$)' % element, self.flags)
+			rx = re.compile(r'<\s*{}\b[^>]*?>(?P<text>[^<]*?\w[^<]+?)(?:<|$)'.format(element), self.flags)
 		else:
 			rx = re.compile(r'(?:^[^<]|>)(?P<text>[^<]+?\w[^<]+?)(?:<|$)', self.flags)
 

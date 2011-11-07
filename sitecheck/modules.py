@@ -21,7 +21,9 @@ import re
 import os
 import urllib.parse
 import urllib.request
-import urllib.error
+#import urllib.error
+from io import StringIO
+import json
 
 try:
 	from tidylib import tidy_document
@@ -458,6 +460,18 @@ class InboundLinks(ModuleBase):
 		self.inbound = set()
 
 	def begin(self):
+		if hasattr(self.sitecheck.session, 'check_for_updates') and self.sitecheck.session.check_for_updates:
+			try:
+				settings = urllib.request.urlopen('http://sitecheck.sourceforge.net/search-engines.js').read().decode('utf-8')
+				ss = StringIO(settings)
+				sd = json.load(ss)
+				for k in sd:
+					sd[k][1] = re.compile(sd[k][1], re.IGNORECASE)
+			except:
+				self.add_message('Update check failed - please notify: arkershaw@users.sourceforge.net')
+			else:
+				self.engine_parameters = sd
+
 		self.link = re.compile('"(https?://{}[^"]*)"'.format(re.escape(self.sitecheck.session.domain), re.IGNORECASE))
 		if not self.engines: self.engines = list(self.engine_parameters.keys())
 		for ei in range(len(self.engines)):
