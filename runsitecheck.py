@@ -34,8 +34,8 @@ if __name__ == '__main__':
 	from sitecheck import *
 	from sitecheck.utils import read_input, append, ensure_dir, suspend, resume
 
-	print('''Sitecheck Copyright (C) 2009-2011 Andrew Kershaw
-This program comes with ABSOLUTELY NO WARRANTY''')
+	print('''Sitecheck {} Copyright (C) 2009-2011 Andrew Kershaw
+This program comes with ABSOLUTELY NO WARRANTY'''.format(SiteCheck.VERSION))
 
 	parser = ArgumentParser()
 	parser.add_argument('-d', '--domain', dest='domain', default=None, help='The domain to spider. This can also be set in the config file.')
@@ -77,8 +77,8 @@ This program comes with ABSOLUTELY NO WARRANTY''')
 			except:
 				print('Update check failed - please notify: arkershaw@users.sourceforge.net')
 			else:
-				if not SiteCheck.VERSION == sd['Version']:
-					print('A new version is available. Please check: http://sourceforge.net/projects/sitecheck/files/')
+				if SiteCheck.VERSION != sd['Version']:
+					print('A new version ({}) is available. Please check: http://sourceforge.net/projects/sitecheck/files/'.format(sd['Version']))
 				sc.session.headers['User-Agent'] = sd['User-Agent']
 
 		op = ''

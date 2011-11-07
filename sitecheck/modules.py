@@ -21,7 +21,6 @@ import re
 import os
 import urllib.parse
 import urllib.request
-#import urllib.error
 from io import StringIO
 import json
 
@@ -150,15 +149,15 @@ class MetaData(ModuleBase):
 			empty = []
 			multiple = []
 
-			title = [t for t in doc.get_text(element='title')]
+			title = [t for t in doc.get_element('title')]
 			if len(title) == 0:
 				missing.append('title')
 			elif len(title) > 1:
 				multiple.append('title')
-			elif title[0] == None:
-				empty.append('title')
-			elif len(title[0]) == 0:
-				empty.append('title')
+			else:
+				txt = [t for t in title[0].get_text()]
+				if len(txt) == 0:
+					empty.append('title')
 
 			meta = {'description': [0, ''], 'keywords': [0, '']}
 			for e in doc.get_element('meta'):
@@ -213,16 +212,18 @@ class Readability(ModuleBase):
 			all_text = ''
 			for txt in doc.get_text():
 				if len(txt.strip()) > 0:
-					all_text += txt.strip()
+					all_text += txt.strip().lower()
 					if all_text[-1] in self.sentence_end:
 						all_text += ' '
 					else:
 						all_text += '. '
 
-			if len(all_text.strip()) > 0:
+			all_text = all_text.strip()
+			if len(all_text) > 0:
 				twrd = float(self.words(all_text))
 				tsnt = float(self.sentences(all_text))
 				tsyl = float(self.syllables(all_text))
+
 				fkre = 206.835 - 1.015 * (twrd / tsnt) - 84.6 * (tsyl / twrd)
 
 				with self.sync_lock:
@@ -253,8 +254,14 @@ class Readability(ModuleBase):
 
 	def syllables(self, text):
 		s = 0
-		for w in text.split(' '):
-			s += len(re.findall('[aeiou]+', w.rstrip('e')))
+		for word in text.split(' '):
+			w = re.sub('\W', '', word)
+			if len(w) <= 3:
+				s += 1
+			else:
+				w = re.sub('(?:es|ed|[^l]e)$', '', w)
+				s += len(re.findall('[aeiouy]{1,2}', w))
+				s += len(re.findall('eo|ia|ie|io|iu|ua|ui|uo', w))
 		if s == 0: s = 1
 		return s
 

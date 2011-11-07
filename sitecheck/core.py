@@ -616,9 +616,9 @@ class HtmlHelper(object):
 
 	def get_text(self, element=None):
 		if element:
-			rx = re.compile(r'<\s*{}\b[^>]*?>(?P<text>[^<]*?\w[^<]+?)(?:<|$)'.format(element), self.flags)
+			rx = re.compile(r'<\s*{}\b[^>]*?>(?P<text>[^<]*?\w[^<]*?)(?:<|$)'.format(element), self.flags)
 		else:
-			rx = re.compile(r'(?:^[^<]|>)(?P<text>[^<]+?\w[^<]+?)(?:<|$)', self.flags)
+			rx = re.compile(r'(?:^[^<]|>)(?P<text>[^<]*?\w[^<]*?)(?:<|$)', self.flags)
 
 		mtchs = rx.finditer(self.document)
 		for m in mtchs:
