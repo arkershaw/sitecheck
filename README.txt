@@ -5,8 +5,19 @@ Dependencies:
 
 	HTML Tidy, pytidylib (validation, accessibility)
 	Enchant, pyenchant (spelling)
+	dnspython, pyopenssl (domain check)
 
-	*The version of pytidylib in PyPI is not yet updated for Python 3 so easy_install or pip will not install the latest version.
+	*The version of pytidylib in PyPI is not yet updated for Python 3 so easy_install or pip will not install the latest version. The source is available here:
+
+	https://github.com/countergram/pytidylib/
+
+	*dnspython has not yet been released for Python 3. The source is available here:
+
+	https://github.com/rthalley/dnspython
+
+	To switch to the Python 3 branch:
+
+	git checkout -b python3 origin/python3
 
 Installation:
 

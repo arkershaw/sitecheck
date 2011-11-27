@@ -1,9 +1,22 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-#git clone https://github.com/rthalley/dnspython.git
-#git checkout -b python3 origin/python3
-#ln -s /opt/dnspython/dns /usr/lib/python3.2/site-packages/dns
+# Copyright 2009-2011 Andrew Kershaw
+
+# This file is part of sitecheck.
+
+# Sitecheck is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# Sitecheck is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
 
 import socket
 import sys
@@ -12,17 +25,22 @@ import os
 import ssl
 import datetime
 
-_dns_available = True
 try:
+	#git clone https://github.com/rthalley/dnspython.git
+	#git checkout -b python3 origin/python3
+	#ln -s /opt/dnspython/dns /usr/lib/python3.2/site-packages/dns
 	from dns.resolver import query, NoAnswer
 except:
 	_dns_available = False
+else:
+	_dns_available = True
 
-_ssl_available = True
 try:
 	from OpenSSL.crypto import load_certificate, FILETYPE_PEM
 except:
 	_ssl_available = False
+else:
+	_ssl_available = True
 
 _relay_tests = [
 	('<{user}@{domain}>', '<{user}@{domain}>'),
@@ -271,20 +289,20 @@ if __name__ == '__main__':
 	print('Hosts:')
 	for host in d.hosts:
 		h = d.hosts[host]
-		print('  {} ({})'.format(h.address, h.name))
+		print('\t{} ({})'.format(h.address, h.name))
 
 		if h.cert_expiry:
 			rem = (h.cert_expiry - today).days
 			if rem < 0:
-				print('    Certificate expired {}'.format(h.cert_expiry))
+				print('\t\tCertificate expired {}'.format(h.cert_expiry))
 			else:
-				print('    Certificate expires in {} days'.format(rem))
+				print('\t\tCertificate expires in {} days'.format(rem))
 
 		if h.sslv2:
-			print('    Insecure ciphers supported')
+			print('\t\tInsecure ciphers supported')
 
 		if args.relay:
 			relay, failed = test_relay(h.address)
 			if relay:
 				for f in failed:
-					print('    Possible open relay: {} -> {}'.format(f[0], f[1]))
+					print('\t\tPossible open relay: {} -> {}'.format(f[0], f[1]))

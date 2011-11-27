@@ -19,6 +19,7 @@
 
 import re
 import os
+import datetime
 import urllib.parse
 import urllib.request
 from io import StringIO
@@ -27,18 +28,25 @@ import json
 try:
 	from tidylib import tidy_document
 except:
-	tidy_available = False
+	_tidy_available = False
 else:
-	tidy_available = True
+	_tidy_available = True
 
 try:
 	import enchant
 	from enchant.checker import SpellChecker
 	from enchant.tokenize import EmailFilter, URLFilter
 except:
-	enchant_available = False
+	_enchant_available = False
 else:
-	enchant_available = True
+	_enchant_available = True
+
+try:
+	from domaincheck import DomainInfo
+except:
+	_domaincheck_available = False
+else:
+	_domaincheck_available = True
 
 from sitecheck.core import Request, ModuleBase, HtmlHelper, Checker, message_batch
 from sitecheck.utils import ensure_dir, html_decode
@@ -93,14 +101,14 @@ class Accessibility(ModuleBase):
 		self.options = {'show-warnings': False, 'accessibility-check': 1}
 
 	def begin(self):
-		global tidy_available
-		if not tidy_available:
+		global _tidy_available
+		if not _tidy_available:
 			self.add_message('ERROR: tidylib not available')
 
 	@message_batch
 	def process(self, messages, request, response):
-		global tidy_available
-		if response.is_html and tidy_available:
+		global _tidy_available
+		if response.is_html and _tidy_available:
 			try:
 				doc, err = tidy_document(response.content, options=self.options)
 			except:
@@ -271,14 +279,14 @@ class Validator(ModuleBase):
 		self.options = {'show-warnings': True}
 
 	def begin(self):
-		global tidy_available
-		if not tidy_available:
+		global _tidy_available
+		if not _tidy_available:
 			self.add_message('ERROR: tidylib not available')
 
 	@message_batch
 	def process(self, messages, request, response):
-		global tidy_available
-		if response.is_html and tidy_available:
+		global _tidy_available
+		if response.is_html and _tidy_available:
 			try:
 				doc, err = tidy_document(response.content, options=self.options)
 			except:
@@ -370,8 +378,8 @@ class Spelling(ModuleBase):
 		return state
 
 	def begin(self):
-		global enchant_available
-		if enchant_available:
+		global _enchant_available
+		if _enchant_available:
 			ddp = os.path.dirname(os.path.abspath(__file__)) + 'dict.txt'
 			cdp = self.sitecheck.root_path + 'dict.txt'
 
@@ -391,8 +399,8 @@ class Spelling(ModuleBase):
 
 	@message_batch
 	def process(self, messages, request, response):
-		global enchant_available
-		if response.is_html and enchant_available:
+		global _enchant_available
+		if response.is_html and _enchant_available:
 			doc = HtmlHelper(response.content)
 			doc.strip_comments()
 			doc.strip_element(('script', 'style'))
@@ -618,3 +626,53 @@ class Security(ModuleBase):
 			return (name, value)
 		else:
 			return item
+
+class DomainCheck(ModuleBase):
+	def __init__(self, relay=False):
+		self.relay = relay
+
+	def begin(self):
+		global _domaincheck_available
+		if _domaincheck_available:
+			today = datetime.date.today()
+
+			print('Testing: {}'.format(args.domain))
+
+			d = DomainInfo(args.domain)
+
+			if type(d.domain_expiry) == datetime.date:
+				rem = (d.domain_expiry - today).days
+				if rem < 0:
+					print('Domain expired {}'.format(d.domain_expiry))
+				else:
+					print('Domain expires in {} days'.format(rem))
+			elif d.domain_expiry:
+				print('Domain expires on: {}'.format(d.domain_expiry))
+			else:
+				print('Unable to determine domain expiry date')
+
+			if d.spf:
+				print('SPF: {}'.format(d.spf))
+			else:
+				print('No SPF record found')
+
+			print('Hosts:')
+			for host in d.hosts:
+				h = d.hosts[host]
+				print('\t{} ({})'.format(h.address, h.name))
+
+				if h.cert_expiry:
+					rem = (h.cert_expiry - today).days
+					if rem < 0:
+						print('\t\tCertificate expired {}'.format(h.cert_expiry))
+					else:
+						print('\t\tCertificate expires in {} days'.format(rem))
+
+				if h.sslv2:
+					print('\t\tInsecure ciphers supported')
+
+				if args.relay:
+					relay, failed = test_relay(h.address)
+					if relay:
+						for f in failed:
+							print('\t\tPossible open relay: {} -> {}'.format(f[0], f[1]))

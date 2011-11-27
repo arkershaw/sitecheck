@@ -43,7 +43,7 @@ class SiteCheckStartedException(Exception):
 	pass
 
 class SiteCheck(object):
-	VERSION = '1.2'
+	VERSION = '1.3'
 
 	def __init__(self, root_path):
 		self.root_path = root_path
