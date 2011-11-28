@@ -20,6 +20,7 @@
 import re
 import os
 import datetime
+import hashlib
 import urllib.parse
 import urllib.request
 from io import StringIO
@@ -42,7 +43,7 @@ else:
 	_enchant_available = True
 
 try:
-	from domaincheck import DomainInfo
+	from domaincheck import DomainInfo, test_relay
 except:
 	_domaincheck_available = False
 else:
@@ -629,6 +630,7 @@ class Security(ModuleBase):
 
 class DomainCheck(ModuleBase):
 	def __init__(self, relay=False):
+		super(DomainCheck, self).__init__()
 		self.relay = relay
 
 	def begin(self):
@@ -636,43 +638,65 @@ class DomainCheck(ModuleBase):
 		if _domaincheck_available:
 			today = datetime.date.today()
 
-			print('Testing: {}'.format(args.domain))
+			domain = urllib.parse.urlparse(self.sitecheck.session.domain).netloc
+			self.add_message('Checking: {}'.format(domain))
 
-			d = DomainInfo(args.domain)
+			d = DomainInfo(domain)
 
 			if type(d.domain_expiry) == datetime.date:
 				rem = (d.domain_expiry - today).days
 				if rem < 0:
-					print('Domain expired {}'.format(d.domain_expiry))
+					self.add_message('Domain expired {}'.format(d.domain_expiry))
 				else:
-					print('Domain expires in {} days'.format(rem))
+					self.add_message('Domain expires in {} days'.format(rem))
 			elif d.domain_expiry:
-				print('Domain expires on: {}'.format(d.domain_expiry))
+				self.add_message('Domain expires on: {}'.format(d.domain_expiry))
 			else:
-				print('Unable to determine domain expiry date')
+				self.add_message('Unable to determine domain expiry date')
 
 			if d.spf:
-				print('SPF: {}'.format(d.spf))
+				self.add_message('SPF: {}'.format(d.spf))
 			else:
-				print('No SPF record found')
+				self.add_message('No SPF record found')
 
-			print('Hosts:')
+			self.add_message('Hosts:')
 			for host in d.hosts:
 				h = d.hosts[host]
-				print('\t{} ({})'.format(h.address, h.name))
+				self.add_message('\t{} ({})'.format(h.address, h.name))
 
 				if h.cert_expiry:
 					rem = (h.cert_expiry - today).days
 					if rem < 0:
-						print('\t\tCertificate expired {}'.format(h.cert_expiry))
+						self.add_message('\t\tCertificate expired {}'.format(h.cert_expiry))
 					else:
-						print('\t\tCertificate expires in {} days'.format(rem))
+						self.add_message('\t\tCertificate expires in {} days'.format(rem))
 
 				if h.sslv2:
-					print('\t\tInsecure ciphers supported')
+					self.add_message('\t\tInsecure ciphers supported')
 
-				if args.relay:
+				if self.relay:
 					relay, failed = test_relay(h.address)
 					if relay:
 						for f in failed:
-							print('\t\tPossible open relay: {} -> {}'.format(f[0], f[1]))
+							self.add_message('\t\tPossible open relay: {} -> {}'.format(f[0], f[1]))
+
+	def process(self, request, response):
+		pass
+
+class DuplicateContent(ModuleBase):
+	def begin(self):
+		self.content = {}
+
+	@message_batch
+	def process(self, messages, request, response):
+		if response.is_html and response.status < 300:
+			m = hashlib.sha1()
+			m.update(response.content.encode())
+			h = m.hexdigest()
+
+			if h in self.content:
+				if str(request) != self.content[h]:
+					messages.add('Duplicate content found: {}'.format(str(request)))
+					messages.add('\tDuplicate of: {}'.format(self.content[h]))
+			else:
+				self.content[h] = str(request)

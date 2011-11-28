@@ -128,6 +128,7 @@ class SiteCheck(object):
 		a = self.session.authenticate
 		if a.login_url == None or len(a.login_url) == 0:
 			# Add initial URL to queue - will be ignored on resume if already downloaded
+			# TODO: Does resume work without authentication? If not, load the queue here
 			self.request_queue.put_url('', self.session.page, self.session.domain)
 		else:
 			if not self._request_queue:
@@ -349,7 +350,10 @@ class Checker(threading.Thread):
 					if (res.status >= 300 and res.status < 400) and req.domain == dom.netloc:
 						loc = res.get_headers('location')
 						if len(loc) > 0:
+							prev = str(req)
 							req.redirect(loc[-1])
+							if str(req) == prev:
+								msgs.append('\tERROR: Page {} redirects to itself'.format(prev))
 							if len(loc) > 1:
 								msgs.append('\tERROR: Multiple redirect locations found: [{}]'.format(loc))
 								msgs.append('\t\tURL: [{}]'.format(str(req)))

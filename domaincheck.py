@@ -99,14 +99,19 @@ class HostInfo(object):
 		self.cert_expiry = None
 		self.sslv2 = False
 
-		cert = self._get_cert(ssl.PROTOCOL_SSLv2)
-		if cert: self.sslv2 = True
-		if not cert: cert = self._get_cert(ssl.PROTOCOL_SSLv3)
-		if not cert: cert = self._get_cert(ssl.PROTOCOL_TLSv1)
-		if cert and _ssl_available:
-			cert_data = load_certificate(FILETYPE_PEM, cert)
-			expiry = cert_data.get_notAfter().decode('ascii')
-			self.cert_expiry = datetime.datetime.strptime(expiry[:8], '%Y%m%d').date()
+		try:
+			cert = self._get_cert(ssl.PROTOCOL_SSLv2)
+		except socket.error:
+			# SSL not supported
+			pass
+		else:
+			if cert: self.sslv2 = True
+			if not cert: cert = self._get_cert(ssl.PROTOCOL_SSLv3)
+			if not cert: cert = self._get_cert(ssl.PROTOCOL_TLSv1)
+			if cert and _ssl_available:
+				cert_data = load_certificate(FILETYPE_PEM, cert)
+				expiry = cert_data.get_notAfter().decode('ascii')
+				self.cert_expiry = datetime.datetime.strptime(expiry[:8], '%Y%m%d').date()
 
 	def _get_cert(self, version):
 		try:
@@ -121,7 +126,7 @@ class DomainInfo(object):
 	#www record
 	def __init__(self, domain):
 		self.domain = domain
-		self._tld = domain.split('.')[-1]
+		#self._tld = domain.split('.')[-1]
 
 		self.hosts = dict([(a[4][0], HostInfo(a[4][0])) for a in socket.getaddrinfo(domain, None)])
 
@@ -133,12 +138,13 @@ class DomainInfo(object):
 			ms = [m.exchange.to_text().rstrip('.') for m in query(domain, 'MX')]
 
 			for m in ms:
-				for a in socket.getaddrinfo(m, None):
-					ip = a[4][0]
-					if ip in self.hosts:
-						self.hosts[ip].records.update('MX')
-					else:
-						self.hosts[ip] = HostInfo(m, record='MX')
+				if not m == '0':
+					for a in socket.getaddrinfo(m, None):
+						ip = a[4][0]
+						if ip in self.hosts:
+							self.hosts[ip].records.update('MX')
+						else:
+							self.hosts[ip] = HostInfo(m, record='MX')
 
 			try:
 				res = query(domain, 'TXT')
@@ -150,60 +156,59 @@ class DomainInfo(object):
 					if r.startswith('v=spf'):
 						self.spf = r
 
+		d = domain.split('.')
+		while True:
+			whois = self._whois_lookup('.'.join(d))
+			if whois:
+				#Expiry Date.......... 2012-09-09
+				#Renewal date:  04-Sep-2012
+				#Expiration Date:07-Mar-2013 05:00:00 UTC
+				#Record expires on 08-Aug-2012.
+
+				ed = re.search('(?:renew|expir).*?(?P<alpha>\d{2}-\w{3}-\d{4})|(?P<numer>\d{4}-\d{2}-\d{2})', whois, re.IGNORECASE)
+				if ed.group('numer'):
+					self.domain_expiry = datetime.datetime.strptime(ed.group('numer'), '%Y-%m-%d').date()
+				elif ed.group('alpha'):
+					self.domain_expiry = datetime.datetime.strptime(ed.group('alpha'), '%d-%b-%Y').date()
+
+				#nserver:      C.GTLD-SERVERS.NET 192.26.92.30
+				#Name Server: NS.RACKSPACE.COM
+				#Name Server:DNS1.USLEC.NET
+				#Name Server: NS1.MSFT.NET
+
+				#Name servers:
+				#	dns0.easily.co.uk         212.53.77.27
+				#	dns1.easily.co.uk         212.53.64.31
+
+				#if self._tld == 'uk':
+					#srv = re.search('name servers:\s*(.*)\n\n', whois, re.IGNORECASE | re.DOTALL)
+					#if srv:
+						#self.name_servers = [ns.group(1) for ns in re.finditer('\s*([^\s]+)\s*[^\s]+', srv.group(1), re.IGNORECASE)]
+				#else:
+					#self.name_servers = [ns.group(1) for ns in re.finditer('name server:\s*([^\s]+)', whois, re.IGNORECASE)]
+
+				#whoisserver = re.search('whois: (.*)', self.whois_data)
+				break
+			else:
+				d = d[1:]
+				if len(d) == 1: break
+
+
+	def _whois_lookup(self, domain):
 		whois = None
 		try:
 			sock = socket.create_connection(('whois-servers.net', 43))
 		except:
-			return None
+			raise
 		else:
 			s = SocketHelper(sock)
 			whois = s.sendandreceive(domain)
 			sock.close()
 
-		if whois:
-			#.net
-			#Expiration Date:07-Aug-2012 23:59:59 UTC
-			#.com
-			#Expiry Date.......... 2012-09-09
-			#.co.uk
-			#Renewal date:  04-Sep-2012
-			#.org
-			#Expiration Date:07-Mar-2013 05:00:00 UTC
+		if whois and not re.search('status:', whois, re.IGNORECASE):
+			return None
 
-			edl = re.search('(?:renew|expir)\w+ date[:\.]+(.*)', whois, re.IGNORECASE)
-			if edl:
-				if self._tld == 'com':
-					exp = '\d{4}-\d{2}-\d{2}'
-					frm = '%Y-%m-%d'
-				else:
-					exp = '\d{2}-\w{3}-\d{4}'
-					frm = '%d-%b-%Y'
-				ed = re.search(exp, edl.group(1))
-				if ed:
-					self.domain_expiry = datetime.datetime.strptime(ed.group(), frm).date()
-				else:
-					self.domain_expiry = edl.group(1)
-
-			#nserver:      C.GTLD-SERVERS.NET 192.26.92.30
-			#.com
-			#Name Server: NS.RACKSPACE.COM
-			#.org
-			#Name Server:DNS1.USLEC.NET
-			#.net
-			#Name Server: NS1.MSFT.NET
-			#.co.uk
-			#Name servers:
-			#	dns0.easily.co.uk         212.53.77.27
-			#	dns1.easily.co.uk         212.53.64.31
-
-			#if self._tld == 'uk':
-				#srv = re.search('name servers:\s*(.*)\n\n', whois, re.IGNORECASE | re.DOTALL)
-				#if srv:
-					#self.name_servers = [ns.group(1) for ns in re.finditer('\s*([^\s]+)\s*[^\s]+', srv.group(1), re.IGNORECASE)]
-			#else:
-				#self.name_servers = [ns.group(1) for ns in re.finditer('name server:\s*([^\s]+)', whois, re.IGNORECASE)]
-
-			#whoisserver = re.search('whois: (.*)', self.whois_data)
+		return whois
 
 #SMTP can be 25 or 587
 def test_relay(host, port=25, mail_from='from@example.com', rcpt_to='to@example.com', send=False):
@@ -266,7 +271,7 @@ if __name__ == '__main__':
 		# IP address supplied instead of domain
 		sys.exit('Please supply a domain')
 
-	print('Testing: {}'.format(args.domain))
+	print('Checking: {}'.format(args.domain))
 
 	d = DomainInfo(args.domain)
 
