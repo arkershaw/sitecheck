@@ -116,12 +116,12 @@ class Accessibility(ModuleBase):
 				messages.add('Error parsing: [{}]'.format(str(request)))
 			else:
 				for e in err.splitlines():
-					if self.log(e):
+					if self._log(e):
 						messages.add('\t{}'.format(re.sub('^line\\b', 'Line', e)))
 
 				messages.set_header('URL: {} ({} errors)'.format(str(request), len(messages)))
 
-	def log(self, error):
+	def _log(self, error):
 		mtch = self.accessibility.search(error)
 		log = False
 		if mtch:
@@ -229,9 +229,9 @@ class Readability(ModuleBase):
 
 			all_text = all_text.strip()
 			if len(all_text) > 0:
-				twrd = float(self.words(all_text))
-				tsnt = float(self.sentences(all_text))
-				tsyl = float(self.syllables(all_text))
+				twrd = float(self._words(all_text))
+				tsnt = float(self._sentences(all_text))
+				tsyl = float(self._syllables(all_text))
 
 				fkre = 206.835 - 1.015 * (twrd / tsnt) - 84.6 * (tsyl / twrd)
 
@@ -251,17 +251,17 @@ class Readability(ModuleBase):
 				if fkre < self.threshold:
 					self.add_message('Document: [{}] readability: [{:.2f}]'.format(str(request), fkre))
 
-	def words(self, text):
+	def _words(self, text):
 		return len(text.split(' '))
 
-	def sentences(self, text):
+	def _sentences(self, text):
 		s = 0
 		for se in self.sentence_end:
 			s += text.count(se)
 		if s == 0: s = 1
 		return s
 
-	def syllables(self, text):
+	def _syllables(self, text):
 		s = 0
 		for word in text.split(' '):
 			w = re.sub('\W', '', word)
@@ -372,29 +372,38 @@ class Spelling(ModuleBase):
 		super(Spelling, self).__init__()
 		self.language = language
 		self.sentence_end = '!?.'
+		self.dictionary = None
 
 	def __getstate__(self):
 		state = self._clean_state(dict(self.__dict__))
 		del state['spell_checker']
 		return state
 
-	def begin(self):
+	def initialise(self, sitecheck):
+		super(Spelling, self).initialise(sitecheck)
+
+		# Spell checker must be re-created when check is resumed
 		global _enchant_available
 		if _enchant_available:
 			ddp = os.path.dirname(os.path.abspath(__file__)) + 'dict.txt'
 			cdp = self.sitecheck.root_path + 'dict.txt'
 
 			if os.path.exists(cdp):
-				self.add_message('Using custom dictionary [{}]'.format(cdp))
+				self.dictionary = cdp
 				d = enchant.DictWithPWL(self.language, cdp)
 			elif os.path.exists(ddp):
-				self.add_message('Using default custom dictionary')
+				self.dictionary = ddp
 				d = enchant.DictWithPWL(self.language, ddp)
 			else:
-				self.add_message('No custom dictionary found')
 				d = enchant.Dict(self.language)
 
 			self.spell_checker = SpellChecker(d, filters=[EmailFilter, URLFilter])
+
+	def begin(self):
+		if self.spell_checker:
+			self.add_message('Language: {}'.format(self.language))
+			if self.dictionary:
+				self.add_message('Using custom dictionary [{}]'.format(self.dictionary))
 		else:
 			self.add_message('ERROR: pyenchant not available')
 
@@ -409,11 +418,11 @@ class Spelling(ModuleBase):
 			words = {}
 			with self.sync_lock:
 				for txt in doc.get_text():
-					self.check(txt, words)
+					self._check(txt, words)
 				for txt in doc.get_attribute('title'):
-					self.check(txt[2], words)
+					self._check(txt[2], words)
 				for txt in doc.get_attribute('alt'):
-					self.check(txt[2], words)
+					self._check(txt[2], words)
 				for e in doc.get_element('meta'):
 					names = [n for n in e.get_attribute('name')]
 					if len(names) > 0:
@@ -421,7 +430,7 @@ class Spelling(ModuleBase):
 						if name == 'description' or name == 'keywords':
 							content = [c for c in e.get_attribute('content')]
 							if len(content) > 0:
-								self.check(content[0][2], words)
+								self._check(content[0][2], words)
 
 			if len(words) > 0:
 				messages.set_header('Document: [{}]'.format(str(request)))
@@ -430,7 +439,7 @@ class Spelling(ModuleBase):
 				for k in keys:
 					messages.add('\tWord: [{}] x {} ({})'.format(words[k][0], words[k][1], words[k][2]))
 
-	def check(self, text, words):
+	def _check(self, text, words):
 		if not text: return
 		t = html_decode(text.strip())
 		l = len(t)
@@ -534,11 +543,12 @@ class InboundLinks(ModuleBase):
 		self.add_message('Total: {}'.format(len(self.inbound)))
 
 class Security(ModuleBase):
-	def __init__(self, email='', attacks=[]):
+	def __init__(self, email='', attacks=[], quick=True):
 		super(Security, self).__init__()
 		self.xss = re.compile("<xss>", re.IGNORECASE)
 		self.email = email
 		self.attacks = attacks
+		self.quick = quick
 
 	@message_batch
 	def process(self, messages, request, response):
@@ -554,9 +564,42 @@ class Security(ModuleBase):
 		elif response.is_html:
 			doc = HtmlHelper(response.content)
 			for atk in self.attacks:
-				self.inject(request, doc, atk)
+				if self.quick:
+					self._inject_all(request, doc, atk)
+				else:
+					self._inject_each(request, doc, atk)
 
-	def inject(self, request, document, value):
+	def _inject_all(self, request, document, value):
+		qs = urllib.parse.parse_qs(request.query, True)
+		for param in qs.keys():
+			qs[param] = value
+
+		url = urllib.parse.urljoin(str(request), '?' + urllib.parse.urlencode(qs, True))
+
+		req = Request(self.name, url, request.referrer)
+		req.modules = [self]
+		self.sitecheck.request_queue.put(req)
+
+		postdata = []
+		for f in document.get_element('form'):
+			url, post, params = self._parse_form(f)
+			if not url: url = str(request)
+
+			rp = [(p[0], value) for p in params]
+
+			if not post:
+				if len(urllib.parse.urlparse(url).query) > 0:
+					url = url + '&'
+				else:
+					url = url + '?'
+				url = url + urllib.parse.urlencode(rp)
+
+			req = Request(self.name, url, request.referrer)
+			if post: req.postdata = rp
+			req.modules = [self]
+			self.sitecheck.request_queue.put(req)
+
+	def _inject_each(self, request, document, value):
 		qs = urllib.parse.parse_qs(request.query, True)
 		for param in qs.keys():
 			temp = qs[param]
@@ -570,36 +613,43 @@ class Security(ModuleBase):
 
 		postdata = []
 		for f in document.get_element('form'):
-			url = str(request)
-			post = False
-
-			for a in f.get_attribute('action', 'form'):
-				if len(a[2]) > 0: url = a[2]
-				break
-
-			for m in f.get_attribute('method', 'form'):
-				if m[2].upper() == 'POST': post = True
-				break
-
-			params = []
-			self.get_fields(f, 'input', params)
-			self.get_fields(f, 'textarea', params)
-			self.get_fields(f, 'select', params)
+			url, post, params = self._parse_form(f)
+			if not url: url = str(request)
 
 			for cp in params:
-				rp = [self.insert_param(p, cp[0], value) for p in params] # Construct new list
+				rp = [self._insert_param(p, cp[0], value) for p in params] # Construct new list
 				if not post:
 					if len(urllib.parse.urlparse(url).query) > 0:
-						url = url + '&' + urllib.parse.urlencode(rp)
+						url = url + '&'
 					else:
-						url = url + '?' + urllib.parse.urlencode(rp)
+						url = url + '?'
+					url = url + urllib.parse.urlencode(rp)
 
 				req = Request(self.name, url, request.referrer)
 				if post: req.postdata = rp
 				req.modules = [self]
 				self.sitecheck.request_queue.put(req)
 
-	def get_fields(self, form, element, params):
+	def _parse_form(self, form):
+		url = None
+		post = False
+
+		for a in form.get_attribute('action', 'form'):
+			if len(a[2]) > 0: url = a[2]
+			break
+
+		for m in form.get_attribute('method', 'form'):
+			if m[2].upper() == 'POST': post = True
+			break
+
+		params = []
+		self._get_fields(form, 'input', params)
+		self._get_fields(form, 'textarea', params)
+		self._get_fields(form, 'select', params)
+
+		return url, post, params
+
+	def _get_fields(self, form, element, params):
 		for e in form.get_element(element):
 			name = ''
 			for n in e.get_attribute('name', element):
@@ -622,7 +672,7 @@ class Security(ModuleBase):
 
 				params.append((name, val))
 
-	def insert_param(self, item, name, value):
+	def _insert_param(self, item, name, value):
 		if item[0] == name:
 			return (name, value)
 		else:

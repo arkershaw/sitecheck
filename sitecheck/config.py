@@ -61,7 +61,8 @@ class Session(object):
 			Accessibility(),
 			MetaData(),
 			StatusLog(),
-			#Security(email='user@example.com', attacks=["1'1\\'1", '"/><xss>']),
+			#Security(email='user@example.com', attacks=["1'1\\'1", '"/><xss>'], quick=True),
+			# WARNING: Using quick=False will result in SIGNIFICANTLY more requests as each parameter will be injected individually
 			# "' -- ", "\\' -- ", "; select 1/0;", "'';!--\"<xss>=&{()}"
 			Comments(),
 			Spelling(language='en_GB'),

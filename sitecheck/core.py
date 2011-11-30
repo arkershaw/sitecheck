@@ -50,11 +50,12 @@ class SiteCheck(object):
 		self.session = None
 		self.output_queue = OutputQueue()
 		self.request_queue = None
-		self._request_queue = None
 
 		self._started = False
 		self._threads = []
 		self._log_writer = None
+
+		self._resume_data = None
 
 	def set_session(self, session):
 		if self._started: raise SiteCheckStartedException()
@@ -69,7 +70,7 @@ class SiteCheck(object):
 
 			module.initialise(self)
 
-			if not self._request_queue:
+			if not self._resume_data:
 				if hasattr(module, 'begin'): module.begin()
 		except:
 			self.output_queue.put(module.log_file, 'ERROR: ' + str(sys.exc_info()[1]))
@@ -127,14 +128,8 @@ class SiteCheck(object):
 
 		a = self.session.authenticate
 		if a.login_url == None or len(a.login_url) == 0:
-			# Add initial URL to queue - will be ignored on resume if already downloaded
-			# TODO: Does resume work without authentication? If not, load the queue here
-			self.request_queue.put_url('', self.session.page, self.session.domain)
+			self._begin()
 		else:
-			if not self._request_queue:
-				self._request_queue = RequestQueue(self.session)
-				self._request_queue.put_url('', self.session.page, self.session.domain)
-
 			# Authenticate before spidering begins
 			if not a.logout_url == None:
 				if not a.logout_url in self.session.ignore_url: self.session.ignore_url.append(a.logout_url)
@@ -144,6 +139,19 @@ class SiteCheck(object):
 			a.initialise(self)
 			r.modules = [a]
 			self.request_queue.put(r)
+
+	def _begin(self):
+		if self._resume_data:
+			self._resume()
+		else:
+			self.request_queue.put_url('', self.session.page, self.session.domain)
+
+	def _resume(self):
+		if self._resume_data:
+			self.request_queue.load(self._resume_data[1], self._resume_data[2])
+			del self._resume_data
+		else:
+			raise Exception('No suspend data')
 
 	def end(self):
 		if self.session == None: raise SessionNotSetException()
@@ -171,12 +179,11 @@ class SiteCheck(object):
 	def resume(self, suspend_data):
 		if self._started: raise SiteCheckStartedException()
 
-		dat = pickle.loads(suspend_data)
-		self.set_session(dat[0])
+		self._resume_data = pickle.loads(suspend_data)
+		self.set_session(self._resume_data[0])
+
 		if hasattr(self.session, '_cookie'):
 			del self.session._cookie
-		self._request_queue = RequestQueue(dat[0])
-		self._request_queue.load(dat[1], dat[2])
 
 class LogWriter(threading.Thread):
 	terminate = threading.Event()
@@ -368,7 +375,7 @@ class Checker(threading.Thread):
 						req.set_verb()
 						self._request_queue.put(req)
 					else:
-						if res.status >= 400:
+						if res.status >= 400 and req.domain == dom.netloc:
 							if res.status in self._session._processed:
 								res.is_html = False
 							else:
@@ -726,10 +733,20 @@ class Authenticate(ModuleBase):
 	AUTH_REQUEST_KEY = '__AUTHENTICATION__REQ'
 	AUTH_RESPONSE_KEY = '__AUTHENTICATION__RES'
 
+	def _log(self, request, response):
+		self.add_message('{}: [{}] status: {}'.format(request.verb, str(request), str(response.status)))
+		if self.sitecheck.session.log.request_headers:
+			self.add_message('\tREQUEST HEADERS: {}'.format(request.headers))
+		if self.sitecheck.session.log.post_data and len(request.postdata) > 0:
+			self.add_message('\tPOST DATA: {}'.format(request.get_post_data()))
+		if self.sitecheck.session.log.response_headers:
+			self.add_message('\tRESPONSE HEADERS: {}\n'.format(response.headers))
+
 	def process(self, request, response):
 		a = self.sitecheck.session.authenticate
 		if request.source == Authenticate.AUTH_REQUEST_KEY:
-			self.sitecheck.output_queue.put(None, 'AUTHENTICATING\n')
+			self.add_message('AUTHENTICATING\n')
+			self._log(request, response)
 
 			if a.post:
 				url = a.login_url
@@ -745,8 +762,6 @@ class Authenticate(ModuleBase):
 			r.modules = [self]
 			self.sitecheck.request_queue.put(r)
 		elif request.source == Authenticate.AUTH_RESPONSE_KEY:
-			self.sitecheck.output_queue.put(None, 'AUTHENTICATED\n')
+			self._log(request, response)
 
-			# Begin spidering
-			self.sitecheck.request_queue.load(*self.sitecheck._request_queue.save())
-			del self.sitecheck._request_queue
+			self.sitecheck._begin()
