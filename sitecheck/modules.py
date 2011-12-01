@@ -315,16 +315,16 @@ class RegexMatch(ModuleBase):
 
 			if inv_h:
 				if not rx[1].search(str(response.headers)):
-					messages.add('Filter: [{}] not found in headers'.format(rx[0]))
+					messages.add('\tFilter: [{}] not found in headers'.format(rx[0]))
 			elif not inv_b:
 				mtchs = rx[1].finditer(str(response.headers))
 				for mtch in mtchs:
-					messages.add('Filter: [{}] found: [{}] in headers'.format(rx[0], mtch.group()))
+					messages.add('\tFilter: [{}] found: [{}] in headers'.format(rx[0], mtch.group()))
 
 			if response.is_html:
 				if inv_b:
 					if not rx[1].search(str(response.content)):
-						messages.add('Filter: [{}] not found'.format(rx[0]))
+						messages.add('\tFilter: [{}] not found'.format(rx[0]))
 				elif not inv_h:
 					mtchs = rx[1].finditer(response.content)
 					for mtch in mtchs:
@@ -467,18 +467,13 @@ class InboundLinks(ModuleBase):
 		#URL, page regex, page size, initial offset
 		self.engine_parameters = {
 			'Google': [
-				'http://www.google.co.uk/search?num=100&q=site:{}&start={}&as_qdr=all',
-				re.compile('(?:About )?([0-9,]+) results', re.IGNORECASE),
+				'http://www.google.co.uk/search?num=100&q=site:{domain}&start={index}&as_qdr=all',
+				'(?:About )?([0-9,]+) results',
 				100, 0
 			],
-			'Yahoo': [
-				'http://siteexplorer.search.yahoo.com/siteexplorer/search?p={}&b={}',
-				re.compile('Pages \(([0-9,\.]+)', re.IGNORECASE),
-				100, 1
-			],
 			'Bing': [
-				'http://www.bing.com/search?q=site%%3A{}&first={}',
-				re.compile('[0-9,]+-[0-9,]+ of ([0-9,]+) results', re.IGNORECASE),
+				'http://www.bing.com/search?q=site:{domain}&first={index}',
+				'[0-9,]+-[0-9,]+ of ([0-9,]+) results',
 				10, 1
 			]
 		}
@@ -490,21 +485,23 @@ class InboundLinks(ModuleBase):
 				settings = urllib.request.urlopen('http://sitecheck.sourceforge.net/search-engines.js').read().decode('utf-8')
 				ss = StringIO(settings)
 				sd = json.load(ss)
-				for k in sd:
-					sd[k][1] = re.compile(sd[k][1], re.IGNORECASE)
 			except:
 				self.add_message('Update check failed - please notify: arkershaw@users.sourceforge.net')
 			else:
 				self.engine_parameters = sd
 
-		self.link = re.compile('"(https?://{}[^"]*)"'.format(re.escape(self.sitecheck.session.domain), re.IGNORECASE))
+		for k in self.engine_parameters:
+			self.engine_parameters[k][1] = re.compile(self.engine_parameters[k][1], re.IGNORECASE)
+
+		self.domain = urllib.parse.urlparse(self.sitecheck.session.domain).netloc
+		self.link = re.compile('"(https?://{}[^"]*)"'.format(re.escape(self.domain), re.IGNORECASE))
 		if not self.engines: self.engines = list(self.engine_parameters.keys())
 		for ei in range(len(self.engines)):
 			se = self.engines[ei]
 			if se in self.engine_parameters:
 				e = self.engine_parameters[se]
 				e.extend([0, e[3]]) # Total results, current result offset
-				url = e[0].format(self.sitecheck.session.domain, e[3])
+				url = e[0].format(domain=self.domain, index=e[3])
 				req = Request(self.name, url, se)
 				req.modules = [self]
 				req.verb = 'GET'
@@ -530,7 +527,7 @@ class InboundLinks(ModuleBase):
 
 					e[5] += e[2]
 					if e[5] < e[4]:
-						url = e[0].format((self.sitecheck.session.domain, e[5]))
+						url = e[0].format(domain=self.domain, index=e[5])
 						req = Request(self.name, url, request.referrer)
 						req.modules = [self]
 						req.verb = 'GET'
@@ -543,12 +540,13 @@ class InboundLinks(ModuleBase):
 		self.add_message('Total: {}'.format(len(self.inbound)))
 
 class Security(ModuleBase):
-	def __init__(self, email='', attacks=[], quick=True):
+	def __init__(self, email='', attacks=[], quick=True, post=True):
 		super(Security, self).__init__()
 		self.xss = re.compile("<xss>", re.IGNORECASE)
 		self.email = email
 		self.attacks = attacks
 		self.quick = quick
+		self.post = post
 
 	@message_batch
 	def process(self, messages, request, response):
@@ -556,11 +554,11 @@ class Security(ModuleBase):
 			if response.status >= 500:
 				messages.add('Caused error with request: [{}]'.format(str(request)))
 				if len(request.postdata) > 0:
-					messages.add('\tPost data: [{}]'.format(urllib.parse.urlencode(request.postdata)))
+					messages.add('\tPost data: [{}]'.format(request.postdata))
 			elif self.xss.search(response.content):
 				messages.add('Possible XSS found in: [{}]'.format(str(request)))
 				if len(request.postdata) > 0:
-					messages.add('\tPost data: [{}]'.format(urllib.parse.urlencode(request.postdata)))
+					messages.add('\tPost data: [{}]'.format(request.postdata))
 		elif response.is_html:
 			doc = HtmlHelper(response.content)
 			for atk in self.attacks:
@@ -580,24 +578,25 @@ class Security(ModuleBase):
 		req.modules = [self]
 		self.sitecheck.request_queue.put(req)
 
-		postdata = []
-		for f in document.get_element('form'):
-			url, post, params = self._parse_form(f)
-			if not url: url = str(request)
+		if self.post:
+			postdata = []
+			for f in document.get_element('form'):
+				url, post, params = self._parse_form(f)
+				if not url: url = str(request)
 
-			rp = [(p[0], value) for p in params]
+				rp = [(p[0], value) for p in params]
 
-			if not post:
-				if len(urllib.parse.urlparse(url).query) > 0:
-					url = url + '&'
-				else:
-					url = url + '?'
-				url = url + urllib.parse.urlencode(rp)
+				if not post:
+					if len(urllib.parse.urlparse(url).query) > 0:
+						url = url + '&'
+					else:
+						url = url + '?'
+					url = url + urllib.parse.urlencode(rp)
 
-			req = Request(self.name, url, request.referrer)
-			if post: req.postdata = rp
-			req.modules = [self]
-			self.sitecheck.request_queue.put(req)
+				req = Request(self.name, url, request.referrer)
+				if post: req.postdata = rp
+				req.modules = [self]
+				self.sitecheck.request_queue.put(req)
 
 	def _inject_each(self, request, document, value):
 		qs = urllib.parse.parse_qs(request.query, True)
@@ -611,24 +610,25 @@ class Security(ModuleBase):
 			req.modules = [self]
 			self.sitecheck.request_queue.put(req)
 
-		postdata = []
-		for f in document.get_element('form'):
-			url, post, params = self._parse_form(f)
-			if not url: url = str(request)
+		if self.post:
+			postdata = []
+			for f in document.get_element('form'):
+				url, post, params = self._parse_form(f)
+				if not url: url = str(request)
 
-			for cp in params:
-				rp = [self._insert_param(p, cp[0], value) for p in params] # Construct new list
-				if not post:
-					if len(urllib.parse.urlparse(url).query) > 0:
-						url = url + '&'
-					else:
-						url = url + '?'
-					url = url + urllib.parse.urlencode(rp)
+				for cp in params:
+					rp = [self._insert_param(p, cp[0], value) for p in params] # Construct new list
+					if not post:
+						if len(urllib.parse.urlparse(url).query) > 0:
+							url = url + '&'
+						else:
+							url = url + '?'
+						url = url + urllib.parse.urlencode(rp)
 
-				req = Request(self.name, url, request.referrer)
-				if post: req.postdata = rp
-				req.modules = [self]
-				self.sitecheck.request_queue.put(req)
+					req = Request(self.name, url, request.referrer)
+					if post: req.postdata = rp
+					req.modules = [self]
+					self.sitecheck.request_queue.put(req)
 
 	def _parse_form(self, form):
 		url = None

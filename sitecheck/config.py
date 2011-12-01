@@ -51,7 +51,7 @@ class Session(object):
 			DuplicateContent(),
 			DomainCheck(relay=False),
 			#Persister(directory='output'),
-			#InboundLinks(engines=['Google', 'Yahoo', 'Bing']),
+			#InboundLinks(engines=['Google', 'Bing']),
 			RegexMatch(expressions={
 				'Email Address': re.compile("[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?", re.IGNORECASE),
 				'IP Address': re.compile('(?:\d{1,3}\.){3}\d{1,3}'),
@@ -61,9 +61,8 @@ class Session(object):
 			Accessibility(),
 			MetaData(),
 			StatusLog(),
-			#Security(email='user@example.com', attacks=["1'1\\'1", '"/><xss>'], quick=True),
+			#Security(email='user@example.com', attacks=["1'1\\'1", '"/><xss>'], quick=True, post=True),
 			# WARNING: Using quick=False will result in SIGNIFICANTLY more requests as each parameter will be injected individually
-			# "' -- ", "\\' -- ", "; select 1/0;", "'';!--\"<xss>=&{()}"
 			Comments(),
 			Spelling(language='en_GB'),
 			Readability(threshold=45),

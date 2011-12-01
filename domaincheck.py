@@ -94,7 +94,12 @@ class SocketHelper(object):
 class HostInfo(object):
 	def __init__(self, address, record='A'):
 		self.address = address
-		self.name = socket.gethostbyaddr(address)[0]
+
+		try:
+			self.name = socket.gethostbyaddr(address)[0]
+		except socket.herror:
+			self.name = None
+
 		self.records = set(record)
 		self.cert_expiry = None
 		self.sslv2 = False
@@ -135,7 +140,10 @@ class DomainInfo(object):
 		self.domain_expiry = None
 
 		if _dns_available:
-			ms = [m.exchange.to_text().rstrip('.') for m in query(domain, 'MX')]
+			try:
+				ms = [m.exchange.to_text().rstrip('.') for m in query(domain, 'MX')]
+			except NoAnswer:
+				ms = []
 
 			for m in ms:
 				if not m == '0':
@@ -196,6 +204,7 @@ class DomainInfo(object):
 
 	def _whois_lookup(self, domain):
 		whois = None
+
 		try:
 			sock = socket.create_connection(('whois-servers.net', 43))
 		except:
@@ -205,7 +214,7 @@ class DomainInfo(object):
 			whois = s.sendandreceive(domain)
 			sock.close()
 
-		if whois and not re.search('status:', whois, re.IGNORECASE):
+		if whois and not re.search(domain, whois, re.IGNORECASE):
 			return None
 
 		return whois
@@ -213,7 +222,10 @@ class DomainInfo(object):
 #SMTP can be 25 or 587
 def test_relay(host, port=25, mail_from='from@example.com', rcpt_to='to@example.com', send=False):
 	if _ipre.match(host):
-		name = socket.gethostbyaddr(host)[0]
+		try:
+			name = socket.gethostbyaddr(host)[0]
+		except socket.herror:
+			name = host
 		addr = host
 	else:
 		name = host
@@ -294,7 +306,10 @@ if __name__ == '__main__':
 	print('Hosts:')
 	for host in d.hosts:
 		h = d.hosts[host]
-		print('\t{} ({})'.format(h.address, h.name))
+		if h.name:
+			print('\t{} ({})'.format(h.address, h.name))
+		else:
+			print('\t{} (No reverse DNS)'.format(h.address))
 
 		if h.cert_expiry:
 			rem = (h.cert_expiry - today).days

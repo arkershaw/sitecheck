@@ -63,6 +63,9 @@ class SiteCheck(object):
 		self.session = session
 		self.request_queue = RequestQueue(session)
 
+		if not hasattr(self.session, '_debug'):
+			self.session._debug = False
+
 	def initialise_module(self, module):
 		try:
 			if not hasattr(module, 'initialise'): raise Exception('Initialise method not defined')
@@ -73,6 +76,7 @@ class SiteCheck(object):
 			if not self._resume_data:
 				if hasattr(module, 'begin'): module.begin()
 		except:
+			if self.session._debug: raise
 			self.output_queue.put(module.log_file, 'ERROR: ' + str(sys.exc_info()[1]))
 			return False
 		else:
@@ -282,6 +286,7 @@ class Checker(threading.Thread):
 			try:
 				mod.process(request, response)
 			except:
+				if self.session._debug: raise
 				ex = sys.exc_info()
 				self._output_queue.put(mod.log_file, 'ERROR: Processing with module [{}]\n{}'.format(mod.name, str(ex[1])))
 
@@ -357,17 +362,13 @@ class Checker(threading.Thread):
 					if (res.status >= 300 and res.status < 400) and req.domain == dom.netloc:
 						loc = res.get_headers('location')
 						if len(loc) > 0:
-							prev = str(req)
-							req.redirect(loc[-1])
-							if str(req) == prev:
-								msgs.append('\tERROR: Page {} redirects to itself'.format(prev))
 							if len(loc) > 1:
 								msgs.append('\tERROR: Multiple redirect locations found: [{}]'.format(loc))
-								msgs.append('\t\tURL: [{}]'.format(str(req)))
-							if req.redirects > self._session.max_redirects:
-								msgs.append('\tERROR: Exceeded {} redirects for: [{}]'.format(self._session.max_redirects, req.referrer))
-							else:
-								self._request_queue.put(req)
+
+							redir, err = self._request_queue.redirect(req, loc[-1])
+
+							if not redir:
+								msgs.append('\tERROR: {}'.format(err))
 						else:
 							msgs.append('\tERROR: Redirect with no location: [{}]'.format(req.referrer))
 					elif res.status >= 400 and not res.status in self._session._processed and req.domain == dom.netloc and req.verb == 'HEAD':
@@ -469,14 +470,6 @@ class Request(object):
 		pd = self.get_post_data()
 		if len(pd) > 0: m.update(pd.encode())
 		return m.hexdigest()
-
-	def redirect(self, url):
-		if self.redirects == 0:
-			self.referrer = self.__str__()
-			self.postdata = [] # Reset to get on redirect
-			self.verb = 'GET'
-		self._set_url(url)
-		self.redirects += 1
 
 	def set_verb(self):
 		if len(self.get_post_data()) > 0:
@@ -583,6 +576,29 @@ class RequestQueue(queue.Queue):
 			request.timeouts += 1
 			queue.Queue.put(self, request)
 			return True
+
+	def redirect(self, request, url):
+		if request.redirects == 0:
+			original = str(request)
+		else:
+			original = request.referrer
+
+		if request.redirects >= self.session.max_redirects:
+			return (False, 'Max redirects exceeded [{}]'.format(original))
+		else:
+			prev = str(request)
+			request._set_url(url)
+			if prev == str(request):
+				return (False, 'Page [{}] redirects to itself'.format(original))
+			else:
+				if request.redirects == 0:
+					request.referrer = prev
+					request.postdata = [] # Reset to get on redirect
+					request.verb = 'GET'
+
+				request.redirects += 1
+				queue.Queue.put(self, request)
+				return (True, '')
 
 class OutputQueue(queue.Queue):
 	def __init__(self):

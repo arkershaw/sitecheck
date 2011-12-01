@@ -57,6 +57,7 @@ def ensure_dir(directory):
 			os.makedirs(directory)
 
 # From somewhere - need to credit
+# Closest I can find is: http://code.activestate.com/recipes/473878/
 def read_input():
 	class ReadInputThread(threading.Thread):
 		def __init__(self):
@@ -70,6 +71,7 @@ def read_input():
 				pass
 
 	it = ReadInputThread()
+	it.daemon = True
 	it.start()
 	it.join(30)
 	return it.input
