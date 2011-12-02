@@ -34,7 +34,7 @@ import hashlib
 import uuid
 import pickle
 
-from sitecheck.utils import append
+from sitecheck.utils import append, html_decode
 
 class SessionNotSetException(Exception):
 	pass
@@ -286,7 +286,7 @@ class Checker(threading.Thread):
 			try:
 				mod.process(request, response)
 			except:
-				if self.session._debug: raise
+				if self._session._debug: raise
 				ex = sys.exc_info()
 				self._output_queue.put(mod.log_file, 'ERROR: Processing with module [{}]\n{}'.format(mod.name, str(ex[1])))
 
@@ -409,7 +409,7 @@ class Request(object):
 		self._set_url(url)
 
 	def _set_url(self, url):
-		url = url.replace(' ', '%20')
+		url = html_decode(url.replace(' ', '%20'))
 		url_parts = urllib.parse.urlparse(url)
 
 		if len(url_parts.scheme) == 0:

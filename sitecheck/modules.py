@@ -446,7 +446,7 @@ class Spelling(ModuleBase):
 		if l > 0:
 			self.spell_checker.set_text(t)
 			for err in self.spell_checker:
-				if err.word[1].islower(): # Ignore abbreviations
+				if len(err.word) > 1 and err.word[1].islower(): # Ignore abbreviations
 					w = err.word.lower()
 					if w in words:
 						words[w][1] += 1
@@ -548,17 +548,31 @@ class Security(ModuleBase):
 		self.quick = quick
 		self.post = post
 
+	def _buildquery(self, items):
+		# Unsafe encoding is required for this module
+		qsout = []
+		keys = list(items.keys())
+		keys.sort()
+		for k in keys:
+			if type(items[k]) is list:
+				for i in items[k]:
+					qsout.append('{}={}'.format(k, i))
+			else:
+				qsout.append('{}={}'.format(k, items[k]))
+
+		return '&'.join(qsout)
+
 	@message_batch
 	def process(self, messages, request, response):
 		if request.source == self.name:
 			if response.status >= 500:
 				messages.add('Caused error with request: [{}]'.format(str(request)))
 				if len(request.postdata) > 0:
-					messages.add('\tPost data: [{}]'.format(request.postdata))
+					messages.add('\tPost data: {}'.format(request.postdata))
 			elif self.xss.search(response.content):
 				messages.add('Possible XSS found in: [{}]'.format(str(request)))
 				if len(request.postdata) > 0:
-					messages.add('\tPost data: [{}]'.format(request.postdata))
+					messages.add('\tPost data: {}'.format(request.postdata))
 		elif response.is_html:
 			doc = HtmlHelper(response.content)
 			for atk in self.attacks:
@@ -568,45 +582,13 @@ class Security(ModuleBase):
 					self._inject_each(request, doc, atk)
 
 	def _inject_all(self, request, document, value):
-		qs = urllib.parse.parse_qs(request.query, True)
-		for param in qs.keys():
-			qs[param] = value
+		if len(request.query) > 0:
+			qs = urllib.parse.parse_qs(request.query, keep_blank_values=True)
+			for param in qs.keys():
+				qs[param] = value
 
-		url = urllib.parse.urljoin(str(request), '?' + urllib.parse.urlencode(qs, True))
-
-		req = Request(self.name, url, request.referrer)
-		req.modules = [self]
-		self.sitecheck.request_queue.put(req)
-
-		if self.post:
-			postdata = []
-			for f in document.get_element('form'):
-				url, post, params = self._parse_form(f)
-				if not url: url = str(request)
-
-				rp = [(p[0], value) for p in params]
-
-				if not post:
-					if len(urllib.parse.urlparse(url).query) > 0:
-						url = url + '&'
-					else:
-						url = url + '?'
-					url = url + urllib.parse.urlencode(rp)
-
-				req = Request(self.name, url, request.referrer)
-				if post: req.postdata = rp
-				req.modules = [self]
-				self.sitecheck.request_queue.put(req)
-
-	def _inject_each(self, request, document, value):
-		qs = urllib.parse.parse_qs(request.query, True)
-		for param in qs.keys():
-			temp = qs[param]
-			qs[param] = value
-			url = urllib.parse.urljoin(str(request), '?' + urllib.parse.urlencode(qs, True))
-			qs[param] = temp
-
-			req = Request(self.name, url, request.referrer)
+			req = Request(self.name, str(request), request.referrer)
+			req.query = self._buildquery(qs)
 			req.modules = [self]
 			self.sitecheck.request_queue.put(req)
 
@@ -614,19 +596,60 @@ class Security(ModuleBase):
 			postdata = []
 			for f in document.get_element('form'):
 				url, post, params = self._parse_form(f)
-				if not url: url = str(request)
+				if url:
+					self.add_request(url, str(request))
+				else:
+					url = str(request)
+
+				rp = [(p[0], value) for p in params]
+
+				req = Request(self.name, url, request.referrer)
+				if post:
+					req.set_post_data(rp)
+				else:
+					if len(req.query) > 0:
+						req.query += '&'
+					else:
+						req.query += '?'
+					req.query += self._buildquery(rp)
+
+				req.modules = [self]
+				self.sitecheck.request_queue.put(req)
+
+	def _inject_each(self, request, document, value):
+		if len(request.query) > 0:
+			qs = urllib.parse.parse_qs(request.query, keep_blank_values=True)
+			for param in qs.keys():
+				temp = qs[param]
+				qs[param] = value
+				req = Request(self.name, str(request), request.referrer)
+				req.query = self._buildquery(qs)
+				req.modules = [self]
+				self.sitecheck.request_queue.put(req)
+				qs[param] = temp
+
+		if self.post:
+			postdata = []
+			for f in document.get_element('form'):
+				url, post, params = self._parse_form(f)
+				if url:
+					self.add_request(url, str(request))
+				else:
+					url = str(request)
 
 				for cp in params:
 					rp = [self._insert_param(p, cp[0], value) for p in params] # Construct new list
-					if not post:
-						if len(urllib.parse.urlparse(url).query) > 0:
-							url = url + '&'
-						else:
-							url = url + '?'
-						url = url + urllib.parse.urlencode(rp)
 
 					req = Request(self.name, url, request.referrer)
-					if post: req.postdata = rp
+					if post:
+						req.set_post_data(rp)
+					else:
+						if len(req.query) > 0:
+							req.query += '&'
+						else:
+							req.query += '?'
+						req.query += self._buildquery(rp)
+
 					req.modules = [self]
 					self.sitecheck.request_queue.put(req)
 

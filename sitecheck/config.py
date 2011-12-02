@@ -49,7 +49,7 @@ class Session(object):
 		self.ignore_protocol = ['mailto:', 'javascript:']
 		self.modules = [
 			DuplicateContent(),
-			DomainCheck(relay=False),
+			#DomainCheck(relay=False),
 			#Persister(directory='output'),
 			#InboundLinks(engines=['Google', 'Bing']),
 			RegexMatch(expressions={

@@ -146,7 +146,7 @@ class DomainInfo(object):
 				ms = []
 
 			for m in ms:
-				if not m == '0':
+				if len(m) > 0 and not m == '0':
 					for a in socket.getaddrinfo(m, None):
 						ip = a[4][0]
 						if ip in self.hosts:
