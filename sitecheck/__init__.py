@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2009-2011 Andrew Kershaw
+# Copyright 2009-2012 Andrew Kershaw
 
 # This file is part of sitecheck.
 

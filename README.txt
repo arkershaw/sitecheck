@@ -1,4 +1,4 @@
-Copyright 2009-2011 Andrew Kershaw
+Copyright 2009-2012 Andrew Kershaw
 Licensed under the GNU Affero General Public License v3 (see "LICENSE" file).
 
 Dependencies:
@@ -7,7 +7,7 @@ Dependencies:
 	Enchant, pyenchant (spelling)
 	dnspython, pyopenssl (domain check)
 
-	*The version of pytidylib in PyPI is not yet updated for Python 3 so easy_install or pip will not install the latest version. The source is available here:
+	*The version of pytidylib in PyPI is not yet updated for Python 3 so easy_install or pip will not install the required version. The source is available here:
 
 	https://github.com/countergram/pytidylib/
 
@@ -19,14 +19,19 @@ Dependencies:
 
 	git checkout -b python3 origin/python3
 
+	Using VirtualEnv is recommended due to the development status of these dependencies. Alternatively, on Linux they can be symlinked into the site-packages directory rather than installed.
+
 Installation:
 
 	Windows:
 
 		Download and install the following:
 		Python 3.2: http://www.python.org/download/
-		pyenchant: http://www.rfk.id.au/software/pyenchant/download.html (the Windows installer includes the Enchant library)
-		pytidylib: http://countergram.com/open-source/pytidylib
+
+		pyenchant (if spellcheck is required): http://www.rfk.id.au/software/pyenchant/download.html (the Windows installer includes the Enchant library)
+		pytidylib (if validation or accessibility are required): http://countergram.com/open-source/pytidylib
+
+		The version of pyopenssl from PyPI should work fine - pip is the best way to install this. Altrenatively: http://pypi.python.org/pypi/pyOpenSSL/
 
 		To install pytidylib and sitecheck, download and extract each archive then open a command window in the same directory as the extracted files and type:
 
@@ -42,7 +47,7 @@ Installation:
 
 	Linux:
 
-		Packages for dependencies should be available from your distribution's package manager or from the links above. Install all dependencies and then extract the archive and run:
+		Packages for dependencies should be available from your distribution's package manager or installable via pip or the links above. Install all dependencies and then extract the archive and run:
 
 		./setup.py install
 
@@ -68,7 +73,7 @@ While running:
 	q -> Abort
 	Return key -> Print number of urls in queue
 
-	To resume a suspended job, run the script with the path to an existing output directory:
+	To resume a suspended job or use an existing configuration file, run the script with the path to an existing output directory:
 
 		runsitecheck.py /path/to/output
 
@@ -97,6 +102,10 @@ Modules:
 	Spider -> If this module is disabled, only a single page will be analysed. Scans all files under the domain/path as well as testing targets of external links.
 
 	Readability -> Calculates the Flesch Reading Ease score and logs it if it is below the specified threshold.
+
+	DuplicateContent -> Checks for the same content on different URL's.
+
+	DomainCheck -> Gets important domain information including expiry date, SSL certificate expiry date, reverse DNS etc.
 
 Configuration:
 

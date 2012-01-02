@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Copyright 2009-2011 Andrew Kershaw
+# Copyright 2009-2012 Andrew Kershaw
 
 # This file is part of sitecheck.
 
@@ -34,7 +34,7 @@ if __name__ == '__main__':
 	from sitecheck import *
 	from sitecheck.utils import read_input, append, ensure_dir, suspend, resume
 
-	print('''Sitecheck {} Copyright (C) 2009-2011 Andrew Kershaw
+	print('''Sitecheck {} Copyright (C) 2009-2012 Andrew Kershaw
 This program comes with ABSOLUTELY NO WARRANTY'''.format(SiteCheck.VERSION))
 
 	parser = ArgumentParser()

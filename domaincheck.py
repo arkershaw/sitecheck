@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright 2009-2011 Andrew Kershaw
+# Copyright 2009-2012 Andrew Kershaw
 
 # This file is part of sitecheck.
 
@@ -63,6 +63,23 @@ _relay_tests = [
 ]
 
 _ipre = re.compile('(?:\d{1,3}\.){3}\d{1,3}')
+def is_ip_address(address):
+	return _ipre.match(address)
+
+def name_and_address(host):
+	if is_ip_address(host):
+		addr = host
+		try:
+			name = socket.gethostbyaddr(host)[0]
+		except socket.herror:
+			name = None
+	else:
+		name = host
+		try:
+			addr = socket.getaddrinfo(host, None)[0][4][0]
+		except socket.gaierror:
+			addr = None
+	return name, addr
 
 class SocketHelper(object):
 	BUFFER_SIZE = 4096
@@ -92,31 +109,27 @@ class SocketHelper(object):
 		return self.receiveall()
 
 class HostInfo(object):
-	def __init__(self, address, record='A'):
-		self.address = address
-
-		try:
-			self.name = socket.gethostbyaddr(address)[0]
-		except socket.herror:
-			self.name = None
+	def __init__(self, host, record='A'):
+		self.name, self.address = name_and_address(host)
 
 		self.records = set(record)
 		self.cert_expiry = None
 		self.sslv2 = False
 
-		try:
-			cert = self._get_cert(ssl.PROTOCOL_SSLv2)
-		except socket.error:
-			# SSL not supported
-			pass
-		else:
-			if cert: self.sslv2 = True
-			if not cert: cert = self._get_cert(ssl.PROTOCOL_SSLv3)
-			if not cert: cert = self._get_cert(ssl.PROTOCOL_TLSv1)
-			if cert and _ssl_available:
-				cert_data = load_certificate(FILETYPE_PEM, cert)
-				expiry = cert_data.get_notAfter().decode('ascii')
-				self.cert_expiry = datetime.datetime.strptime(expiry[:8], '%Y%m%d').date()
+		if self.address:
+			try:
+				cert = self._get_cert(ssl.PROTOCOL_SSLv2)
+			except socket.error:
+				# SSL not supported
+				pass
+			else:
+				if cert: self.sslv2 = True
+				if not cert: cert = self._get_cert(ssl.PROTOCOL_SSLv3)
+				if not cert: cert = self._get_cert(ssl.PROTOCOL_TLSv1)
+				if cert and _ssl_available:
+					cert_data = load_certificate(FILETYPE_PEM, cert)
+					expiry = cert_data.get_notAfter().decode('ascii')
+					self.cert_expiry = datetime.datetime.strptime(expiry[:8], '%Y%m%d').date()
 
 	def _get_cert(self, version):
 		try:
@@ -147,13 +160,13 @@ class DomainInfo(object):
 
 			for m in ms:
 				if len(m) > 0 and not m == '0':
-					for a in socket.getaddrinfo(m, None):
-						ip = a[4][0]
-						if ip in self.hosts:
-							self.hosts[ip].records.update('MX')
-						else:
-							self.hosts[ip] = HostInfo(m, record='MX')
-
+					name, addr = name_and_address(m)
+					if not addr:
+						self.hosts[m] = HostInfo(m, record='MX')
+					elif addr in self.hosts:
+						self.hosts[ip].records.update('MX')
+					else:
+						self.hosts[ip] = HostInfo(m, record='MX')
 			try:
 				res = query(domain, 'TXT')
 			except NoAnswer:
@@ -221,15 +234,9 @@ class DomainInfo(object):
 
 #SMTP can be 25 or 587
 def test_relay(host, port=25, mail_from='from@example.com', rcpt_to='to@example.com', send=False):
-	if _ipre.match(host):
-		try:
-			name = socket.gethostbyaddr(host)[0]
-		except socket.herror:
-			name = host
-		addr = host
-	else:
-		name = host
-		addr = socket.getaddrinfo(host, None)[0][4][0]
+	name, addr = name_and_address(host)
+
+	if not addr: raise Exception('No address found for {}'.format(host))
 
 	fr = mail_from.rsplit('@', 1)
 	to = rcpt_to.rsplit('@', 1)
@@ -238,7 +245,7 @@ def test_relay(host, port=25, mail_from='from@example.com', rcpt_to='to@example.
 		raise Exception('To address and host are on same domain')
 
 	try:
-		sock = socket.create_connection((host, port))
+		sock = socket.create_connection((addr, port))
 	except:
 		raise Exception('Unable to connect to {}:{}'.format(host, port))
 	else:
@@ -279,7 +286,7 @@ if __name__ == '__main__':
 
 	today = datetime.date.today()
 
-	if _ipre.match(args.domain):
+	if is_ip_address(args.domain):
 		# IP address supplied instead of domain
 		sys.exit('Please supply a domain')
 
