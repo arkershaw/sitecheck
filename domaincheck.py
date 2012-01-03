@@ -62,6 +62,15 @@ _relay_tests = [
 	('<{user}@{domain}>', '<{domain}!{user}@[{address}]>')
 ]
 
+_common_names = [
+	'www',
+	'ftp',
+	'mail',
+	'pop',
+	'pop3',
+	'smtp'
+]
+
 _ipre = re.compile('(?:\d{1,3}\.){3}\d{1,3}')
 def is_ip_address(address):
 	return _ipre.match(address)
@@ -141,12 +150,17 @@ class HostInfo(object):
 
 class DomainInfo(object):
 	#Zone transfer
-	#www record
 	def __init__(self, domain):
 		self.domain = domain
 		#self._tld = domain.split('.')[-1]
 
 		self.hosts = dict([(a[4][0], HostInfo(a[4][0])) for a in socket.getaddrinfo(domain, None)])
+
+		for n in _common_names:
+			try:
+				self.hosts.update([(a[4][0], HostInfo(a[4][0])) for a in socket.getaddrinfo('{}.{}'.format(n, domain), None)])
+			except socket.gaierror:
+				pass
 
 		self.spf = None
 		self.name_servers = None
@@ -164,9 +178,9 @@ class DomainInfo(object):
 					if not addr:
 						self.hosts[m] = HostInfo(m, record='MX')
 					elif addr in self.hosts:
-						self.hosts[ip].records.update('MX')
+						self.hosts[addr].records.update('MX')
 					else:
-						self.hosts[ip] = HostInfo(m, record='MX')
+						self.hosts[addr] = HostInfo(m, record='MX')
 			try:
 				res = query(domain, 'TXT')
 			except NoAnswer:
@@ -186,7 +200,7 @@ class DomainInfo(object):
 				#Expiration Date:07-Mar-2013 05:00:00 UTC
 				#Record expires on 08-Aug-2012.
 
-				ed = re.search('(?:renew|expir).*?(?P<alpha>\d{2}-\w{3}-\d{4})|(?P<numer>\d{4}-\d{2}-\d{2})', whois, re.IGNORECASE)
+				ed = re.search('(?:renew|expir).*?(?:(?P<alpha>\d{2}-\w{3}-\d{4})|(?P<numer>\d{4}-\d{2}-\d{2}))', whois, re.IGNORECASE)
 				if ed.group('numer'):
 					self.domain_expiry = datetime.datetime.strptime(ed.group('numer'), '%Y-%m-%d').date()
 				elif ed.group('alpha'):
