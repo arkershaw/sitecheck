@@ -30,7 +30,7 @@ setup(name='sitecheck',
 	scripts=['runsitecheck.py'],
 	package_data={'sitecheck': ['dict.txt']},
 
-	long_description = 'Modular web site spider for web developers. Checks for many common problems including missing documents (HTTP 400), server errors (HTTP 500), spelling mistakes, validation errors, missing meta tags and potential SQL injection/XSS.',
+	long_description = 'Checks for many common problems including missing documents (HTTP 400), server errors (HTTP 500), spelling mistakes, W3C validation errors, accessibility issues, missing meta tags, duplicate content, inbound links from search engines and potential SQL injection/cross-site scripting (XSS).',
 	download_url = 'http://sourceforge.net/projects/sitecheck/files/',
 	license = 'GNU Affero General Public License v3',
 	platforms = ['Any'],

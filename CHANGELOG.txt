@@ -1,0 +1,27 @@
+Version 1.23 (2012-01-07)
+
+DomainCheck module added
+DuplicateContent module added
+Bug with resume fixed
+Detects pages redirecting to themselves
+Security module can be restricted to GET parameters
+Remove Yahoo from search engines (as it is now powered by Bing)
+Error with infinite redirect handling fixed
+Updated inbound links module
+Fixed output of RegexMatch module
+URL encoding removed from Security module
+
+Version 1.2 (2011-11-07)
+
+Updated user agent
+Removed spurious print statement
+Error with empty title tag fixed
+Accuracy of readability score improved
+Check for updates feature added
+
+Version 1.1 (2011-08-12)
+
+Markup on error pages is now checked once only
+Synchronisation issue with messages fixed
+
+Version 1.0 (2011-04-11)

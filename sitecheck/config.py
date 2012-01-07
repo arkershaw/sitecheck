@@ -38,7 +38,7 @@ class Session(object):
 		self.ignore_ext = set([]) # These file types are ignored
 		self.test_ext = set.union(media_files, resource_files, document_files) # Only headers are downloaded for these file types
 		self.include_ext = set([]) # Allows the inclusion of resources (images, styles etc.) in parent folder of path (if specified)
-		self.wait_seconds = 2.0 # Pause between requests to consume less resources
+		self.wait_seconds = 1.0 # Pause between requests to consume less resources
 		self.request_timeout = 30.0
 		self.max_retries = 3 # On socket error, a request is returned to the queue
 		self.max_redirects = 5 # Trap looping redirects
