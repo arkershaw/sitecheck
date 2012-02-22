@@ -49,8 +49,7 @@ except:
 else:
 	_domaincheck_available = True
 
-from sitecheck.core import Request, ModuleBase, HtmlHelper, Checker, message_batch
-from sitecheck.utils import ensure_dir, html_decode
+from sitecheck.core import Request, ModuleBase, HtmlHelper, Checker, message_batch, ensure_dir
 
 class Spider(ModuleBase):
 	@message_batch
@@ -59,7 +58,7 @@ class Spider(ModuleBase):
 			doc = HtmlHelper(response.content)
 
 			referrer = str(request)
-			messages.add('Location: [{}]'.format(referrer))
+			messages.add('Location: [{0}]'.format(referrer))
 
 			self.add_request([e[2] for e in doc.get_attribute('src')], referrer)
 			self.add_request([e[2] for e in doc.get_attribute('action', 'form')], referrer)
@@ -74,17 +73,17 @@ class Spider(ModuleBase):
 			out.sort()
 			for url in out:
 				if url.count(' ') > 0:
-					messages.add('\t-> [{}] *Unencoded'.format(url))
+					messages.add('\t-> [{0}] *Unencoded'.format(url))
 				else:
-					messages.add('\t-> [{}]'.format(url))
+					messages.add('\t-> [{0}]'.format(url))
 
 class StatusLog(ModuleBase):
 	@message_batch
 	def process(self, messages, request, response):
 		if response.status >= 400:
-			messages.add('URL: [{}] returned [{} {}]'.format(str(request), response.status, response.message))
+			messages.add('URL: [{0}] returned [{1} {2}]'.format(str(request), response.status, response.message))
 			if len(request.referrer) > 0:
-				messages.add('\tReferrer: [{}]'.format(request.referrer))
+				messages.add('\tReferrer: [{0}]'.format(request.referrer))
 
 class Accessibility(ModuleBase):
 	def __init__(self):
@@ -113,13 +112,13 @@ class Accessibility(ModuleBase):
 			try:
 				doc, err = tidy_document(response.content, options=self.options)
 			except:
-				messages.add('Error parsing: [{}]'.format(str(request)))
+				messages.add('Error parsing: [{0}]'.format(str(request)))
 			else:
 				for e in err.splitlines():
 					if self._log(e):
-						messages.add('\t{}'.format(re.sub('^line\\b', 'Line', e)))
+						messages.add('\t{0}'.format(re.sub('^line\\b', 'Line', e)))
 
-				messages.set_header('URL: {} ({} errors)'.format(str(request), len(messages)))
+				messages.set_header('URL: {0} ({1} errors)'.format(str(request), len(messages)))
 
 	def _log(self, error):
 		mtch = self.accessibility.search(error)
@@ -147,7 +146,7 @@ class Comments(ModuleBase):
 					# Ignore IE conditional comments
 					pass
 				else:
-					messages.add('\tComment:\t{}'.format(re.sub('\r?\n', '\n\t\t\t\t', c, re.MULTILINE)))
+					messages.add('\tComment:\t{0}'.format(re.sub('\r?\n', '\n\t\t\t\t', c, re.MULTILINE)))
 
 class MetaData(ModuleBase):
 	@message_batch
@@ -187,16 +186,16 @@ class MetaData(ModuleBase):
 				elif len(meta[m][1]) == 0:
 					empty.append(m)
 
-			messages.set_header('URL: {}'.format(str(request)))
+			messages.set_header('URL: {0}'.format(str(request)))
 
 			if len(missing) > 0:
-				messages.add('\tMissing: {}'.format(str(missing)))
+				messages.add('\tMissing: {0}'.format(str(missing)))
 
 			if len(empty) > 0:
-				messages.add('\tEmpty: {}'.format(str(empty)))
+				messages.add('\tEmpty: {0}'.format(str(empty)))
 
 			if len(multiple) > 0:
-				messages.add('\tMultiple: {}'.format(str(multiple)))
+				messages.add('\tMultiple: {0}'.format(str(multiple)))
 
 class Readability(ModuleBase):
 	def __init__(self, threshold=45):
@@ -249,7 +248,7 @@ class Readability(ModuleBase):
 						self.max = max(self.max, fkre)
 
 				if fkre < self.threshold:
-					self.add_message('Document: [{}] readability: [{:.2f}]'.format(str(request), fkre))
+					self.add_message('Document: [{0}] readability: [{1:.2f}]'.format(str(request), fkre))
 
 	def _words(self, text):
 		return len(text.split(' '))
@@ -291,12 +290,12 @@ class Validator(ModuleBase):
 			try:
 				doc, err = tidy_document(response.content, options=self.options)
 			except:
-				messages.add('ERROR: Unable to parse: [{}]'.format(str(request)))
+				messages.add('ERROR: Unable to parse: [{0}]'.format(str(request)))
 			else:
 				for e in err.splitlines():
-					messages.add('\t{}'.format(re.sub('^line\\b', 'Line', e)))
+					messages.add('\t{0}'.format(re.sub('^line\\b', 'Line', e)))
 
-				messages.set_header('Invalid: [{}] ({} errors)'.format(str(request), len(messages)))
+				messages.set_header('Invalid: [{0}] ({1} errors)'.format(str(request), len(messages)))
 
 class RegexMatch(ModuleBase):
 	def __init__(self, expressions={}):
@@ -305,7 +304,7 @@ class RegexMatch(ModuleBase):
 
 	@message_batch
 	def process(self, messages, request, response):
-		messages.set_header('URL: {}'.format(str(request)))
+		messages.set_header('URL: {0}'.format(str(request)))
 		for rx in self.expressions.items():
 			inv_h = inv_b = False
 			if rx[0][0] == '^':
@@ -315,20 +314,20 @@ class RegexMatch(ModuleBase):
 
 			if inv_h:
 				if not rx[1].search(str(response.headers)):
-					messages.add('\tFilter: [{}] not found in headers'.format(rx[0]))
+					messages.add('\tFilter: [{0}] not found in headers'.format(rx[0]))
 			elif not inv_b:
 				mtchs = rx[1].finditer(str(response.headers))
 				for mtch in mtchs:
-					messages.add('\tFilter: [{}] found: [{}] in headers'.format(rx[0], mtch.group()))
+					messages.add('\tFilter: [{0}] found: [{1}] in headers'.format(rx[0], mtch.group()))
 
 			if response.is_html:
 				if inv_b:
 					if not rx[1].search(str(response.content)):
-						messages.add('\tFilter: [{}] not found'.format(rx[0]))
+						messages.add('\tFilter: [{0}] not found'.format(rx[0]))
 				elif not inv_h:
 					mtchs = rx[1].finditer(response.content)
 					for mtch in mtchs:
-						messages.add('\tFilter: [{}] found: [{}]'.format(rx[0], mtch.group()))
+						messages.add('\tFilter: [{0}] found: [{1}]'.format(rx[0], mtch.group()))
 
 class Persister(ModuleBase):
 	def __init__(self, directory='output'):
@@ -401,9 +400,9 @@ class Spelling(ModuleBase):
 
 	def begin(self):
 		if self.spell_checker:
-			self.add_message('Language: {}'.format(self.language))
+			self.add_message('Language: {0}'.format(self.language))
 			if self.dictionary:
-				self.add_message('Using custom dictionary [{}]'.format(self.dictionary))
+				self.add_message('Using custom dictionary [{0}]'.format(self.dictionary))
 		else:
 			self.add_message('ERROR: pyenchant not available')
 
@@ -433,15 +432,15 @@ class Spelling(ModuleBase):
 								self._check(content[0][2], words)
 
 			if len(words) > 0:
-				messages.set_header('Document: [{}]'.format(str(request)))
+				messages.set_header('Document: [{0}]'.format(str(request)))
 				keys = list(words.keys())
 				keys.sort()
 				for k in keys:
-					messages.add('\tWord: [{}] x {} ({})'.format(words[k][0], words[k][1], words[k][2]))
+					messages.add('\tWord: [{0}] x {1} ({2})'.format(words[k][0], words[k][1], words[k][2]))
 
 	def _check(self, text, words):
 		if not text: return
-		t = html_decode(text.strip())
+		t = HtmlHelper.html_decode(text.strip())
 		l = len(t)
 		if l > 0:
 			self.spell_checker.set_text(t)
@@ -494,7 +493,7 @@ class InboundLinks(ModuleBase):
 			self.engine_parameters[k][1] = re.compile(self.engine_parameters[k][1], re.IGNORECASE)
 
 		self.domain = urllib.parse.urlparse(self.sitecheck.session.domain).netloc
-		self.link = re.compile('"(https?://{}[^"]*)"'.format(re.escape(self.domain), re.IGNORECASE))
+		self.link = re.compile('"(https?://{0}[^"]*)"'.format(re.escape(self.domain), re.IGNORECASE))
 		if not self.engines: self.engines = list(self.engine_parameters.keys())
 		for ei in range(len(self.engines)):
 			se = self.engines[ei]
@@ -507,7 +506,7 @@ class InboundLinks(ModuleBase):
 				req.verb = 'GET'
 				self.sitecheck.request_queue.put(req)
 			else:
-				self.add_message('ERROR: Unknown search engine [{}]'.format(se))
+				self.add_message('ERROR: Unknown search engine [{0}]'.format(se))
 				self.engines.pop(ei)
 
 	def process(self, request, response):
@@ -516,7 +515,7 @@ class InboundLinks(ModuleBase):
 				e = self.engine_parameters[request.referrer]
 				mtch = e[1].search(response.content)
 				if mtch == None:
-					self.add_message('ERROR: Unable to calculate pages [{}]'.format(str(request)))
+					self.add_message('ERROR: Unable to calculate pages [{0}]'.format(str(request)))
 				else:
 					e[4] = int(re.sub('[^0-9]', '', mtch.groups()[0]))
 
@@ -537,7 +536,7 @@ class InboundLinks(ModuleBase):
 		urls = list(self.inbound)
 		urls.sort()
 		self.add_message(urls)
-		self.add_message('Total: {}'.format(len(self.inbound)))
+		self.add_message('Total: {0}'.format(len(self.inbound)))
 
 class Security(ModuleBase):
 	def __init__(self, email='', attacks=[], quick=True, post=True):
@@ -556,9 +555,9 @@ class Security(ModuleBase):
 		for k in keys:
 			if type(items[k]) is list:
 				for i in items[k]:
-					qsout.append('{}={}'.format(k, i))
+					qsout.append('{0}={1}'.format(k, i))
 			else:
-				qsout.append('{}={}'.format(k, items[k]))
+				qsout.append('{0}={1}'.format(k, items[k]))
 
 		return '&'.join(qsout)
 
@@ -566,13 +565,13 @@ class Security(ModuleBase):
 	def process(self, messages, request, response):
 		if request.source == self.name:
 			if response.status >= 500:
-				messages.add('Caused error with request: [{}]'.format(str(request)))
+				messages.add('Caused error with request: [{0}]'.format(str(request)))
 				if len(request.postdata) > 0:
-					messages.add('\tPost data: {}'.format(request.postdata))
+					messages.add('\tPost data: {0}'.format(request.postdata))
 			elif self.xss.search(response.content):
-				messages.add('Possible XSS found in: [{}]'.format(str(request)))
+				messages.add('Possible XSS found in: [{0}]'.format(str(request)))
 				if len(request.postdata) > 0:
-					messages.add('\tPost data: {}'.format(request.postdata))
+					messages.add('\tPost data: {0}'.format(request.postdata))
 		elif response.is_html:
 			doc = HtmlHelper(response.content)
 			for atk in self.attacks:
@@ -712,37 +711,37 @@ class DomainCheck(ModuleBase):
 			today = datetime.date.today()
 
 			domain = urllib.parse.urlparse(self.sitecheck.session.domain).netloc
-			self.add_message('Checking: {}'.format(domain))
+			self.add_message('Checking: {0}'.format(domain))
 
 			d = DomainInfo(domain)
 
 			if type(d.domain_expiry) == datetime.date:
 				rem = (d.domain_expiry - today).days
 				if rem < 0:
-					self.add_message('Domain expired {}'.format(d.domain_expiry))
+					self.add_message('Domain expired {0}'.format(d.domain_expiry))
 				else:
-					self.add_message('Domain expires in {} days'.format(rem))
+					self.add_message('Domain expires in {0} days'.format(rem))
 			elif d.domain_expiry:
-				self.add_message('Domain expires on: {}'.format(d.domain_expiry))
+				self.add_message('Domain expires on: {0}'.format(d.domain_expiry))
 			else:
 				self.add_message('Unable to determine domain expiry date')
 
 			if d.spf:
-				self.add_message('SPF: {}'.format(d.spf))
+				self.add_message('SPF: {0}'.format(d.spf))
 			else:
 				self.add_message('No SPF record found')
 
 			self.add_message('Hosts:')
 			for host in d.hosts:
 				h = d.hosts[host]
-				self.add_message('\t{} ({})'.format(h.address, h.name))
+				self.add_message('\t{0} ({1})'.format(h.address, h.name))
 
 				if h.cert_expiry:
 					rem = (h.cert_expiry - today).days
 					if rem < 0:
-						self.add_message('\t\tCertificate expired {}'.format(h.cert_expiry))
+						self.add_message('\t\tCertificate expired {0}'.format(h.cert_expiry))
 					else:
-						self.add_message('\t\tCertificate expires in {} days'.format(rem))
+						self.add_message('\t\tCertificate expires in {0} days'.format(rem))
 
 				if h.sslv2:
 					self.add_message('\t\tInsecure ciphers supported')
@@ -751,7 +750,7 @@ class DomainCheck(ModuleBase):
 					relay, failed = test_relay(h.address)
 					if relay:
 						for f in failed:
-							self.add_message('\t\tPossible open relay: {} -> {}'.format(f[0], f[1]))
+							self.add_message('\t\tPossible open relay: {0} -> {1}'.format(f[0], f[1]))
 
 	def process(self, request, response):
 		pass
@@ -769,7 +768,7 @@ class DuplicateContent(ModuleBase):
 
 			if h in self.content:
 				if str(request) != self.content[h]:
-					messages.add('Duplicate content found: {}'.format(str(request)))
-					messages.add('\tDuplicate of: {}'.format(self.content[h]))
+					messages.add('Duplicate content found: {0}'.format(str(request)))
+					messages.add('\tDuplicate of: {0}'.format(self.content[h]))
 			else:
 				self.content[h] = str(request)

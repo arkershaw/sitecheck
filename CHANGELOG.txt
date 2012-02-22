@@ -1,27 +1,48 @@
-Version 1.23 (2012-01-07)
+----------------
+Version 1.4 (?)
+----------------
+
+Moved Struct class from sitecheck.utils to sitecheck.core
+	IMPORTANT: This will break existing config files
+	On line 21 of example config.py "from sitecheck.utils import Struct" becomes "from sitecheck.core import Struct"
+
+User interaction has been redesigned due to bugs with threaded implementaion
+To cancel or suspend, you now use the standard console interrupt (usually Ctrl + c)
+
+------------------------
+Version 1.3 (2012-01-07)
+------------------------
 
 DomainCheck module added
 DuplicateContent module added
 Bug with resume fixed
 Detects pages redirecting to themselves
-Security module can be restricted to GET parameters
-Remove Yahoo from search engines (as it is now powered by Bing)
 Error with infinite redirect handling fixed
 Updated inbound links module
 Fixed output of RegexMatch module
 URL encoding removed from Security module
+Removed Yahoo from search engines (as it is now powered by Bing)
+Security module can now be restricted to GET parameters
+Added quick option to security module
 
+------------------------
 Version 1.2 (2011-11-07)
+------------------------
 
 Updated user agent
-Removed spurious print statement
+Removed spurious print statement on startup
 Error with empty title tag fixed
 Accuracy of readability score improved
 Check for updates feature added
+Changed IP address regular expression in config file
 
+------------------------
 Version 1.1 (2011-08-12)
+------------------------
 
 Markup on error pages is now checked once only
 Synchronisation issue with messages fixed
 
+------------------------
 Version 1.0 (2011-04-11)
+------------------------

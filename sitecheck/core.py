@@ -33,8 +33,41 @@ import re
 import hashlib
 import uuid
 import pickle
+import html.entities
 
-from sitecheck.utils import append, html_decode
+# From: http://code.activestate.com/recipes/52308/
+class Struct:
+	def __init__(self, **kwargs): self.__dict__.update(kwargs)
+
+def append(content, append):
+	if content == None and append == None:
+		return ''
+	elif content == None:
+		return append
+	elif append == None:
+		return content
+	elif content.lower().endswith(append.lower()):
+		return content
+	else:
+		return content + append
+
+#def prepend(content, prepend):
+	#if content == None and prepend == None:
+		#return ''
+	#if content == None:
+		#return prepend
+	#elif prepend == None:
+		#return content
+	#elif content.lower().startswith(prepend.lower()):
+		#return content
+	#else:
+		#return prepend + content
+
+_ensure_dir_lock = threading.Lock()
+def ensure_dir(directory):
+	with _ensure_dir_lock:
+		if not os.path.exists(directory):
+			os.makedirs(directory)
 
 class SessionNotSetException(Exception):
 	pass
@@ -43,7 +76,7 @@ class SiteCheckStartedException(Exception):
 	pass
 
 class SiteCheck(object):
-	VERSION = '1.3'
+	VERSION = '1.4'
 
 	def __init__(self, root_path):
 		self.root_path = root_path
@@ -104,7 +137,7 @@ class SiteCheck(object):
 			self.session.domain = self.session.domain + '/'
 
 		if not re.match('^http', self.session.domain, re.IGNORECASE):
-			self.session.domain = 'http://{}'.format(self.session.domain)
+			self.session.domain = 'http://{0}'.format(self.session.domain)
 
 		self.root_path = append(self.root_path, os.sep)
 		self.session.output = append(self.session.output, os.sep)
@@ -209,15 +242,15 @@ class LogWriter(threading.Thread):
 		else:
 			if fl == None: fl = self.default_log_file
 			if not fl in self._outfiles:
-				self._outfiles[fl] = open('{}{}{}{}{}'.format(self.root_path, self._session.output, os.sep, fl, self.extension), mode='a')
+				self._outfiles[fl] = open('{0}{1}{2}{3}{4}'.format(self.root_path, self._session.output, os.sep, fl, self.extension), mode='a')
 			self._outfiles[fl].write(msg)
 			self._outfiles[fl].write('\n')
 
 	def run(self):
-		log = open('{}{}{}{}{}'.format(self.root_path, self._session.output, os.sep, self.default_log_file, self.extension), mode='a')
+		log = open('{0}{1}{2}{3}{4}'.format(self.root_path, self._session.output, os.sep, self.default_log_file, self.extension), mode='a')
 		self._outfiles = {self.default_log_file: log}
 
-		log.write('Started: {}\n\n'.format(datetime.datetime.now()))
+		log.write('Started: {0}\n\n'.format(datetime.datetime.now()))
 
 		while not LogWriter.terminate.isSet():
 			self._write_next()
@@ -225,7 +258,7 @@ class LogWriter(threading.Thread):
 		while not self._output_queue.empty():
 			self._write_next()
 
-		log.write('Completed: {}\n\n'.format(datetime.datetime.now()))
+		log.write('Completed: {0}\n\n'.format(datetime.datetime.now()))
 
 		for fl in self._outfiles.items():
 			fl[1].close()
@@ -288,7 +321,7 @@ class Checker(threading.Thread):
 			except:
 				if self._session._debug: raise
 				ex = sys.exc_info()
-				self._output_queue.put(mod.log_file, 'ERROR: Processing with module [{}]\n{}'.format(mod.name, str(ex[1])))
+				self._output_queue.put(mod.log_file, 'ERROR: Processing with module [{0}]\n{1}'.format(mod.name, str(ex[1])))
 
 	def fetch(self, request):
 		full_path = request.path
@@ -299,7 +332,7 @@ class Checker(threading.Thread):
 		elif request.protocol == 'http':
 			c = http.client.HTTPConnection(request.domain, timeout=self._session.request_timeout)
 		else:
-			raise Exception('Unrecognised protocol: {}'.format(request.protocol))
+			raise Exception('Unrecognised protocol: {0}'.format(request.protocol))
 
 		res = err = None
 		try:
@@ -310,16 +343,16 @@ class Checker(threading.Thread):
 			res = Response(r, st)
 		except socket.gaierror:
 			ex = sys.exc_info()
-			err = 'DNS error {} {}'.format(str(ex[0]), str(ex[1])) # Probably
+			err = 'DNS error {0} {1}'.format(str(ex[0]), str(ex[1])) # Probably
 		except socket.timeout:
 			ex = sys.exc_info()
-			err = 'Timeout {} {}'.format(str(ex[0]), str(ex[1]))
+			err = 'Timeout {0} {1}'.format(str(ex[0]), str(ex[1]))
 		except http.client.IncompleteRead:
 			ex = sys.exc_info()
-			err = 'Read error {} {}'.format(str(ex[0]), str(ex[1]))
+			err = 'Read error {0} {1}'.format(str(ex[0]), str(ex[1]))
 		except:
 			ex = sys.exc_info()
-			err = 'Error {} {}'.format(str(ex[0]), str(ex[1]))
+			err = 'Error {0} {1}'.format(str(ex[0]), str(ex[1]))
 		finally:
 			c.close()
 
@@ -347,13 +380,13 @@ class Checker(threading.Thread):
 					dom = urllib.parse.urlparse(self._session.domain)
 					if req.domain == dom.netloc: self.get_cookie(res)
 
-					msgs.append('{}: [{}] status: {}'.format(req.verb, str(req), str(res.status)))
-					if self._session.log.request_headers: msgs.append('\tREQUEST HEADERS: {}'.format(req.headers))
-					if self._session.log.post_data and len(req.postdata) > 0: msgs.append('\tPOST DATA: {}'.format(req.get_post_data()))
-					if self._session.log.response_headers: msgs.append('\tRESPONSE HEADERS: {}'.format(res.headers))
+					msgs.append('{0}: [{1}] status: {2}'.format(req.verb, str(req), str(res.status)))
+					if self._session.log.request_headers: msgs.append('\tREQUEST HEADERS: {0}'.format(req.headers))
+					if self._session.log.post_data and len(req.postdata) > 0: msgs.append('\tPOST DATA: {0}'.format(req.get_post_data()))
+					if self._session.log.response_headers: msgs.append('\tRESPONSE HEADERS: {0}'.format(res.headers))
 
 					if res.time > self._session.slow_request:
-						msgs.append('\tSLOW REQUEST: [{}] ({:.3f} seconds)'.format(str(req), res.time))
+						msgs.append('\tSLOW REQUEST: [{0}] ({1:.3f} seconds)'.format(str(req), res.time))
 
 					# Only process markup of error pages once
 					if not hasattr(self._session, '_processed'):
@@ -363,14 +396,14 @@ class Checker(threading.Thread):
 						loc = res.get_headers('location')
 						if len(loc) > 0:
 							if len(loc) > 1:
-								msgs.append('\tERROR: Multiple redirect locations found: [{}]'.format(loc))
+								msgs.append('\tERROR: Multiple redirect locations found: [{0}]'.format(loc))
 
 							redir, err = self._request_queue.redirect(req, loc[-1])
 
 							if not redir:
-								msgs.append('\tERROR: {}'.format(err))
+								msgs.append('\tERROR: {0}'.format(err))
 						else:
-							msgs.append('\tERROR: Redirect with no location: [{}]'.format(req.referrer))
+							msgs.append('\tERROR: Redirect with no location: [{0}]'.format(req.referrer))
 					elif res.status >= 400 and not res.status in self._session._processed and req.domain == dom.netloc and req.verb == 'HEAD':
 						# If first error page is on a HEAD request, get the resource again
 						req.set_verb()
@@ -384,11 +417,11 @@ class Checker(threading.Thread):
 
 						self.process(req, res)
 				else:
-					msgs.append('{}: [{}]'.format(req.verb, str(req)))
+					msgs.append('{0}: [{1}]'.format(req.verb, str(req)))
 					if err:
-						msgs.append('\tERROR: [{}] {}'.format(str(req), err))
+						msgs.append('\tERROR: [{0}] {1}'.format(str(req), err))
 					if not self._request_queue.retry(req):
-						msgs.append('\tERROR: Exceeded max_retries for: [{}]'.format(str(req)))
+						msgs.append('\tERROR: Exceeded max_retries for: [{0}]'.format(str(req)))
 
 				msgs[-1] += '\n'
 
@@ -409,7 +442,7 @@ class Request(object):
 		self._set_url(url)
 
 	def _set_url(self, url):
-		url = html_decode(url.replace(' ', '%20'))
+		url = HtmlHelper.html_decode(url.replace(' ', '%20'))
 		url_parts = urllib.parse.urlparse(url)
 
 		if len(url_parts.scheme) == 0:
@@ -439,7 +472,7 @@ class Request(object):
 			dat = []
 			for key, value in self.postdata:
 				dat.append('--' + self.boundary)
-				dat.append('Content-Disposition: form-data; name="{}"'.format(key))
+				dat.append('Content-Disposition: form-data; name="{0}"'.format(key))
 				dat.append('')
 				dat.append(value)
 			dat.append('--' + self.boundary + '--')
@@ -457,7 +490,7 @@ class Request(object):
 				self.postdata.append((k, v[1]))
 
 	def __str__(self):
-		url = '{}://{}{}'.format(self.protocol, self.domain, self.path)
+		url = '{0}://{1}{2}'.format(self.protocol, self.domain, self.path)
 		#if len(self.parameters) > 0: url += ';' + self.parameters
 		if len(self.query) > 0: url += '?' + self.query
 		return url
@@ -584,12 +617,12 @@ class RequestQueue(queue.Queue):
 			original = request.referrer
 
 		if request.redirects >= self.session.max_redirects:
-			return (False, 'Max redirects exceeded [{}]'.format(original))
+			return (False, 'Max redirects exceeded [{0}]'.format(original))
 		else:
 			prev = str(request)
 			request._set_url(url)
 			if prev == str(request):
-				return (False, 'Page [{}] redirects to itself'.format(original))
+				return (False, 'Page [{0}] redirects to itself'.format(original))
 			else:
 				if request.redirects == 0:
 					request.referrer = prev
@@ -614,13 +647,33 @@ class OutputQueue(queue.Queue):
 			queue.Queue.put(self, (file_name, str(value)), block, timeout)
 
 class HtmlHelper(object):
+	# From: http://effbot.org/zone/re-sub.htm#unescape-html
+	def html_decode(text):
+		def fixup(m):
+			text = m.group(0)
+			if text[:2] == "&#":
+				try:
+					if text[:3] == "&#x":
+						return chr(int(text[3:-1], 16))
+					else:
+						return chr(int(text[2:-1]))
+				except ValueError:
+					pass
+			else:
+				try:
+					text = chr(html.entities.name2codepoint[text[1:-1]])
+				except KeyError:
+					pass
+			return text
+		return re.sub("&#?\w+;", fixup, text)
+
 	def __init__(self, document):
 		self.document = document
 		self.flags = re.IGNORECASE | re.DOTALL # | re.MULTILINE
 
 	def get_element(self, element):
 		#rx = re.compile(r'<\s*%s\b.*?>' % element, self.flags)
-		rx = re.compile(r'<\s*{}\b[^>]*(?:/\s*>)|(?:>.*?<\s*/\s*{}\s*>)'.format(element, element), self.flags)
+		rx = re.compile(r'<\s*{0}\b[^>]*(?:/\s*>)|(?:>.*?<\s*/\s*{1}\s*>)'.format(element, element), self.flags)
 		mtchs = rx.finditer(self.document)
 		for m in mtchs:
 			yield HtmlHelper(m.group(0))
@@ -631,10 +684,10 @@ class HtmlHelper(object):
 		# < form name = "name" action = "test 1" method = "get">
 
 		if element:
-			rx = re.compile(r'<\s*(?P<element>{})\s[^>]*?(?<=\s){}\s*=\s*(?P<quoted>")?(?P<attr>.*?)(?(quoted)"|[\s>])' \
+			rx = re.compile(r'<\s*(?P<element>{0})\s[^>]*?(?<=\s){1}\s*=\s*(?P<quoted>")?(?P<attr>.*?)(?(quoted)"|[\s>])' \
 				.format(element, attribute), self.flags)
 		else:
-			rx = re.compile(r'<\s*(?P<element>[^\s>]+)\s[^>]*?(?<=\s){}\s*=\s*(?P<quoted>")?(?P<attr>.*?)(?(quoted)"|[\s>])' \
+			rx = re.compile(r'<\s*(?P<element>[^\s>]+)\s[^>]*?(?<=\s){0}\s*=\s*(?P<quoted>")?(?P<attr>.*?)(?(quoted)"|[\s>])' \
 				.format(attribute), self.flags)
 
 		mtchs = rx.finditer(self.document)
@@ -643,7 +696,7 @@ class HtmlHelper(object):
 
 	def get_text(self, element=None):
 		if element:
-			rx = re.compile(r'<\s*{}\b[^>]*?>(?P<text>[^<]*?\w[^<]*?)(?:<|$)'.format(element), self.flags)
+			rx = re.compile(r'<\s*{0}\b[^>]*?>(?P<text>[^<]*?\w[^<]*?)(?:<|$)'.format(element), self.flags)
 		else:
 			rx = re.compile(r'(?:^[^<]|>)(?P<text>[^<]*?\w[^<]*?)(?:<|$)', self.flags)
 
@@ -657,7 +710,7 @@ class HtmlHelper(object):
 			names = (elements)
 
 		for e in names:
-			self.document = re.sub(r'<\s*{}\b.*?>.*?<\s*/\s*{}\s*>'.format(e, e), \
+			self.document = re.sub(r'<\s*{0}\b.*?>.*?<\s*/\s*{1}\s*>'.format(e, e), \
 				'', self.document, flags=self.flags)
 
 	def strip_comments(self):
@@ -750,13 +803,13 @@ class Authenticate(ModuleBase):
 	AUTH_RESPONSE_KEY = '__AUTHENTICATION__RES'
 
 	def _log(self, request, response):
-		self.add_message('{}: [{}] status: {}'.format(request.verb, str(request), str(response.status)))
+		self.add_message('{0}: [{1}] status: {2}'.format(request.verb, str(request), str(response.status)))
 		if self.sitecheck.session.log.request_headers:
-			self.add_message('\tREQUEST HEADERS: {}'.format(request.headers))
+			self.add_message('\tREQUEST HEADERS: {0}'.format(request.headers))
 		if self.sitecheck.session.log.post_data and len(request.postdata) > 0:
-			self.add_message('\tPOST DATA: {}'.format(request.get_post_data()))
+			self.add_message('\tPOST DATA: {0}'.format(request.get_post_data()))
 		if self.sitecheck.session.log.response_headers:
-			self.add_message('\tRESPONSE HEADERS: {}\n'.format(response.headers))
+			self.add_message('\tRESPONSE HEADERS: {0}\n'.format(response.headers))
 
 	def process(self, request, response):
 		a = self.sitecheck.session.authenticate
@@ -771,7 +824,7 @@ class Authenticate(ModuleBase):
 					sep = '&'
 				else:
 					sep = '?'
-				url = '{}{}{}'.format(a.login_url, sep, urllib.parse.urlencode(a.params, True))
+				url = '{0}{1}{2}'.format(a.login_url, sep, urllib.parse.urlencode(a.params, True))
 
 			r = Request(Authenticate.AUTH_RESPONSE_KEY, url, str(request))
 			if a.post: r.set_post_data(a.params)

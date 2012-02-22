@@ -158,7 +158,7 @@ class DomainInfo(object):
 
 		for n in _common_names:
 			try:
-				self.hosts.update([(a[4][0], HostInfo(a[4][0])) for a in socket.getaddrinfo('{}.{}'.format(n, domain), None)])
+				self.hosts.update([(a[4][0], HostInfo(a[4][0])) for a in socket.getaddrinfo('{0}.{1}'.format(n, domain), None)])
 			except socket.gaierror:
 				pass
 
@@ -250,7 +250,7 @@ class DomainInfo(object):
 def test_relay(host, port=25, mail_from='from@example.com', rcpt_to='to@example.com', send=False):
 	name, addr = name_and_address(host)
 
-	if not addr: raise Exception('No address found for {}'.format(host))
+	if not addr: raise Exception('No address found for {0}'.format(host))
 
 	fr = mail_from.rsplit('@', 1)
 	to = rcpt_to.rsplit('@', 1)
@@ -261,11 +261,11 @@ def test_relay(host, port=25, mail_from='from@example.com', rcpt_to='to@example.
 	try:
 		sock = socket.create_connection((addr, port))
 	except:
-		raise Exception('Unable to connect to {}:{}'.format(host, port))
+		raise Exception('Unable to connect to {0}:{1}'.format(host, port))
 	else:
 		s = SocketHelper(sock, end='\r\n')
 		s.receiveall()
-		s.sendandreceive('HELO {}'.format(fr[1]))
+		s.sendandreceive('HELO {0}'.format(fr[1]))
 
 		relay = False
 		failed = []
@@ -273,11 +273,11 @@ def test_relay(host, port=25, mail_from='from@example.com', rcpt_to='to@example.
 			mf = tst[0].format(user=fr[0], domain=fr[1], hostname=name, address=addr)
 			rt = tst[1].format(user=to[0], domain=to[1], hostname=name, address=addr)
 
-			#print('{} -> {}'.format(mf, rt))
+			#print('{0} -> {1}'.format(mf, rt))
 
 			s.sendandreceive('RSET')
-			s.sendandreceive('MAIL FROM:{}'.format(mf))
-			res = s.sendandreceive('RCPT TO:{}'.format(rt))
+			s.sendandreceive('MAIL FROM:{0}'.format(mf))
+			res = s.sendandreceive('RCPT TO:{0}'.format(rt))
 
 			if int(res[:3]) == 250:
 				relay = True
@@ -304,23 +304,23 @@ if __name__ == '__main__':
 		# IP address supplied instead of domain
 		sys.exit('Please supply a domain')
 
-	print('Checking: {}'.format(args.domain))
+	print('Checking: {0}'.format(args.domain))
 
 	d = DomainInfo(args.domain)
 
 	if type(d.domain_expiry) == datetime.date:
 		rem = (d.domain_expiry - today).days
 		if rem < 0:
-			print('Domain expired {}'.format(d.domain_expiry))
+			print('Domain expired {0}'.format(d.domain_expiry))
 		else:
-			print('Domain expires in {} days'.format(rem))
+			print('Domain expires in {0} days'.format(rem))
 	elif d.domain_expiry:
-		print('Domain expires on: {}'.format(d.domain_expiry))
+		print('Domain expires on: {0}'.format(d.domain_expiry))
 	else:
 		print('Unable to determine domain expiry date')
 
 	if d.spf:
-		print('SPF: {}'.format(d.spf))
+		print('SPF: {0}'.format(d.spf))
 	else:
 		print('No SPF record found')
 
@@ -328,16 +328,16 @@ if __name__ == '__main__':
 	for host in d.hosts:
 		h = d.hosts[host]
 		if h.name:
-			print('\t{} ({})'.format(h.address, h.name))
+			print('\t{0} ({1})'.format(h.address, h.name))
 		else:
-			print('\t{} (No reverse DNS)'.format(h.address))
+			print('\t{0} (No reverse DNS)'.format(h.address))
 
 		if h.cert_expiry:
 			rem = (h.cert_expiry - today).days
 			if rem < 0:
-				print('\t\tCertificate expired {}'.format(h.cert_expiry))
+				print('\t\tCertificate expired {0}'.format(h.cert_expiry))
 			else:
-				print('\t\tCertificate expires in {} days'.format(rem))
+				print('\t\tCertificate expires in {0} days'.format(rem))
 
 		if h.sslv2:
 			print('\t\tInsecure ciphers supported')
@@ -346,4 +346,4 @@ if __name__ == '__main__':
 			relay, failed = test_relay(h.address)
 			if relay:
 				for f in failed:
-					print('\t\tPossible open relay: {} -> {}'.format(f[0], f[1]))
+					print('\t\tPossible open relay: {0} -> {1}'.format(f[0], f[1]))
