@@ -69,7 +69,7 @@ Usage:
 
 While running:
 
-	Ctrl + c will prompt for abort or suspend.
+	Ctrl+c will prompt for abort or suspend.
 
 	To resume a suspended job or use an existing configuration file, run the script with the path to an existing output directory:
 

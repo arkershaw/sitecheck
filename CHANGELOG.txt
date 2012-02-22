@@ -2,12 +2,12 @@
 Version 1.4 (?)
 ----------------
 
+Fixed error with security module and forms with GET method
 Moved Struct class from sitecheck.utils to sitecheck.core
 	IMPORTANT: This will break existing config files
 	On line 21 of example config.py "from sitecheck.utils import Struct" becomes "from sitecheck.core import Struct"
-
-User interaction has been redesigned due to bugs with threaded implementaion
-To cancel or suspend, you now use the standard console interrupt (usually Ctrl + c)
+User interaction redesigned due to lack of responsiveness
+	To cancel or suspend, use the standard console interrupt (usually Ctrl+c)
 
 ------------------------
 Version 1.3 (2012-01-07)

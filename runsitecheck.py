@@ -23,6 +23,8 @@ _suspend_file = None
 
 def signal_handler(signal, frame):
 	if _sitecheck:
+		print('\nStopping...')
+
 		_sitecheck.end()
 
 		print('''\ns -> Suspend

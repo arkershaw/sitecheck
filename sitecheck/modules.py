@@ -608,9 +608,7 @@ class Security(ModuleBase):
 				else:
 					if len(req.query) > 0:
 						req.query += '&'
-					else:
-						req.query += '?'
-					req.query += self._buildquery(rp)
+					req.query += self._buildquery(dict(rp))
 
 				req.modules = [self]
 				self.sitecheck.request_queue.put(req)
@@ -645,9 +643,7 @@ class Security(ModuleBase):
 					else:
 						if len(req.query) > 0:
 							req.query += '&'
-						else:
-							req.query += '?'
-						req.query += self._buildquery(rp)
+						req.query += self._buildquery(dict(rp))
 
 					req.modules = [self]
 					self.sitecheck.request_queue.put(req)
