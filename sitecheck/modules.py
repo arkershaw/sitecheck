@@ -711,6 +711,13 @@ class DomainCheck(ModuleBase):
 
 			d = DomainInfo(domain)
 
+			self.add_message('Nameservers:')
+			for ns in d.name_servers:
+				self.add_message('\t{0}'.format(ns))
+
+			if d.zone_transfer:
+				self.add_message('Zone Transfer Permitted')
+
 			if type(d.domain_expiry) == datetime.date:
 				rem = (d.domain_expiry - today).days
 				if rem < 0:
@@ -730,7 +737,15 @@ class DomainCheck(ModuleBase):
 			self.add_message('Hosts:')
 			for host in d.hosts:
 				h = d.hosts[host]
-				self.add_message('\t{0} ({1})'.format(h.address, h.name))
+
+				self.add_message('\t{0}'.format(h.address))
+
+				if h.name:
+					self.add_message('\t\tReverse DNS: {0}'.format(h.name))
+				else:
+					self.add_message('\t\t No reverse DNS')
+
+				self.add_message('\t\tRecords: {0}'.format(', '.join(h.records)))
 
 				if h.cert_expiry:
 					rem = (h.cert_expiry - today).days

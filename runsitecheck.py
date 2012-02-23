@@ -178,8 +178,8 @@ This program comes with ABSOLUTELY NO WARRANTY
 			break
 		else:
 			ttl = len(_sitecheck.request_queue.urls)
-			rem = ttl - _sitecheck.request_queue.qsize()
-			print('{0}% ({1}/{2})'.format(math.floor((rem / ttl) * 100), rem, ttl))
+			rem = _sitecheck.request_queue.qsize()
+			print('Remaining: {0} (Total: {1})'.format(rem, ttl))
 			time.sleep(10)
 
 	_sitecheck.end()

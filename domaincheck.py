@@ -29,7 +29,7 @@ try:
 	#git clone https://github.com/rthalley/dnspython.git
 	#git checkout -b python3 origin/python3
 	#ln -s /opt/dnspython/dns /usr/lib/python3.2/site-packages/dns
-	from dns.resolver import query, NoAnswer
+	from dns.resolver import query, NoAnswer, NoMetaqueries
 except:
 	_dns_available = False
 else:
@@ -149,7 +149,6 @@ class HostInfo(object):
 			return cert
 
 class DomainInfo(object):
-	#Zone transfer
 	def __init__(self, domain):
 		self.domain = domain
 		#self._tld = domain.split('.')[-1]
@@ -157,16 +156,31 @@ class DomainInfo(object):
 		self.hosts = dict([(a[4][0], HostInfo(a[4][0])) for a in socket.getaddrinfo(domain, None)])
 
 		for n in _common_names:
+			r = '{0}.{1}'.format(n, domain)
 			try:
-				self.hosts.update([(a[4][0], HostInfo(a[4][0])) for a in socket.getaddrinfo('{0}.{1}'.format(n, domain), None)])
+				addrs = socket.getaddrinfo(r, None)
 			except socket.gaierror:
 				pass
+			else:
+				for a in addrs:
+					addr = a[4][0]
+					if addr in self.hosts:
+						self.hosts[addr].records.add('A ({0})'.format(r))
+					else:
+						self.hosts[addr] = HostInfo(addr, record='A ({0})'.format(r))
 
 		self.spf = None
-		self.name_servers = None
+		self.name_servers = []
 		self.domain_expiry = None
+		self.zone_transfer = False
 
 		if _dns_available:
+			try:
+				query(domain, 'AXFR')
+				self.zone_transfer = True
+			except NoMetaqueries:
+				pass
+
 			try:
 				ms = [m.exchange.to_text().rstrip('.') for m in query(domain, 'MX')]
 			except NoAnswer:
@@ -178,9 +192,10 @@ class DomainInfo(object):
 					if not addr:
 						self.hosts[m] = HostInfo(m, record='MX')
 					elif addr in self.hosts:
-						self.hosts[addr].records.update('MX')
+						self.hosts[addr].records.add('MX')
 					else:
 						self.hosts[addr] = HostInfo(m, record='MX')
+
 			try:
 				res = query(domain, 'TXT')
 			except NoAnswer:
@@ -193,6 +208,12 @@ class DomainInfo(object):
 
 		d = domain.split('.')
 		while True:
+			if _dns_available:
+				try:
+					self.name_servers = [n.to_text().rstrip('.') for n in query('.'.join(d), 'NS')]
+				except NoAnswer:
+					pass
+
 			whois = self._whois_lookup('.'.join(d))
 			if whois:
 				#Expiry Date.......... 2012-09-09
@@ -205,22 +226,6 @@ class DomainInfo(object):
 					self.domain_expiry = datetime.datetime.strptime(ed.group('numer'), '%Y-%m-%d').date()
 				elif ed.group('alpha'):
 					self.domain_expiry = datetime.datetime.strptime(ed.group('alpha'), '%d-%b-%Y').date()
-
-				#nserver:      C.GTLD-SERVERS.NET 192.26.92.30
-				#Name Server: NS.RACKSPACE.COM
-				#Name Server:DNS1.USLEC.NET
-				#Name Server: NS1.MSFT.NET
-
-				#Name servers:
-				#	dns0.easily.co.uk         212.53.77.27
-				#	dns1.easily.co.uk         212.53.64.31
-
-				#if self._tld == 'uk':
-					#srv = re.search('name servers:\s*(.*)\n\n', whois, re.IGNORECASE | re.DOTALL)
-					#if srv:
-						#self.name_servers = [ns.group(1) for ns in re.finditer('\s*([^\s]+)\s*[^\s]+', srv.group(1), re.IGNORECASE)]
-				#else:
-					#self.name_servers = [ns.group(1) for ns in re.finditer('name server:\s*([^\s]+)', whois, re.IGNORECASE)]
 
 				#whoisserver = re.search('whois: (.*)', self.whois_data)
 				break
@@ -308,6 +313,13 @@ if __name__ == '__main__':
 
 	d = DomainInfo(args.domain)
 
+	print('Nameservers:')
+	for ns in d.name_servers:
+		print('\t{0}'.format(ns))
+
+	if d.zone_transfer:
+		print('Zone Transfer Permitted')
+
 	if type(d.domain_expiry) == datetime.date:
 		rem = (d.domain_expiry - today).days
 		if rem < 0:
@@ -327,10 +339,15 @@ if __name__ == '__main__':
 	print('Hosts:')
 	for host in d.hosts:
 		h = d.hosts[host]
+
+		print('\t{0}'.format(h.address))
+
 		if h.name:
-			print('\t{0} ({1})'.format(h.address, h.name))
+			print('\t\tReverse DNS: {0}'.format(h.name))
 		else:
-			print('\t{0} (No reverse DNS)'.format(h.address))
+			print('\t\t No reverse DNS')
+
+		print('\t\tRecords: {0}'.format(', '.join(h.records)))
 
 		if h.cert_expiry:
 			rem = (h.cert_expiry - today).days
