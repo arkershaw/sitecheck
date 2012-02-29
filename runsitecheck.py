@@ -164,7 +164,7 @@ This program comes with ABSOLUTELY NO WARRANTY
 
 	_sitecheck.begin()
 
-	#If sitecheck starts successfully then remove suspend data
+	# If sitecheck starts successfully then remove suspend data
 	if os.path.exists(_suspend_file):
 		try:
 			os.remove(_suspend_file)

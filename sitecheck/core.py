@@ -250,7 +250,8 @@ class LogWriter(threading.Thread):
 		log = open('{0}{1}{2}{3}{4}'.format(self.root_path, self._session.output, os.sep, self.default_log_file, self.extension), mode='a')
 		self._outfiles = {self.default_log_file: log}
 
-		log.write('Started: {0}\n\n'.format(datetime.datetime.now()))
+		st = datetime.datetime.now()
+		log.write('Started: {0}\n\n'.format(st))
 
 		while not LogWriter.terminate.isSet():
 			self._write_next()
@@ -258,7 +259,8 @@ class LogWriter(threading.Thread):
 		while not self._output_queue.empty():
 			self._write_next()
 
-		log.write('Completed: {0}\n\n'.format(datetime.datetime.now()))
+		et = datetime.datetime.now()
+		log.write('Completed: {0} ({1})\n'.format(et, str(et - st)))
 
 		for fl in self._outfiles.items():
 			fl[1].close()
@@ -321,7 +323,7 @@ class Checker(threading.Thread):
 			except:
 				if self._session._debug: raise
 				ex = sys.exc_info()
-				self._output_queue.put(mod.log_file, 'ERROR: Processing with module [{0}]\n{1}'.format(mod.name, str(ex[1])))
+				self._output_queue.put(mod.log_file, 'ERROR: Processing failed with module: [{0}]\n\tURL: [{1}]\n\t{2}'.format(mod.name, str(request), str(ex[1])))
 
 	def fetch(self, request):
 		full_path = request.path
@@ -386,7 +388,7 @@ class Checker(threading.Thread):
 					if self._session.log.response_headers: msgs.append('\tRESPONSE HEADERS: {0}'.format(res.headers))
 
 					if res.time > self._session.slow_request:
-						msgs.append('\tSLOW REQUEST: [{0}] ({1:.3f} seconds)'.format(str(req), res.time))
+						msgs.append('\tWARNING: Slow request: [{0}] ({1:.3f} seconds)'.format(str(req), res.time))
 
 					# Only process markup of error pages once
 					if not hasattr(self._session, '_processed'):
@@ -419,9 +421,9 @@ class Checker(threading.Thread):
 				else:
 					msgs.append('{0}: [{1}]'.format(req.verb, str(req)))
 					if err:
-						msgs.append('\tERROR: [{0}] {1}'.format(str(req), err))
+						msgs.append('\tERROR: {0}: [{1}]'.format(err, str(req)))
 					if not self._request_queue.retry(req):
-						msgs.append('\tERROR: Exceeded max_retries for: [{0}]'.format(str(req)))
+						msgs.append('\tERROR: Exceeded max retries for: [{0}]'.format(str(req)))
 
 				msgs[-1] += '\n'
 
@@ -617,12 +619,12 @@ class RequestQueue(queue.Queue):
 			original = request.referrer
 
 		if request.redirects >= self.session.max_redirects:
-			return (False, 'Max redirects exceeded [{0}]'.format(original))
+			return (False, 'Max redirects exceeded: [{0}]'.format(original))
 		else:
 			prev = str(request)
 			request._set_url(url)
 			if prev == str(request):
-				return (False, 'Page [{0}] redirects to itself'.format(original))
+				return (False, 'Page redirects to itself: [{0}]'.format(original))
 			else:
 				if request.redirects == 0:
 					request.referrer = prev

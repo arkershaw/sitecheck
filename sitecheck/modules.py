@@ -506,7 +506,7 @@ class InboundLinks(ModuleBase):
 				req.verb = 'GET'
 				self.sitecheck.request_queue.put(req)
 			else:
-				self.add_message('ERROR: Unknown search engine [{0}]'.format(se))
+				self.add_message('ERROR: Unknown search engine: [{0}]'.format(se))
 				self.engines.pop(ei)
 
 	def process(self, request, response):
@@ -515,7 +515,7 @@ class InboundLinks(ModuleBase):
 				e = self.engine_parameters[request.referrer]
 				mtch = e[1].search(response.content)
 				if mtch == None:
-					self.add_message('ERROR: Unable to calculate pages [{0}]'.format(str(request)))
+					self.add_message('ERROR: Unable to calculate pages: [{0}]'.format(str(request)))
 				else:
 					e[4] = int(re.sub('[^0-9]', '', mtch.groups()[0]))
 
@@ -586,7 +586,7 @@ class Security(ModuleBase):
 			for param in qs.keys():
 				qs[param] = value
 
-			req = Request(self.name, str(request), request.referrer)
+			req = Request(self.name, str(request), str(request))
 			req.query = self._buildquery(qs)
 			req.modules = [self]
 			self.sitecheck.request_queue.put(req)
@@ -602,7 +602,7 @@ class Security(ModuleBase):
 
 				rp = [(p[0], value) for p in params]
 
-				req = Request(self.name, url, request.referrer)
+				req = Request(self.name, url, str(request))
 				if post:
 					req.set_post_data(rp)
 				else:
@@ -619,7 +619,7 @@ class Security(ModuleBase):
 			for param in qs.keys():
 				temp = qs[param]
 				qs[param] = value
-				req = Request(self.name, str(request), request.referrer)
+				req = Request(self.name, str(request), str(request))
 				req.query = self._buildquery(qs)
 				req.modules = [self]
 				self.sitecheck.request_queue.put(req)
@@ -637,7 +637,7 @@ class Security(ModuleBase):
 				for cp in params:
 					rp = [self._insert_param(p, cp[0], value) for p in params] # Construct new list
 
-					req = Request(self.name, url, request.referrer)
+					req = Request(self.name, url, str(request))
 					if post:
 						req.set_post_data(rp)
 					else:
