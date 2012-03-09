@@ -1,6 +1,13 @@
 Copyright 2009-2012 Andrew Kershaw
 Licensed under the GNU Affero General Public License v3 (see "LICENSE.txt" file).
 
+*******************************************************************
+
+Existing settings files require an update to work with version 1.4.
+See "CHANGELOG.txt" for details.
+
+*******************************************************************
+
 Dependencies:
 
 	HTML Tidy, pytidylib (validation, accessibility)

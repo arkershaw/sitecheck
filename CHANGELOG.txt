@@ -1,8 +1,9 @@
 ----------------
-Version 1.4 (?)
+Version 1.4 (2012-03-09)
 ----------------
 
 Fixed error with security module and forms with GET method
+Fixed error with referrers in security module causing scan to go off-site
 Moved Struct class from sitecheck.utils to sitecheck.core
 	IMPORTANT: This will break existing config files
 	On line 21 of example config.py "from sitecheck.utils import Struct" becomes "from sitecheck.core import Struct"
