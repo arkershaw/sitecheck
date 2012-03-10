@@ -21,7 +21,7 @@
 from distutils.core import setup
 
 setup(name='sitecheck',
-	version='1.4',
+	version='1.5',
 	description='Modular web site spider for web developers',
 	author='Andrew Kershaw',
 	author_email='arkershaw@users.sourceforge.net',

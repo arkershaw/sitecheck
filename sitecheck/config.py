@@ -20,6 +20,7 @@
 import re
 from sitecheck.core import Struct
 from sitecheck.modules import *
+from sitecheck.logging import FileLogger
 
 media_files = set(['gif', 'jpg', 'jpeg', 'png', 'swf'])
 resource_files = set(['js', 'css', 'htc'])
@@ -47,6 +48,7 @@ class Session(object):
 		self.authenticate = Struct(login_url=None, logout_url=None, params=[('username', ''), ('password', '')], post=True)
 		self.ignore_url = []
 		self.ignore_protocol = ['mailto:', 'javascript:']
+		self.logger = FileLogger()
 		self.modules = [
 			DuplicateContent(),
 			#DomainCheck(relay=False),

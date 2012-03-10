@@ -35,48 +35,10 @@ import uuid
 import pickle
 import html.entities
 
-# From: http://code.activestate.com/recipes/52308/
-class Struct:
-	def __init__(self, **kwargs): self.__dict__.update(kwargs)
-
-def append(content, append):
-	if content == None and append == None:
-		return ''
-	elif content == None:
-		return append
-	elif append == None:
-		return content
-	elif content.lower().endswith(append.lower()):
-		return content
-	else:
-		return content + append
-
-#def prepend(content, prepend):
-	#if content == None and prepend == None:
-		#return ''
-	#if content == None:
-		#return prepend
-	#elif prepend == None:
-		#return content
-	#elif content.lower().startswith(prepend.lower()):
-		#return content
-	#else:
-		#return prepend + content
-
-_ensure_dir_lock = threading.Lock()
-def ensure_dir(directory):
-	with _ensure_dir_lock:
-		if not os.path.exists(directory):
-			os.makedirs(directory)
-
-class SessionNotSetException(Exception):
-	pass
-
-class SiteCheckStartedException(Exception):
-	pass
+from sitecheck.logging import OutputQueue, Report, FileLogger
 
 class SiteCheck(object):
-	VERSION = '1.4'
+	VERSION = '1.5'
 
 	def __init__(self, root_path):
 		self.root_path = root_path
@@ -86,8 +48,6 @@ class SiteCheck(object):
 
 		self._started = False
 		self._threads = []
-		self._log_writer = None
-
 		self._resume_data = None
 
 	def set_session(self, session):
@@ -110,7 +70,7 @@ class SiteCheck(object):
 				if hasattr(module, 'begin'): module.begin()
 		except:
 			if self.session._debug: raise
-			self.output_queue.put(module.log_file, 'ERROR: ' + str(sys.exc_info()[1]))
+			self.output_queue.put_message('ERROR: {0}'.format(str(sys.exc_info()[1])), module.source)
 			return False
 		else:
 			return True
@@ -149,9 +109,11 @@ class SiteCheck(object):
 		self.session.test_ext = self.session.test_ext.difference(self.session.ignore_ext.union(self.session.include_ext))
 
 		# Start logging thread
-		self._log_writer = LogWriter(self)
-		self._log_writer.setDaemon(True)
-		self._log_writer.start()
+		if not hasattr(self.session, 'logger'):
+			self.session.logger = FileLogger()
+		self.session.logger.initialise(self)
+		self.session.logger.setDaemon(True)
+		self.session.logger.start()
 
 		# Initialise modules
 		self.session.modules = [m for m in self.session.modules if self.initialise_module(m)]
@@ -203,8 +165,8 @@ class SiteCheck(object):
 				if hasattr(mod, 'complete'): mod.complete()
 
 		# Wait for log entries to be written
-		LogWriter.terminate.set()
-		self._log_writer.join()
+		self.session.logger.end()
+		self.session.logger.join()
 
 	def suspend(self):
 		if self.session == None: raise SessionNotSetException()
@@ -222,48 +184,45 @@ class SiteCheck(object):
 		if hasattr(self.session, '_cookie'):
 			del self.session._cookie
 
-class LogWriter(threading.Thread):
-	terminate = threading.Event()
+# From: http://code.activestate.com/recipes/52308/
+class Struct:
+	def __init__(self, **kwargs): self.__dict__.update(kwargs)
 
-	def __init__(self, sitecheck):
-		super(LogWriter, self).__init__()
-		self._session = sitecheck.session
-		self._output_queue = sitecheck.output_queue
-		self.root_path = sitecheck.root_path
-		self._outfiles = {}
-		self.default_log_file = 'sitecheck'
-		self.extension = '.log'
+def append(content, append):
+	if content == None and append == None:
+		return ''
+	elif content == None:
+		return append
+	elif append == None:
+		return content
+	elif content.lower().endswith(append.lower()):
+		return content
+	else:
+		return content + append
 
-	def _write_next(self):
-		try:
-			fl, msg = self._output_queue.get(block=False)
-		except queue.Empty:
-			LogWriter.terminate.wait(self._session.wait_seconds)
-		else:
-			if fl == None: fl = self.default_log_file
-			if not fl in self._outfiles:
-				self._outfiles[fl] = open('{0}{1}{2}{3}{4}'.format(self.root_path, self._session.output, os.sep, fl, self.extension), mode='a')
-			self._outfiles[fl].write(msg)
-			self._outfiles[fl].write('\n')
+#def prepend(content, prepend):
+	#if content == None and prepend == None:
+		#return ''
+	#if content == None:
+		#return prepend
+	#elif prepend == None:
+		#return content
+	#elif content.lower().startswith(prepend.lower()):
+		#return content
+	#else:
+		#return prepend + content
 
-	def run(self):
-		log = open('{0}{1}{2}{3}{4}'.format(self.root_path, self._session.output, os.sep, self.default_log_file, self.extension), mode='a')
-		self._outfiles = {self.default_log_file: log}
+_ensure_dir_lock = threading.Lock()
+def ensure_dir(directory):
+	with _ensure_dir_lock:
+		if not os.path.exists(directory):
+			os.makedirs(directory)
 
-		st = datetime.datetime.now()
-		log.write('Started: {0}\n\n'.format(st))
+class SessionNotSetException(Exception):
+	pass
 
-		while not LogWriter.terminate.isSet():
-			self._write_next()
-
-		while not self._output_queue.empty():
-			self._write_next()
-
-		et = datetime.datetime.now()
-		log.write('Completed: {0} ({1})\n'.format(et, str(et - st)))
-
-		for fl in self._outfiles.items():
-			fl[1].close()
+class SiteCheckStartedException(Exception):
+	pass
 
 class Checker(threading.Thread):
 	terminate = threading.Event()
@@ -315,15 +274,16 @@ class Checker(threading.Thread):
 			for c in cookies:
 				self._session._cookie.load(c)
 
-	def process(self, request, response):
+	def process(self, request, response, report):
 		if len(request.modules) == 0: request.modules = self._session.modules
 		for mod in request.modules:
 			try:
-				mod.process(request, response)
+				mod.process(request, response, report)
 			except:
 				if self._session._debug: raise
 				ex = sys.exc_info()
-				self._output_queue.put(mod.log_file, 'ERROR: Processing failed with module: [{0}]\n\tURL: [{1}]\n\t{2}'.format(mod.name, str(request), str(ex[1])))
+				report.add_message('ERROR: Processing failed with module [{0}].'.format(mod.name), mod.source)
+				report.add_message(str(ex[1]), mod.source)
 
 	def fetch(self, request):
 		full_path = request.path
@@ -376,19 +336,19 @@ class Checker(threading.Thread):
 
 				res, err = self.fetch(req)
 
-				msgs = []
+				report = Report('Method: [{0}]'.format(req.verb))
 
 				if res:
 					dom = urllib.parse.urlparse(self._session.domain)
 					if req.domain == dom.netloc: self.get_cookie(res)
 
-					msgs.append('{0}: [{1}] status: {2}'.format(req.verb, str(req), str(res.status)))
-					if self._session.log.request_headers: msgs.append('\tREQUEST HEADERS: {0}'.format(req.headers))
-					if self._session.log.post_data and len(req.postdata) > 0: msgs.append('\tPOST DATA: {0}'.format(req.get_post_data()))
-					if self._session.log.response_headers: msgs.append('\tRESPONSE HEADERS: {0}'.format(res.headers))
+					report.add_message('Status: [{0}]'.format(str(res.status)))
+					if self._session.log.request_headers: report.add_message('Request Headers: {0}'.format(req.headers))
+					if self._session.log.post_data and len(req.postdata) > 0: report.add_message('Post Data: {0}'.format(req.get_post_data()))
+					if self._session.log.response_headers: report.add_message('Response Headers: {0}'.format(res.headers))
 
 					if res.time > self._session.slow_request:
-						msgs.append('\tWARNING: Slow request: [{0}] ({1:.3f} seconds)'.format(str(req), res.time))
+						report.add_message('WARNING: Slow request: [{0}] ({1:.3f} seconds)'.format(str(req), res.time))
 
 					# Only process markup of error pages once
 					if not hasattr(self._session, '_processed'):
@@ -398,14 +358,14 @@ class Checker(threading.Thread):
 						loc = res.get_headers('location')
 						if len(loc) > 0:
 							if len(loc) > 1:
-								msgs.append('\tERROR: Multiple redirect locations found: [{0}]'.format(loc))
+								report.add_message('ERROR: Multiple redirect locations found: [{0}]'.format(loc))
 
 							redir, err = self._request_queue.redirect(req, loc[-1])
 
 							if not redir:
-								msgs.append('\tERROR: {0}'.format(err))
+								report.add_message('ERROR: {0}'.format(err))
 						else:
-							msgs.append('\tERROR: Redirect with no location: [{0}]'.format(req.referrer))
+							report.add_message('ERROR: Redirect with no location: [{0}]'.format(req.referrer))
 					elif res.status >= 400 and not res.status in self._session._processed and req.domain == dom.netloc and req.verb == 'HEAD':
 						# If first error page is on a HEAD request, get the resource again
 						req.set_verb()
@@ -417,17 +377,15 @@ class Checker(threading.Thread):
 							else:
 								self._session._processed.append(res.status)
 
-						self.process(req, res)
+						self.process(req, res, report)
 				else:
-					msgs.append('{0}: [{1}]'.format(req.verb, str(req)))
 					if err:
-						msgs.append('\tERROR: {0}: [{1}]'.format(err, str(req)))
+						report.add_message('ERROR: {0}: [{1}]'.format(err, str(req)))
+
 					if not self._request_queue.retry(req):
-						msgs.append('\tERROR: Exceeded max retries for: [{0}]'.format(str(req)))
+						report.add_message('ERROR: Exceeded max retries for: [{0}]'.format(str(req)))
 
-				msgs[-1] += '\n'
-
-				self._output_queue.put(None, msgs)
+				self._output_queue.put(req, res, report)
 
 class Request(object):
 	def __init__(self, source, url, referrer, encoding='application/x-www-form-urlencoded'):
@@ -613,18 +571,13 @@ class RequestQueue(queue.Queue):
 			return True
 
 	def redirect(self, request, url):
-		if request.redirects == 0:
-			original = str(request)
-		else:
-			original = request.referrer
-
 		if request.redirects >= self.session.max_redirects:
-			return (False, 'Max redirects exceeded: [{0}]'.format(original))
+			return (False, 'Max redirects exceeded: [{0}]'.format(request.referrer))
 		else:
 			prev = str(request)
 			request._set_url(url)
 			if prev == str(request):
-				return (False, 'Page redirects to itself: [{0}]'.format(original))
+				return (False, 'Page redirects to itself')
 			else:
 				if request.redirects == 0:
 					request.referrer = prev
@@ -634,19 +587,6 @@ class RequestQueue(queue.Queue):
 				request.redirects += 1
 				queue.Queue.put(self, request)
 				return (True, '')
-
-class OutputQueue(queue.Queue):
-	def __init__(self):
-		super(OutputQueue, self).__init__()
-		self._lock = threading.Lock()
-
-	def put(self, file_name, value, block=True, timeout=None):
-		if isinstance(value, list):
-			with self._lock:
-				for val in value:
-					queue.Queue.put(self, (file_name, val), block, timeout)
-		else:
-			queue.Queue.put(self, (file_name, str(value)), block, timeout)
 
 class HtmlHelper(object):
 	# From: http://effbot.org/zone/re-sub.htm#unescape-html
@@ -725,68 +665,20 @@ class HtmlHelper(object):
 		for m in mtchs:
 			yield m.group('comment')
 
-class MessageBatch(object):
-	def __init__(self, log_file):
-		self.log_file = log_file
-		self.headers = {}
-		self.messages = {}
-
-	def set_header(self, message, log_file=None):
-		if log_file == None: log_file = self.log_file
-		self.headers[log_file] = message
-
-	def add(self, message, log_file=None):
-		if log_file == None: log_file = self.log_file
-		if not log_file in self.messages:
-			self.messages[log_file] = []
-		if isinstance(message, list):
-			self.messages[log_file].extend(str(m) for m in message)
-		else:
-			self.messages[log_file].append(str(message))
-
-	def count(self, log_file=None):
-		if log_file == None: log_file = self.log_file
-		if log_file in self.messages:
-			return len(self.messages[log_file])
-		else:
-			return 0
-
-	def __len__(self):
-		if self.log_file in self.messages:
-			return len(self.messages[self.log_file])
-		else:
-			return 0
-
-	def get_messages(self):
-		for lf in self.messages:
-			m = list(self.messages[lf])
-			if lf in self.headers:
-				m.insert(0, self.headers[lf])
-			yield (lf, m)
-
-def message_batch(method):
-	def inner(self, *args, **kwargs):
-		mb = MessageBatch(self.log_file)
-		try:
-			return method(self, mb, *args, **kwargs)
-		finally:
-			for m in mb.get_messages():
-				self.sitecheck.output_queue.put(*m)
-
-	return inner
-
 class ModuleBase(object):
 	def __init__(self):
 		self.name = self.__class__.__name__
-		self.log_file = self.__class__.__name__.lower()
+		self.source = self.__class__.__name__.lower()
 
 	def initialise(self, sitecheck):
 		self.sitecheck = sitecheck
 		self.sync_lock = threading.Lock()
 
-	def add_message(self, message, log_file=None):
-		if log_file == None: log_file = self.log_file
-		self.sitecheck.output_queue.put(log_file, message)
+	def create_message(self, message):
+		self.sitecheck.output_queue.put_message(message, source=self.source)
+
+	def add_message(self, report, message):
+		report.add_message(message, source=self.source)
 
 	def add_request(self, url, referrer):
 		self.sitecheck.request_queue.put_url(self.name, url, referrer)
@@ -800,24 +692,35 @@ class ModuleBase(object):
 		del state['sitecheck']
 		return state
 
+def report(method):
+	def inner(self, *args, **kwargs):
+		r = Report()
+		try:
+			return method(self, r, *args, **kwargs)
+		finally:
+			self.sitecheck.output_queue.put_report(r)
+
+	return inner
+
 class Authenticate(ModuleBase):
 	AUTH_REQUEST_KEY = '__AUTHENTICATION__REQ'
 	AUTH_RESPONSE_KEY = '__AUTHENTICATION__RES'
 
-	def _log(self, request, response):
-		self.add_message('{0}: [{1}] status: {2}'.format(request.verb, str(request), str(response.status)))
-		if self.sitecheck.session.log.request_headers:
-			self.add_message('\tREQUEST HEADERS: {0}'.format(request.headers))
-		if self.sitecheck.session.log.post_data and len(request.postdata) > 0:
-			self.add_message('\tPOST DATA: {0}'.format(request.get_post_data()))
-		if self.sitecheck.session.log.response_headers:
-			self.add_message('\tRESPONSE HEADERS: {0}\n'.format(response.headers))
+	def _log(self, request, response, report):
+		self.add_message(report, 'Method: [{0}]'.format(request.verb))
+		self.add_message(report, 'Status: [{0}]'.format(str(response.status)))
 
-	def process(self, request, response):
+		if response.status >= 300:
+			self.add_message(report, 'AUTHENTICATION ERROR')
+			self.add_message(report, 'Request Headers: {0}'.format(request.headers))
+			if len(request.postdata) > 0:
+				self.add_message(report, 'Post Data: {0}'.format(request.get_post_data()))
+			self.add_message(report, 'Response Headers: {0}\n'.format(response.headers))
+
+	def process(self, request, response, report):
 		a = self.sitecheck.session.authenticate
 		if request.source == Authenticate.AUTH_REQUEST_KEY:
-			self.add_message('AUTHENTICATING\n')
-			self._log(request, response)
+			self._log(request, response, report)
 
 			if a.post:
 				url = a.login_url
@@ -833,6 +736,6 @@ class Authenticate(ModuleBase):
 			r.modules = [self]
 			self.sitecheck.request_queue.put(r)
 		elif request.source == Authenticate.AUTH_RESPONSE_KEY:
-			self._log(request, response)
+			self._log(request, response, report)
 
 			self.sitecheck._begin()
