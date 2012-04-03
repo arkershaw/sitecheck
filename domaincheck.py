@@ -29,7 +29,7 @@ try:
 	#git clone https://github.com/rthalley/dnspython.git
 	#git checkout -b python3 origin/python3
 	#ln -s /opt/dnspython/dns /usr/lib/python3.2/site-packages/dns
-	from dns.resolver import query, NoAnswer, NoMetaqueries
+	from dns.resolver import query, NoAnswer
 except:
 	_dns_available = False
 else:
@@ -149,6 +149,7 @@ class HostInfo(object):
 			return cert
 
 class DomainInfo(object):
+	#Zone transfer
 	def __init__(self, domain):
 		self.domain = domain
 		#self._tld = domain.split('.')[-1]
@@ -156,31 +157,16 @@ class DomainInfo(object):
 		self.hosts = dict([(a[4][0], HostInfo(a[4][0])) for a in socket.getaddrinfo(domain, None)])
 
 		for n in _common_names:
-			r = '{0}.{1}'.format(n, domain)
 			try:
-				addrs = socket.getaddrinfo(r, None)
+				self.hosts.update([(a[4][0], HostInfo(a[4][0])) for a in socket.getaddrinfo('{}.{}'.format(n, domain), None)])
 			except socket.gaierror:
 				pass
-			else:
-				for a in addrs:
-					addr = a[4][0]
-					if addr in self.hosts:
-						self.hosts[addr].records.add('A ({0})'.format(r))
-					else:
-						self.hosts[addr] = HostInfo(addr, record='A ({0})'.format(r))
 
 		self.spf = None
-		self.name_servers = []
+		self.name_servers = None
 		self.domain_expiry = None
-		self.zone_transfer = False
 
 		if _dns_available:
-			try:
-				query(domain, 'AXFR')
-				self.zone_transfer = True
-			except NoMetaqueries:
-				pass
-
 			try:
 				ms = [m.exchange.to_text().rstrip('.') for m in query(domain, 'MX')]
 			except NoAnswer:
@@ -192,10 +178,9 @@ class DomainInfo(object):
 					if not addr:
 						self.hosts[m] = HostInfo(m, record='MX')
 					elif addr in self.hosts:
-						self.hosts[addr].records.add('MX')
+						self.hosts[addr].records.update('MX')
 					else:
 						self.hosts[addr] = HostInfo(m, record='MX')
-
 			try:
 				res = query(domain, 'TXT')
 			except NoAnswer:
@@ -208,12 +193,6 @@ class DomainInfo(object):
 
 		d = domain.split('.')
 		while True:
-			if _dns_available:
-				try:
-					self.name_servers = [n.to_text().rstrip('.') for n in query('.'.join(d), 'NS')]
-				except NoAnswer:
-					pass
-
 			whois = self._whois_lookup('.'.join(d))
 			if whois:
 				#Expiry Date.......... 2012-09-09
@@ -226,6 +205,22 @@ class DomainInfo(object):
 					self.domain_expiry = datetime.datetime.strptime(ed.group('numer'), '%Y-%m-%d').date()
 				elif ed.group('alpha'):
 					self.domain_expiry = datetime.datetime.strptime(ed.group('alpha'), '%d-%b-%Y').date()
+
+				#nserver:      C.GTLD-SERVERS.NET 192.26.92.30
+				#Name Server: NS.RACKSPACE.COM
+				#Name Server:DNS1.USLEC.NET
+				#Name Server: NS1.MSFT.NET
+
+				#Name servers:
+				#	dns0.easily.co.uk         212.53.77.27
+				#	dns1.easily.co.uk         212.53.64.31
+
+				#if self._tld == 'uk':
+					#srv = re.search('name servers:\s*(.*)\n\n', whois, re.IGNORECASE | re.DOTALL)
+					#if srv:
+						#self.name_servers = [ns.group(1) for ns in re.finditer('\s*([^\s]+)\s*[^\s]+', srv.group(1), re.IGNORECASE)]
+				#else:
+					#self.name_servers = [ns.group(1) for ns in re.finditer('name server:\s*([^\s]+)', whois, re.IGNORECASE)]
 
 				#whoisserver = re.search('whois: (.*)', self.whois_data)
 				break
@@ -255,7 +250,7 @@ class DomainInfo(object):
 def test_relay(host, port=25, mail_from='from@example.com', rcpt_to='to@example.com', send=False):
 	name, addr = name_and_address(host)
 
-	if not addr: raise Exception('No address found for {0}'.format(host))
+	if not addr: raise Exception('No address found for {}'.format(host))
 
 	fr = mail_from.rsplit('@', 1)
 	to = rcpt_to.rsplit('@', 1)
@@ -266,11 +261,11 @@ def test_relay(host, port=25, mail_from='from@example.com', rcpt_to='to@example.
 	try:
 		sock = socket.create_connection((addr, port))
 	except:
-		raise Exception('Unable to connect to {0}:{1}'.format(host, port))
+		raise Exception('Unable to connect to {}:{}'.format(host, port))
 	else:
 		s = SocketHelper(sock, end='\r\n')
 		s.receiveall()
-		s.sendandreceive('HELO {0}'.format(fr[1]))
+		s.sendandreceive('HELO {}'.format(fr[1]))
 
 		relay = False
 		failed = []
@@ -278,11 +273,11 @@ def test_relay(host, port=25, mail_from='from@example.com', rcpt_to='to@example.
 			mf = tst[0].format(user=fr[0], domain=fr[1], hostname=name, address=addr)
 			rt = tst[1].format(user=to[0], domain=to[1], hostname=name, address=addr)
 
-			#print('{0} -> {1}'.format(mf, rt))
+			#print('{} -> {}'.format(mf, rt))
 
 			s.sendandreceive('RSET')
-			s.sendandreceive('MAIL FROM:{0}'.format(mf))
-			res = s.sendandreceive('RCPT TO:{0}'.format(rt))
+			s.sendandreceive('MAIL FROM:{}'.format(mf))
+			res = s.sendandreceive('RCPT TO:{}'.format(rt))
 
 			if int(res[:3]) == 250:
 				relay = True
@@ -309,52 +304,40 @@ if __name__ == '__main__':
 		# IP address supplied instead of domain
 		sys.exit('Please supply a domain')
 
-	print('Checking: {0}'.format(args.domain))
+	print('Checking: {}'.format(args.domain))
 
 	d = DomainInfo(args.domain)
-
-	print('Nameservers:')
-	for ns in d.name_servers:
-		print('\t{0}'.format(ns))
-
-	if d.zone_transfer:
-		print('Zone Transfer Permitted')
 
 	if type(d.domain_expiry) == datetime.date:
 		rem = (d.domain_expiry - today).days
 		if rem < 0:
-			print('Domain expired {0}'.format(d.domain_expiry))
+			print('Domain expired {}'.format(d.domain_expiry))
 		else:
-			print('Domain expires in {0} days'.format(rem))
+			print('Domain expires in {} days'.format(rem))
 	elif d.domain_expiry:
-		print('Domain expires on: {0}'.format(d.domain_expiry))
+		print('Domain expires on: {}'.format(d.domain_expiry))
 	else:
 		print('Unable to determine domain expiry date')
 
 	if d.spf:
-		print('SPF: {0}'.format(d.spf))
+		print('SPF: {}'.format(d.spf))
 	else:
 		print('No SPF record found')
 
 	print('Hosts:')
 	for host in d.hosts:
 		h = d.hosts[host]
-
-		print('\t{0}'.format(h.address))
-
 		if h.name:
-			print('\t\tReverse DNS: {0}'.format(h.name))
+			print('\t{} ({})'.format(h.address, h.name))
 		else:
-			print('\t\t No reverse DNS')
-
-		print('\t\tRecords: {0}'.format(', '.join(h.records)))
+			print('\t{} (No reverse DNS)'.format(h.address))
 
 		if h.cert_expiry:
 			rem = (h.cert_expiry - today).days
 			if rem < 0:
-				print('\t\tCertificate expired {0}'.format(h.cert_expiry))
+				print('\t\tCertificate expired {}'.format(h.cert_expiry))
 			else:
-				print('\t\tCertificate expires in {0} days'.format(rem))
+				print('\t\tCertificate expires in {} days'.format(rem))
 
 		if h.sslv2:
 			print('\t\tInsecure ciphers supported')
@@ -363,4 +346,4 @@ if __name__ == '__main__':
 			relay, failed = test_relay(h.address)
 			if relay:
 				for f in failed:
-					print('\t\tPossible open relay: {0} -> {1}'.format(f[0], f[1]))
+					print('\t\tPossible open relay: {} -> {}'.format(f[0], f[1]))

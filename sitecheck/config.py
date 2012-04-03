@@ -18,9 +18,8 @@
 # along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
 
 import re
-from sitecheck.core import Struct
+from sitecheck.utils import Struct
 from sitecheck.modules import *
-from sitecheck.logging import FileLogger
 
 media_files = set(['gif', 'jpg', 'jpeg', 'png', 'swf'])
 resource_files = set(['js', 'css', 'htc'])
@@ -35,7 +34,7 @@ class Session(object):
 		# Page is populated by the -p parameter
 		self.page = '' # Start with this page
 		self.thread_pool = 10 # Number of spider threads to spawn. An extra thread is used for output.
-		self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; rv:6.0) Gecko/20110814 Firefox/6.0 Sitecheck'} # Emulate Firefox 6 running on Windows 7
+		self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; rv:6.0) Gecko/20110814 Firefox/6.0'} # Emulate Firefox 6 running on Windows 7
 		self.ignore_ext = set([]) # These file types are ignored
 		self.test_ext = set.union(media_files, resource_files, document_files) # Only headers are downloaded for these file types
 		self.include_ext = set([]) # Allows the inclusion of resources (images, styles etc.) in parent folder of path (if specified)
@@ -48,7 +47,6 @@ class Session(object):
 		self.authenticate = Struct(login_url=None, logout_url=None, params=[('username', ''), ('password', '')], post=True)
 		self.ignore_url = []
 		self.ignore_protocol = ['mailto:', 'javascript:']
-		self.logger = FileLogger()
 		self.modules = [
 			DuplicateContent(),
 			#DomainCheck(relay=False),

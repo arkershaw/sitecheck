@@ -1,12 +1,5 @@
 Copyright 2009-2012 Andrew Kershaw
-Licensed under the GNU Affero General Public License v3 (see "LICENSE.txt" file).
-
-*******************************************************************
-
-Existing settings files require an update to work with version 1.4.
-See "CHANGELOG.txt" for details.
-
-*******************************************************************
+Licensed under the GNU Affero General Public License v3 (see "LICENSE" file).
 
 Dependencies:
 
@@ -76,7 +69,9 @@ Usage:
 
 While running:
 
-	Ctrl+c will prompt for abort or suspend.
+	s -> Suspend
+	q -> Abort
+	Return key -> Print number of urls in queue
 
 	To resume a suspended job or use an existing configuration file, run the script with the path to an existing output directory:
 

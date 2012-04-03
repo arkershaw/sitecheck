@@ -18,38 +18,7 @@
 # You should have received a copy of the GNU General Public License
 # along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
 
-_sitecheck = None
-_suspend_file = None
-
-def signal_handler(signal, frame):
-	if _sitecheck:
-		print('\nStopping...')
-
-		_sitecheck.end()
-
-		print('''\ns -> Suspend
-Return -> Abort''')
-
-		char = input()
-		if char.strip().lower() == 's':
-			sd = _sitecheck.suspend()
-
-			f = open(_suspend_file, 'wb')
-			f.write(sd)
-			f.close()
-
-			print('Suspended')
-		else:
-			print('Aborted')
-	else:
-		print('Cancelled')
-
-	sys.exit(0)
-
 if __name__ == '__main__':
-	contact_email = 'arkershaw@users.sourceforge.net'
-	update_url = 'http://sitecheck.sourceforge.net/settings.js'
-
 	from argparse import ArgumentParser
 	import os
 	import sys
@@ -61,19 +30,12 @@ if __name__ == '__main__':
 	import imp
 	from io import StringIO
 	import json
-	import signal
-	import time
-	import math
 
 	from sitecheck import *
-	from sitecheck.core import ensure_dir, append
+	from sitecheck.utils import read_input, append, ensure_dir, suspend, resume
 
-	signal.signal(signal.SIGINT, signal_handler)
-
-	print('''Sitecheck {0} Copyright (C) 2009-2012 Andrew Kershaw
-({1})
-This program comes with ABSOLUTELY NO WARRANTY
-'''.format(SiteCheck.VERSION, contact_email))
+	print('''Sitecheck {} Copyright (C) 2009-2012 Andrew Kershaw
+This program comes with ABSOLUTELY NO WARRANTY'''.format(SiteCheck.VERSION))
 
 	parser = ArgumentParser()
 	parser.add_argument('-d', '--domain', dest='domain', default=None, help='The domain to spider. This can also be set in the config file.')
@@ -81,10 +43,10 @@ This program comes with ABSOLUTELY NO WARRANTY
 	parser.add_argument('directory', help='The directory containing the configuration and output.')
 	args = parser.parse_args()
 
-	_sitecheck = SiteCheck(append(args.directory, os.sep))
+	sc = SiteCheck(append(args.directory, os.sep))
 
-	_suspend_file = _sitecheck.root_path + 'suspend.pkl'
-	config_file = _sitecheck.root_path + 'config.py'
+	suspend_file = sc.root_path + 'suspend.pkl'
+	config_file = sc.root_path + 'config.py'
 	conf = None
 	if os.path.exists(config_file):
 		# Load existing configuration (must be done before unpickle)
@@ -93,95 +55,102 @@ This program comes with ABSOLUTELY NO WARRANTY
 		except:
 			sys.exit('Invalid config file found in directory.')
 
-	if os.path.exists(_suspend_file):
+	if os.path.exists(suspend_file):
 		print('Resuming session...')
 		try:
-			f = open(_suspend_file, 'rb')
-			sd = f.read()
-			f.close()
-
-			_sitecheck.resume(sd)
+			resume(sc, suspend_file)
 		except:
 			sys.exit('Unable to load suspend data.')
 	else:
 		if conf:
 			print('Loading config...')
-			_sitecheck.set_session(conf.Session())
+			sc.set_session(conf.Session())
 		else:
-			print('Using default config...')
-			_sitecheck.set_session(Session())
+			# Load default configuration
+			sc.set_session(Session())
 
-		if hasattr(_sitecheck.session, 'check_for_updates') and _sitecheck.session.check_for_updates:
-			print('Checking for updates...')
+		if hasattr(sc.session, 'check_for_updates') and sc.session.check_for_updates:
 			try:
-				settings = urllib.request.urlopen(update_url).read().decode('utf-8')
+				settings = urllib.request.urlopen('http://sitecheck.sourceforge.net/settings.js').read().decode('utf-8')
 				ss = StringIO(settings)
 				sd = json.load(ss)
 			except:
-				print('Update check failed - please notify: {0}'.format(contact_email))
+				print('Update check failed - please notify: arkershaw@users.sourceforge.net')
 			else:
 				if SiteCheck.VERSION != sd['Version']:
-					print('A new version ({0}) is available at: {1} '.format(sd['Version'], sd['DownloadURL']))
+					print('A new version ({}) is available. Please check: http://sourceforge.net/projects/sitecheck/files/'.format(sd['Version']))
+				sc.session.headers['User-Agent'] = sd['User-Agent']
 
 		op = ''
 		if args.domain:
-			if re.match('^https?://', args.domain, re.IGNORECASE):
-				_sitecheck.session.domain = args.domain
+			if re.match('^http', args.domain, re.IGNORECASE):
+				sc.session.domain = args.domain
 			else:
-				_sitecheck.session.domain = 'http://{0}'.format(args.domain)
-			op = urllib.parse.urlparse(_sitecheck.session.domain).netloc + os.sep
+				sc.session.domain = 'http://{}'.format(args.domain)
+			op = urllib.parse.urlparse(sc.session.domain).netloc + os.sep
 
-		if args.page: _sitecheck.session.page = args.page
+		if args.page: sc.session.page = args.page
 
-		if len(_sitecheck.session.domain) == 0:
+		if len(sc.session.domain) == 0:
 			sys.exit('Please supply either a domain, a config file or a suspended session.')
 
-		if _sitecheck.session.output == None or len(_sitecheck.session.output) == 0:
+		if sc.session.output == None or len(sc.session.output) == 0:
 			op += datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S') + os.sep
 
-		_sitecheck.session.output = op + _sitecheck.session.output
+		sc.session.output = op + sc.session.output
 
 		# Clear output directory
-		od = _sitecheck.root_path + _sitecheck.session.output
+		od = sc.root_path + sc.session.output
 		if os.path.exists(od):
 			try:
 				shutil.rmtree(od)
 			except:
 				sys.exit('Unable to clear output directory.')
-
 		try:
 			ensure_dir(od)
 		except:
 			sys.exit('Unable to create output directory.')
 
-	print('\nTarget: [{0}]'.format(_sitecheck.session.domain))
-	print('Output: [{0}]'.format(_sitecheck.root_path + _sitecheck.session.output))
-	print('Continue [Y/n]? ', end='')
-	char = input()
-	if char.strip().lower() == 'n':
-		print('Cancelled')
-		sys.exit(0)
+	print('\nTarget: [{}]'.format(sc.session.domain))
+	print('Output: [{}]\n'.format(sc.root_path + sc.session.output))
 
-	_sitecheck.begin()
+	sc.begin()
 
-	# If sitecheck starts successfully then remove suspend data
-	if os.path.exists(_suspend_file):
+	if os.path.exists(suspend_file):
 		try:
-			os.remove(_suspend_file)
+			os.remove(suspend_file)
 		except:
-			print('WARNING: Unable to remove suspend data: {0}'.format(_suspend_file))
+			print('WARNING: Unable to remove suspend data.')
 
 	print('Checking...')
+	print('''s -> Suspend
+q -> Abort
+Return key -> Print status''')
 
+	susp = False
 	while True:
-		if _sitecheck.is_complete():
+		char = read_input()
+		if char == None:
+			if sc.is_complete(): break
+		elif char.strip().lower() == 'q':
+			break
+		elif char.strip().lower() == 's':
+			susp = True
 			break
 		else:
-			ttl = len(_sitecheck.request_queue.urls)
-			rem = _sitecheck.request_queue.qsize()
-			print('Remaining: {0} (Total: {1})'.format(rem, ttl))
-			time.sleep(10)
+			print('URLs: {}, Queue: {}'.format(len(sc.request_queue.urls), sc.request_queue.qsize()))
+			if sc.is_complete(): break
 
-	_sitecheck.end()
+	if susp:
+		print('Suspending...')
+	else:
+		print('Finishing...')
 
-	print('Completed')
+	sc.end()
+
+	if susp:
+		suspend(sc, suspend_file)
+	else:
+		print('URLs: {}'.format(len(sc.request_queue.urls)))
+
+	print('Completed.')
