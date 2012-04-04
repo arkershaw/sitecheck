@@ -1,6 +1,18 @@
-----------------
+------------------------
+Version 1.5 (2012-XX-XX)
+------------------------
+
+Refactored reporting to allow destinations other than flat file
+Added HTTP headers to security tests
+Open relay test includes alternative SMTP port
+Renamed logging module to reporting and FileLogger to FlatFile
+	IMPORTANT: This will break existing config files
+	On line 23 of example config.py "from sitecheck.logging import FileLogger" becomes "from sitecheck.reporting import FlatFile"
+	On line 51 of example config.py "self.logger = FileLogger()" becomes "self.report = FlatFile()"
+
+------------------------
 Version 1.4 (2012-03-09)
-----------------
+------------------------
 
 Fixed error with security module and forms with GET method
 Fixed error with referrers in security module causing scan to go off-site

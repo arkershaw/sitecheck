@@ -34,8 +34,9 @@ import hashlib
 import uuid
 import pickle
 import html.entities
+import copy
 
-from sitecheck.logging import OutputQueue, Report, FileLogger
+from sitecheck.reporting import OutputQueue, ReportData, FlatFile
 
 class SiteCheck(object):
 	VERSION = '1.5'
@@ -108,12 +109,12 @@ class SiteCheck(object):
 		self.session.include_ext = self.session.include_ext.difference(self.session.ignore_ext)
 		self.session.test_ext = self.session.test_ext.difference(self.session.ignore_ext.union(self.session.include_ext))
 
-		# Start logging thread
-		if not hasattr(self.session, 'logger'):
-			self.session.logger = FileLogger()
-		self.session.logger.initialise(self)
-		self.session.logger.setDaemon(True)
-		self.session.logger.start()
+		# Start output thread
+		if not hasattr(self.session, 'report'):
+			self.session.report = FlatFile()
+		self.session.report.initialise(self)
+		self.session.report.setDaemon(True)
+		self.session.report.start()
 
 		# Initialise modules
 		self.session.modules = [m for m in self.session.modules if self.initialise_module(m)]
@@ -165,8 +166,8 @@ class SiteCheck(object):
 				if hasattr(mod, 'complete'): mod.complete()
 
 		# Wait for log entries to be written
-		self.session.logger.end()
-		self.session.logger.join()
+		self.session.report.end()
+		self.session.report.join()
 
 	def suspend(self):
 		if self.session == None: raise SessionNotSetException()
@@ -211,6 +212,19 @@ def append(content, append):
 		#return content
 	#else:
 		#return prepend + content
+
+def dict_to_sorted_list(dict_obj):
+	out = []
+	keys = list(dict_obj.keys())
+	keys.sort()
+	for key in keys:
+		val = dict_obj[key]
+		if type(val) is list or type(val) is tuple:
+			for v in val:
+				out.append((key, v))
+		else:
+			out.append((key, val))
+	return out
 
 _ensure_dir_lock = threading.Lock()
 def ensure_dir(directory):
@@ -337,7 +351,7 @@ class Checker(threading.Thread):
 
 				res, err = self.fetch(req)
 
-				report = Report('Method: [{0}]'.format(req.verb))
+				report = ReportData('Method: [{0}]'.format(req.verb))
 
 				if res:
 					dom = urllib.parse.urlparse(self._session.domain)
@@ -401,6 +415,7 @@ class Request(object):
 		self.postdata = []
 		self.headers = {} # Dictionary for httplib
 		self._set_url(url)
+		self.meta = {}
 
 	def _set_url(self, url):
 		url = HtmlHelper.html_decode(url.replace(' ', '%20'))
@@ -421,21 +436,8 @@ class Request(object):
 		else:
 			qsin = urllib.parse.parse_qs(url_parts.query, keep_blank_values=True)
 			# URL's with querystring parameters in different order are equivalent
-			qsout = self._sort_dict(qsin)
+			qsout = dict_to_sorted_list(qsin)
 			self.query = urllib.parse.urlencode(qsout)
-
-	def _sort_dict(self, dict_obj):
-		out = []
-		keys = list(dict_obj.keys())
-		keys.sort()
-		for key in keys:
-			val = dict_obj[key]
-			if type(val) is list or type(val) is tuple:
-				for v in val:
-					out.append((key, v))
-			else:
-				out.append((key, val))
-		return out
 
 	def get_post_data(self):
 		if self.encoding == 'multipart/form-data':
@@ -472,7 +474,7 @@ class Request(object):
 		m.update(self.verb.encode())
 		m.update(self.__str__().encode())
 
-		hdrs = self._sort_dict(self.headers)
+		hdrs = dict_to_sorted_list(self.headers)
 		if len(hdrs) > 0: m.update(urllib.parse.urlencode(hdrs).encode())
 
 		pd = self.get_post_data()
@@ -586,23 +588,22 @@ class RequestQueue(queue.Queue):
 			queue.Queue.put(self, request)
 			return True
 
-	#TODO: Redirect alters request header before it is reported
 	def redirect(self, request, url):
 		if request.redirects >= self.session.max_redirects:
 			return (False, 'Max redirects exceeded: [{0}]'.format(request.referrer))
 		else:
-			prev = str(request)
-			request._set_url(url)
-			if prev == str(request):
+			req = copy.copy(request)
+			req._set_url(url)
+			if str(req) == str(request):
 				return (False, 'Page redirects to itself')
 			else:
-				if request.redirects == 0:
-					request.referrer = prev
-					request.postdata = [] # Reset to get on redirect
-					request.verb = 'GET'
+				if req.redirects == 0:
+					req.referrer = str(request)
+					req.postdata = [] # Reset to get on redirect
+					req.verb = 'GET'
 
-				request.redirects += 1
-				queue.Queue.put(self, request)
+				req.redirects += 1
+				queue.Queue.put(self, req)
 				return (True, '')
 
 class HtmlHelper(object):
@@ -711,7 +712,7 @@ class ModuleBase(object):
 
 def report(method):
 	def inner(self, *args, **kwargs):
-		r = Report()
+		r = ReportData()
 		try:
 			return method(self, r, *args, **kwargs)
 		finally:

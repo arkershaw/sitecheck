@@ -515,9 +515,7 @@ class InboundLinks(ModuleBase):
 			with self.sync_lock:
 				e = self.engine_parameters[request.referrer]
 				mtch = e[1].search(response.content)
-				if mtch == None:
-					self.add_message(report, 'ERROR: Unable to calculate pages or no pages indexed')
-				else:
+				if mtch:
 					e[4] = int(re.sub('[^0-9]', '', mtch.groups()[0]))
 
 					for m in self.link.finditer(response.content):
@@ -567,14 +565,20 @@ class Security(ModuleBase):
 
 	def process(self, request, response, report):
 		if request.source == self.name:
+			err = False
 			if response.status >= 500:
+				err = True
 				self.add_message(report, 'WARNING: Possible SQL injection')
-				if len(request.postdata) > 0:
-					self.add_message(report, 'Post data: {0}'.format(request.postdata))
 			elif self.xss.search(response.content):
+				err = True
 				self.add_message(report, 'WARNING: Possible XSS')
-				if len(request.postdata) > 0:
+
+			if 'vector' in request.meta and err:
+				if request.meta['vector'] == 'postdata':
 					self.add_message(report, 'Post data: {0}'.format(request.postdata))
+				elif request.meta['vector'] == 'headers':
+					self.add_message(report, 'Request headers: {0}'.format(request.headers))
+
 		elif response.is_html and response.status < 500:
 			# Don't attack error pages - can't tell if it worked without matching against known database error text
 			doc = HtmlHelper(response.content)
@@ -591,6 +595,7 @@ class Security(ModuleBase):
 		req = Request(self.name, str(request), str(request))
 		req.headers = hdrs
 		req.modules = [self]
+		req.meta['vector'] = 'headers'
 		self.sitecheck.request_queue.put(req)
 
 		if len(request.query) > 0:
@@ -601,6 +606,7 @@ class Security(ModuleBase):
 			req = Request(self.name, str(request), str(request))
 			req.query = self._build_query(qs)
 			req.modules = [self]
+			req.meta['vector'] = 'querystring'
 			self.sitecheck.request_queue.put(req)
 
 		if self.post:
@@ -617,10 +623,12 @@ class Security(ModuleBase):
 				req = Request(self.name, url, str(request))
 				if post:
 					req.set_post_data(rp)
+					req.meta['vector'] = 'postdata'
 				else:
 					if len(req.query) > 0:
 						req.query += '&'
 					req.query += self._build_query(dict(rp))
+					req.meta['vector'] = 'querystring'
 
 				req.modules = [self]
 				self.sitecheck.request_queue.put(req)
@@ -633,6 +641,7 @@ class Security(ModuleBase):
 			req = Request(self.name, str(request), str(request))
 			req.headers = hdrs
 			req.modules = [self]
+			req.meta['vector'] = 'headers'
 			self.sitecheck.request_queue.put(req)
 			hdrs[h] = temp
 
@@ -644,6 +653,7 @@ class Security(ModuleBase):
 				req = Request(self.name, str(request), str(request))
 				req.query = self._build_query(qs)
 				req.modules = [self]
+				req.meta['vector'] = 'querystring'
 				self.sitecheck.request_queue.put(req)
 				qs[param] = temp
 
@@ -662,10 +672,12 @@ class Security(ModuleBase):
 					req = Request(self.name, url, str(request))
 					if post:
 						req.set_post_data(rp)
+						req.meta['vector'] = 'postdata'
 					else:
 						if len(req.query) > 0:
 							req.query += '&'
 						req.query += self._build_query(dict(rp))
+						req.meta['vector'] = 'querystring'
 
 					req.modules = [self]
 					self.sitecheck.request_queue.put(req)
@@ -781,10 +793,15 @@ class DomainCheck(ModuleBase):
 					self.add_message(report, '\t\tInsecure ciphers supported')
 
 				if self.relay:
-					relay, failed = test_relay(h.address)
+					relay, failed = test_relay(h.address, port=25)
 					if relay:
 						for f in failed:
-							self.add_message(report, '\t\tPossible open relay: {0} -> {1}'.format(f[0], f[1]))
+							self.add_message(report, '\t\tPossible open relay (port 25): {0} -> {1}'.format(f[0], f[1]))
+
+					relay, failed = test_relay(h.address, port=587)
+					if relay:
+						for f in failed:
+							self.add_message(report, '\t\tPossible open relay (port 587): {0} -> {1}'.format(f[0], f[1]))
 
 	def process(self, request, response, report):
 		pass

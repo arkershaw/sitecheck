@@ -255,18 +255,21 @@ class DomainInfo(object):
 def test_relay(host, port=25, mail_from='from@example.com', rcpt_to='to@example.com', send=False):
 	name, addr = name_and_address(host)
 
-	if not addr: raise Exception('No address found for {0}'.format(host))
+	if not addr:
+		raise Exception('No address found for {0}'.format(host))
 
 	fr = mail_from.rsplit('@', 1)
 	to = rcpt_to.rsplit('@', 1)
 
 	if name.endswith(to[1]):
+		# If address and host are same domain then delivery should succeed
 		raise Exception('To address and host are on same domain')
 
 	try:
 		sock = socket.create_connection((addr, port))
 	except:
-		raise Exception('Unable to connect to {0}:{1}'.format(host, port))
+		#raise Exception('Unable to connect to {0}:{1}'.format(host, port))
+		return False, []
 	else:
 		s = SocketHelper(sock, end='\r\n')
 		s.receiveall()
@@ -360,7 +363,12 @@ if __name__ == '__main__':
 			print('\t\tInsecure ciphers supported')
 
 		if args.relay:
-			relay, failed = test_relay(h.address)
+			relay, failed = test_relay(h.address, port=25)
 			if relay:
 				for f in failed:
-					print('\t\tPossible open relay: {0} -> {1}'.format(f[0], f[1]))
+					print('\t\tPossible open relay (port 25): {0} -> {1}'.format(f[0], f[1]))
+
+			relay, failed = test_relay(h.address, port=587)
+			if relay:
+				for f in failed:
+					print('\t\tPossible open relay (port 587): {0} -> {1}'.format(f[0], f[1]))

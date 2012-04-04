@@ -22,7 +22,7 @@ import queue
 import threading
 import datetime
 
-class Report(object):
+class ReportData(object):
 	DEFAULT_SOURCE = 'sitecheck'
 
 	def __init__(self, message=None, source=None):
@@ -31,7 +31,7 @@ class Report(object):
 			self.add_message(message, source=source)
 
 	def add_message(self, message, source=None):
-		if source == None or len(source) == 0: source = Report.DEFAULT_SOURCE
+		if source == None or len(source) == 0: source = ReportData.DEFAULT_SOURCE
 
 		if not source in self.messages:
 			self.messages[source] = []
@@ -54,7 +54,7 @@ class Report(object):
 
 class OutputQueue(queue.Queue):
 	def put_message(self, message, source=None, block=True, timeout=None):
-		queue.Queue.put(self, (None, None, Report(message, source)), block, timeout)
+		queue.Queue.put(self, (None, None, ReportData(message, source)), block, timeout)
 
 	def put_report(self, report, block=True, timeout=None):
 		queue.Queue.put(self, (None, None, report), block, timeout)
@@ -62,9 +62,9 @@ class OutputQueue(queue.Queue):
 	def put(self, request, response, report, block=True, timeout=None):
 		queue.Queue.put(self, (request, response, report), block, timeout)
 
-class LoggerBase(threading.Thread):
+class ReportBase(threading.Thread):
 	def __init__(self):
-		super(LoggerBase, self).__init__()
+		super(ReportBase, self).__init__()
 		self.terminate = threading.Event()
 
 	def initialise(self, sitecheck):
@@ -83,9 +83,9 @@ class LoggerBase(threading.Thread):
 		else:
 			return (req, res, rep)
 
-class FileLogger(LoggerBase):
+class FlatFile(ReportBase):
 	def initialise(self, sitecheck):
-		super(FileLogger, self).initialise(sitecheck)
+		super(FlatFile, self).initialise(sitecheck)
 		self.root_path = sitecheck.root_path
 		self._outfiles = {}
 		self.default_log_file = 'sitecheck'

@@ -20,7 +20,7 @@
 import re
 from sitecheck.core import Struct
 from sitecheck.modules import *
-from sitecheck.logging import FileLogger
+from sitecheck.reporting import FlatFile
 
 media_files = set(['gif', 'jpg', 'jpeg', 'png', 'swf'])
 resource_files = set(['js', 'css', 'htc'])
@@ -28,7 +28,7 @@ document_files = set(['zip', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv'])
 
 class Session(object):
 	def __init__(self):
-		self.check_for_updates = True # Checks online for: current version, user agent and search engines in inbound links module
+		self.check_for_updates = True # Checks online for current version and search engines in inbound links module
 		self.output = '' # Override output folder
 		# Domain is populated by the -d parameter
 		self.domain = '' # Domain to spider
@@ -48,7 +48,7 @@ class Session(object):
 		self.authenticate = Struct(login_url=None, logout_url=None, params=[('username', ''), ('password', '')], post=True)
 		self.ignore_url = []
 		self.ignore_protocol = ['mailto:', 'javascript:']
-		self.logger = FileLogger()
+		self.report = FlatFile()
 		self.modules = [
 			DuplicateContent(),
 			#DomainCheck(relay=False),
