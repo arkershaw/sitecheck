@@ -251,7 +251,8 @@ class Checker(threading.Thread):
 
 	def set_headers(self, request):
 		hdrs = self._session.headers.copy()
-		request.headers.update(hdrs)
+		hdrs.update(request.headers)
+		request.headers = hdrs
 		if 'Content-Type' in request.headers or 'content-type' in request.headers:
 			pass
 		else:
@@ -419,12 +420,22 @@ class Request(object):
 			self.query = ''
 		else:
 			qsin = urllib.parse.parse_qs(url_parts.query, keep_blank_values=True)
-			qsout = []
-			keys = list(qsin.keys())
-			keys.sort() # URL's with querystring parameters in different order are equivalent
-			for k in keys:
-				qsout.append((k, qsin[k][0]))
+			# URL's with querystring parameters in different order are equivalent
+			qsout = self._sort_dict(qsin)
 			self.query = urllib.parse.urlencode(qsout)
+
+	def _sort_dict(self, dict_obj):
+		out = []
+		keys = list(dict_obj.keys())
+		keys.sort()
+		for key in keys:
+			val = dict_obj[key]
+			if type(val) is list or type(val) is tuple:
+				for v in val:
+					out.append((key, v))
+			else:
+				out.append((key, val))
+		return out
 
 	def get_post_data(self):
 		if self.encoding == 'multipart/form-data':
@@ -456,12 +467,17 @@ class Request(object):
 		return url
 
 	def hash(self):
-		# Relies on query and post being sorted
+		# Relies on query, post and headers being sorted
 		m = hashlib.sha1()
 		m.update(self.verb.encode())
 		m.update(self.__str__().encode())
+
+		hdrs = self._sort_dict(self.headers)
+		if len(hdrs) > 0: m.update(urllib.parse.urlencode(hdrs).encode())
+
 		pd = self.get_post_data()
 		if len(pd) > 0: m.update(pd.encode())
+
 		return m.hexdigest()
 
 	def set_verb(self):
@@ -570,6 +586,7 @@ class RequestQueue(queue.Queue):
 			queue.Queue.put(self, request)
 			return True
 
+	#TODO: Redirect alters request header before it is reported
 	def redirect(self, request, url):
 		if request.redirects >= self.session.max_redirects:
 			return (False, 'Max redirects exceeded: [{0}]'.format(request.referrer))
@@ -709,13 +726,13 @@ class Authenticate(ModuleBase):
 	def _log(self, request, response, report):
 		self.add_message(report, 'Method: [{0}]'.format(request.verb))
 		self.add_message(report, 'Status: [{0}]'.format(str(response.status)))
+		self.add_message(report, 'Request Headers: {0}'.format(request.headers))
+		self.add_message(report, 'Response Headers: {0}\n'.format(response.headers))
 
 		if response.status >= 300:
 			self.add_message(report, 'AUTHENTICATION ERROR')
-			self.add_message(report, 'Request Headers: {0}'.format(request.headers))
 			if len(request.postdata) > 0:
 				self.add_message(report, 'Post Data: {0}'.format(request.get_post_data()))
-			self.add_message(report, 'Response Headers: {0}\n'.format(response.headers))
 
 	def process(self, request, response, report):
 		a = self.sitecheck.session.authenticate

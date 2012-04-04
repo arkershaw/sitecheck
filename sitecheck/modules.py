@@ -491,7 +491,10 @@ class InboundLinks(ModuleBase):
 			self.engine_parameters[k][1] = re.compile(self.engine_parameters[k][1], re.IGNORECASE)
 
 		self.domain = urllib.parse.urlparse(self.sitecheck.session.domain).netloc
-		self.link = re.compile('"(https?://{0}[^"]*)"'.format(re.escape(self.domain), re.IGNORECASE))
+
+		dp = self.sitecheck.session.domain[self.sitecheck.session.domain.find(self.domain):]
+		self.link = re.compile('"(https?://{0}[^"]*)"'.format(re.escape(dp), re.IGNORECASE))
+
 		if not self.engines: self.engines = list(self.engine_parameters.keys())
 		for ei in range(len(self.engines)):
 			se = self.engines[ei]
@@ -548,7 +551,7 @@ class Security(ModuleBase):
 		self.quick = quick
 		self.post = post
 
-	def _buildquery(self, items):
+	def _build_query(self, items):
 		# Unsafe encoding is required for this module
 		qsout = []
 		keys = list(items.keys())
@@ -572,7 +575,8 @@ class Security(ModuleBase):
 				self.add_message(report, 'WARNING: Possible XSS')
 				if len(request.postdata) > 0:
 					self.add_message(report, 'Post data: {0}'.format(request.postdata))
-		elif response.is_html:
+		elif response.is_html and response.status < 500:
+			# Don't attack error pages - can't tell if it worked without matching against known database error text
 			doc = HtmlHelper(response.content)
 			for atk in self.attacks:
 				if self.quick:
@@ -581,13 +585,21 @@ class Security(ModuleBase):
 					self._inject_each(request, doc, atk)
 
 	def _inject_all(self, request, document, value):
+		hdrs = request.headers.copy()
+		for h in hdrs:
+			hdrs[h] = value
+		req = Request(self.name, str(request), str(request))
+		req.headers = hdrs
+		req.modules = [self]
+		self.sitecheck.request_queue.put(req)
+
 		if len(request.query) > 0:
 			qs = urllib.parse.parse_qs(request.query, keep_blank_values=True)
 			for param in qs.keys():
 				qs[param] = value
 
 			req = Request(self.name, str(request), str(request))
-			req.query = self._buildquery(qs)
+			req.query = self._build_query(qs)
 			req.modules = [self]
 			self.sitecheck.request_queue.put(req)
 
@@ -608,19 +620,29 @@ class Security(ModuleBase):
 				else:
 					if len(req.query) > 0:
 						req.query += '&'
-					req.query += self._buildquery(dict(rp))
+					req.query += self._build_query(dict(rp))
 
 				req.modules = [self]
 				self.sitecheck.request_queue.put(req)
 
 	def _inject_each(self, request, document, value):
+		hdrs = request.headers.copy()
+		for h in hdrs:
+			temp = hdrs[h]
+			hdrs[h] = value
+			req = Request(self.name, str(request), str(request))
+			req.headers = hdrs
+			req.modules = [self]
+			self.sitecheck.request_queue.put(req)
+			hdrs[h] = temp
+
 		if len(request.query) > 0:
 			qs = urllib.parse.parse_qs(request.query, keep_blank_values=True)
 			for param in qs.keys():
 				temp = qs[param]
 				qs[param] = value
 				req = Request(self.name, str(request), str(request))
-				req.query = self._buildquery(qs)
+				req.query = self._build_query(qs)
 				req.modules = [self]
 				self.sitecheck.request_queue.put(req)
 				qs[param] = temp
@@ -643,7 +665,7 @@ class Security(ModuleBase):
 					else:
 						if len(req.query) > 0:
 							req.query += '&'
-						req.query += self._buildquery(dict(rp))
+						req.query += self._build_query(dict(rp))
 
 					req.modules = [self]
 					self.sitecheck.request_queue.put(req)
