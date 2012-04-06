@@ -337,11 +337,12 @@ class Checker(threading.Thread):
 
 	def run(self):
 		while not Checker.terminate.isSet():
+			self.active = False
 			Checker.terminate.wait(self._session.wait_seconds)
 			try:
 				req = self._request_queue.get(block=False)
 			except queue.Empty:
-				self.active = False
+				pass
 			else:
 				self.active = True
 

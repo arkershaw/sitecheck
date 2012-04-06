@@ -483,7 +483,7 @@ class InboundLinks(ModuleBase):
 				ss = StringIO(settings)
 				sd = json.load(ss)
 			except:
-				self.add_message(report, 'Update check failed - please notify: arkershaw@users.sourceforge.net')
+				self.add_message(report, 'WARNING: Update check failed - please notify: arkershaw@users.sourceforge.net')
 			else:
 				self.engine_parameters = sd
 
