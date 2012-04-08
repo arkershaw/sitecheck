@@ -38,9 +38,9 @@ import copy
 
 from sitecheck.reporting import OutputQueue, ReportData, FlatFile
 
-class SiteCheck(object):
-	VERSION = '1.5'
+VERSION = '1.5'
 
+class SiteCheck(object):
 	def __init__(self, root_path):
 		self.root_path = root_path
 		self.session = None
@@ -134,11 +134,12 @@ class SiteCheck(object):
 			if not a.logout_url == None:
 				if not a.logout_url in self.session.ignore_url: self.session.ignore_url.append(a.logout_url)
 
-			r = Request(Authenticate.AUTH_REQUEST_KEY, a.login_url, self.session.domain)
-			a = Authenticate()
-			a.initialise(self)
-			r.modules = [a]
-			self.request_queue.put(r)
+			auth = Authenticate()
+			req = Request(auth.name, a.login_url, self.session.domain)
+			req.meta[Authenticate.AUTH_META_KEY] = Authenticate.AUTH_REQUEST
+			auth.initialise(self)
+			req.modules = [auth]
+			self.request_queue.put(req)
 
 	def _begin(self):
 		if self._resume_data:
@@ -225,6 +226,18 @@ def dict_to_sorted_list(dict_obj):
 		else:
 			out.append((key, val))
 	return out
+
+# From: http://stackoverflow.com/questions/547829/how-to-dynamically-load-a-python-class
+def get_module(name):
+	mod = __import__(name)
+	components = name.split('.')
+	for comp in components[1:]:
+		mod = getattr(mod, comp)
+	return mod
+
+def get_class(name):
+	cls = get_module(name)
+	return cls()
 
 _ensure_dir_lock = threading.Lock()
 def ensure_dir(directory):
@@ -532,7 +545,7 @@ class RequestQueue(queue.Queue):
 	def is_valid(self, url):
 		if url == None: return False
 		if len(url) == 0: return False
-		if url.startswith('#') or url.lower() in self.session.ignore_protocol: return False
+		if url.startswith('#'): return False
 
 		parts = urllib.parse.urlparse(url)
 		for ignore in self.session.ignore_url:
@@ -722,8 +735,9 @@ def report(method):
 	return inner
 
 class Authenticate(ModuleBase):
-	AUTH_REQUEST_KEY = '__AUTHENTICATION__REQ'
-	AUTH_RESPONSE_KEY = '__AUTHENTICATION__RES'
+	AUTH_META_KEY = '__AUTHENTICATION'
+	AUTH_REQUEST = 'Request'
+	AUTH_RESPONSE = 'Response'
 
 	def _log(self, request, response, report):
 		self.add_message(report, 'Method: [{0}]'.format(request.verb))
@@ -731,14 +745,14 @@ class Authenticate(ModuleBase):
 		self.add_message(report, 'Request Headers: {0}'.format(request.headers))
 		self.add_message(report, 'Response Headers: {0}\n'.format(response.headers))
 
-		if response.status >= 300:
-			self.add_message(report, 'AUTHENTICATION ERROR')
+		if response.status >= 400:
+			self.add_message(report, 'ERROR: Authentication Failed')
 			if len(request.postdata) > 0:
 				self.add_message(report, 'Post Data: {0}'.format(request.get_post_data()))
 
 	def process(self, request, response, report):
 		a = self.sitecheck.session.authenticate
-		if request.source == Authenticate.AUTH_REQUEST_KEY:
+		if request.meta[Authenticate.AUTH_META_KEY] == Authenticate.AUTH_REQUEST:
 			self._log(request, response, report)
 
 			if a.post:
@@ -750,11 +764,12 @@ class Authenticate(ModuleBase):
 					sep = '?'
 				url = '{0}{1}{2}'.format(a.login_url, sep, urllib.parse.urlencode(a.params, True))
 
-			r = Request(Authenticate.AUTH_RESPONSE_KEY, url, str(request))
-			if a.post: r.set_post_data(a.params)
-			r.modules = [self]
-			self.sitecheck.request_queue.put(r)
-		elif request.source == Authenticate.AUTH_RESPONSE_KEY:
+			req = Request(self.name, url, str(request))
+			req.meta[Authenticate.AUTH_META_KEY] = Authenticate.AUTH_RESPONSE
+			if a.post: req.set_post_data(a.params)
+			req.modules = [self]
+			self.sitecheck.request_queue.put(req)
+		if request.meta[Authenticate.AUTH_META_KEY] == Authenticate.AUTH_RESPONSE:
 			self._log(request, response, report)
 
 			self.sitecheck._begin()

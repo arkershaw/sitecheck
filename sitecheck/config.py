@@ -47,7 +47,6 @@ class Session(object):
 		self.log = Struct(request_headers=True, response_headers=True, post_data=False)
 		self.authenticate = Struct(login_url=None, logout_url=None, params=[('username', ''), ('password', '')], post=True)
 		self.ignore_url = []
-		self.ignore_protocol = ['mailto:', 'javascript:']
 		self.report = FlatFile()
 		self.modules = [
 			DuplicateContent(),

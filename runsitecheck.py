@@ -18,6 +18,9 @@
 # You should have received a copy of the GNU General Public License
 # along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
 
+CONTACT_EMAIL = 'arkershaw@users.sourceforge.net'
+UPDATE_URL = 'http://sitecheck.sourceforge.net/settings.js'
+
 _sitecheck = None
 _suspend_file = None
 
@@ -47,9 +50,6 @@ Return -> Abort''')
 	sys.exit(0)
 
 if __name__ == '__main__':
-	contact_email = 'arkershaw@users.sourceforge.net'
-	update_url = 'http://sitecheck.sourceforge.net/settings.js'
-
 	from argparse import ArgumentParser
 	import os
 	import sys
@@ -66,14 +66,14 @@ if __name__ == '__main__':
 	import math
 
 	from sitecheck import *
-	from sitecheck.core import ensure_dir, append
+	from sitecheck.core import VERSION, ensure_dir, append
 
 	signal.signal(signal.SIGINT, signal_handler)
 
 	print('''Sitecheck {0} Copyright (C) 2009-2012 Andrew Kershaw
 ({1})
 This program comes with ABSOLUTELY NO WARRANTY
-'''.format(SiteCheck.VERSION, contact_email))
+'''.format(VERSION, CONTACT_EMAIL))
 
 	parser = ArgumentParser()
 	parser.add_argument('-d', '--domain', dest='domain', default=None, help='The domain to spider. This can also be set in the config file.')
@@ -114,13 +114,13 @@ This program comes with ABSOLUTELY NO WARRANTY
 		if hasattr(_sitecheck.session, 'check_for_updates') and _sitecheck.session.check_for_updates:
 			print('Checking for updates...')
 			try:
-				settings = urllib.request.urlopen(update_url).read().decode('utf-8')
+				settings = urllib.request.urlopen(UPDATE_URL).read().decode('utf-8')
 				ss = StringIO(settings)
 				sd = json.load(ss)
 			except:
 				print('Update check failed - please notify: {0}'.format(contact_email))
 			else:
-				if SiteCheck.VERSION != sd['Version']:
+				if VERSION != sd['Version']:
 					print('A new version ({0}) is available at: {1} '.format(sd['Version'], sd['DownloadURL']))
 
 		op = ''
