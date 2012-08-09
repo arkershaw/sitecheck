@@ -656,12 +656,13 @@ class HtmlHelper(object):
 		# Test strings:
 		# < form name = name action = test 1 method = get>
 		# < form name = "name" action = "test 1" method = "get">
+		# < form name = 'name' action = 'test 1' method = 'get'>
 
 		if element:
-			rx = re.compile(r'<\s*(?P<element>{0})\s[^>]*?(?<=\s){1}\s*=\s*(?P<quoted>")?(?P<attr>.*?)(?(quoted)"|[\s>])' \
+			rx = re.compile(r'''<\s*(?P<element>{0})\s[^>]*?(?<=\s){1}\s*=\s*(?P<quoted>"|')?(?P<attr>.*?)(?(quoted)(?P=quoted)|[\s>])''' \
 				.format(element, attribute), self.flags)
 		else:
-			rx = re.compile(r'<\s*(?P<element>[^\s>]+)\s[^>]*?(?<=\s){0}\s*=\s*(?P<quoted>")?(?P<attr>.*?)(?(quoted)"|[\s>])' \
+			rx = re.compile(r'''<\s*(?P<element>[^\s>]+)\s[^>]*?(?<=\s){0}\s*=\s*(?P<quoted>"|')?(?P<attr>.*?)(?(quoted)(?P=quoted)|[\s>])''' \
 				.format(attribute), self.flags)
 
 		mtchs = rx.finditer(self.document)
