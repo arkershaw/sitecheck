@@ -111,7 +111,13 @@ class SiteCheck(object):
 
 		# Start output thread
 		if not hasattr(self.session, 'report'):
-			self.session.report = FlatFile()
+			if hasattr(self.session, 'logger'):
+				#TODO: Remove this section on next major release
+				print('\nWARNING: Using deprecated logger attribute - please update your config file.')
+				print('See CHANGELOG.txt for more details.\n')
+				self.session.report = self.session.logger
+			else:
+				self.session.report = FlatFile()
 		self.session.report.initialise(self)
 		self.session.report.setDaemon(True)
 		self.session.report.start()
@@ -365,19 +371,24 @@ class Checker(threading.Thread):
 
 				res, err = self.fetch(req)
 
-				report = ReportData('Method: [{0}]'.format(req.verb))
+				report = ReportData('Method: [{0}]'.format(req.verb), 'request')
 
 				if res:
 					dom = urllib.parse.urlparse(self._session.domain)
 					if req.domain == dom.netloc: self.get_cookie(res)
 
-					report.add_message('Status: [{0}]'.format(str(res.status)))
-					if self._session.log.request_headers: report.add_message('Request Headers: {0}'.format(req.headers))
-					if self._session.log.post_data and len(req.postdata) > 0: report.add_message('Post Data: {0}'.format(req.get_post_data()))
-					if self._session.log.response_headers: report.add_message('Response Headers: {0}'.format(res.headers))
+					report.add_message('Status: [{0}]'.format(str(res.status)), 'request')
+					if self._session.log.request_headers: report.add_message('Request Headers: {0}'.format(req.headers), 'request')
+					if self._session.log.post_data and len(req.postdata) > 0: report.add_message('Post Data: {0}'.format(req.get_post_data()), 'request')
+					if self._session.log.response_headers: report.add_message('Response Headers: {0}'.format(res.headers), 'request')
 
-					if res.time > self._session.slow_request:
+					# Only warn about slow requests once
+					if not hasattr(self._session, '_slow'):
+						self._session._slow = []
+
+					if res.time > self._session.slow_request and not str(req) in self._session._slow:
 						report.add_message('WARNING: Slow request: [{0}] ({1:.3f} seconds)'.format(str(req), res.time))
+						self._session._slow.append(str(req))
 
 					# Only process markup of error pages once
 					if not hasattr(self._session, '_processed'):

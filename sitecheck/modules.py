@@ -68,10 +68,8 @@ class Spider(ModuleBase):
 				self.add_request(href[2], referrer)
 
 			out = list(urls)
-			out.sort()
-			if len(out) == 0:
-				self.add_message(report, '(No links found)')
-			else:
+			if len(out) > 0:
+				out.sort()
 				for url in out:
 					if url.count(' ') > 0:
 						self.add_message(report, '-> [{0}] *Unencoded'.format(url))
@@ -539,6 +537,8 @@ class InboundLinks(ModuleBase):
 			for u in urls:
 				self.add_message(report, u)
 			self.add_message(report, 'Total: {0}'.format(len(self.inbound)))
+		else:
+			self.add_message(report, 'No inbound links found')
 
 class Security(ModuleBase):
 	def __init__(self, email='', attacks=[], quick=True, post=True):

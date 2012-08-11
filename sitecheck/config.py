@@ -35,7 +35,7 @@ class Session(object):
 		# Page is populated by the -p parameter
 		self.page = '' # Start with this page
 		self.thread_pool = 10 # Number of spider threads to spawn. An extra thread is used for output.
-		self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; rv:6.0) Gecko/20110814 Firefox/6.0 Sitecheck'} # Emulate Firefox 6 running on Windows 7
+		self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; rv:12.0) Gecko/20120405 Firefox/14.0.1 Sitecheck'} # Emulate Firefox 14 running on Windows 7
 		self.ignore_ext = set([]) # These file types are ignored
 		self.test_ext = set.union(media_files, resource_files, document_files) # Only headers are downloaded for these file types
 		self.include_ext = set([]) # Allows the inclusion of resources (images, styles etc.) in parent folder of path (if specified)
@@ -58,14 +58,14 @@ class Session(object):
 				'IP Address': re.compile('(?:\d{1,3}\.){3}\d{1,3}'),
 				'Lorem Ipsum': re.compile('lorem ipsum', re.IGNORECASE)
 			}),
-			Validator(),
-			Accessibility(),
+			#Validator(),
+			#Accessibility(),
 			MetaData(),
 			StatusLog(),
 			#Security(email='user@example.com', attacks=["1'1\\'1", '"/><xss>'], quick=True, post=True),
 			# WARNING: Using quick=False will result in SIGNIFICANTLY more requests as each parameter will be injected individually
 			Comments(),
-			Spelling(language='en_GB'),
+			#Spelling(language='en_GB'),
 			Readability(threshold=45),
 			Spider()
 		]

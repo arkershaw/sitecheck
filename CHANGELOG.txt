@@ -1,12 +1,17 @@
 ------------------------
-Version 1.5 (2012-XX-XX)
+Version 1.5 (2012-08-11)
 ------------------------
 
 Refactored reporting to allow destinations other than flat file
 Added HTTP headers to security tests
+Single-quoted HTML attributes are scraped
 Open relay test includes alternative SMTP port
+Separated general request logging from slow requests and redirect erorrs
+Updated user agent
+Modules with dependencies default to disabled
+Only log slow requests once per URL
 Renamed logging module to reporting and FileLogger to FlatFile
-	IMPORTANT: This will break existing config files
+	To update existing config files:
 	On line 23 of example config.py "from sitecheck.logging import FileLogger" becomes "from sitecheck.reporting import FlatFile"
 	On line 51 of example config.py "self.logger = FileLogger()" becomes "self.report = FlatFile()"
 

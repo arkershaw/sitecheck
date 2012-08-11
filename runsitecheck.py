@@ -20,9 +20,9 @@
 
 CONTACT_EMAIL = 'arkershaw@users.sourceforge.net'
 UPDATE_URL = 'http://sitecheck.sourceforge.net/settings.js'
+SUSPEND_FILE_NAME = 'suspend.pkl'
 
 _sitecheck = None
-_suspend_file = None
 
 def signal_handler(signal, frame):
 	if _sitecheck:
@@ -35,13 +35,21 @@ Return -> Abort''')
 
 		char = input()
 		if char.strip().lower() == 's':
-			sd = _sitecheck.suspend()
+			sf = _sitecheck.root_path + SUSPEND_FILE_NAME
 
-			f = open(_suspend_file, 'wb')
-			f.write(sd)
-			f.close()
+			try:
+				sd = _sitecheck.suspend()
+			except:
+				sys.exit('An error occurred while suspending.')
 
-			print('Suspended')
+			try:
+				f = open(sf, 'wb')
+				f.write(sd)
+				f.close()
+			except:
+				sys.exit('Unable to write suspend data to file: {0}'.format(sf))
+			else:
+				print('Suspended')
 		else:
 			print('Aborted')
 	else:
@@ -83,7 +91,7 @@ This program comes with ABSOLUTELY NO WARRANTY
 
 	_sitecheck = SiteCheck(append(args.directory, os.sep))
 
-	_suspend_file = _sitecheck.root_path + 'suspend.pkl'
+	suspend_file = _sitecheck.root_path + SUSPEND_FILE_NAME
 	config_file = _sitecheck.root_path + 'config.py'
 	conf = None
 	if os.path.exists(config_file):
@@ -93,10 +101,10 @@ This program comes with ABSOLUTELY NO WARRANTY
 		except:
 			sys.exit('Invalid config file found in directory.')
 
-	if os.path.exists(_suspend_file):
+	if os.path.exists(suspend_file):
 		print('Resuming session...')
 		try:
-			f = open(_suspend_file, 'rb')
+			f = open(suspend_file, 'rb')
 			sd = f.read()
 			f.close()
 
@@ -116,12 +124,12 @@ This program comes with ABSOLUTELY NO WARRANTY
 			try:
 				settings = urllib.request.urlopen(UPDATE_URL).read().decode('utf-8')
 				ss = StringIO(settings)
-				sd = json.load(ss)
+				so = json.load(ss)
 			except:
 				print('Update check failed - please notify: {0}'.format(contact_email))
 			else:
-				if VERSION != sd['Version']:
-					print('A new version ({0}) is available at: {1} '.format(sd['Version'], sd['DownloadURL']))
+				if VERSION != so['Version']:
+					print('A new version ({0}) is available at: {1} '.format(so['Version'], so['DownloadURL']))
 
 		op = ''
 		if args.domain:
@@ -165,11 +173,11 @@ This program comes with ABSOLUTELY NO WARRANTY
 	_sitecheck.begin()
 
 	# If sitecheck starts successfully then remove suspend data
-	if os.path.exists(_suspend_file):
+	if os.path.exists(suspend_file):
 		try:
-			os.remove(_suspend_file)
+			os.remove(suspend_file)
 		except:
-			print('WARNING: Unable to remove suspend data: {0}'.format(_suspend_file))
+			print('WARNING: Unable to remove suspend data: {0}'.format(suspend_file))
 
 	print('Checking...')
 
