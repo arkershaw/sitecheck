@@ -51,6 +51,76 @@ else:
 
 from sitecheck.core import Request, ModuleBase, HtmlHelper, Checker, report, ensure_dir
 
+class Authenticate(ModuleBase):
+	AUTH_META_KEY = '__AUTHENTICATION'
+	AUTH_REQUEST = 'Request'
+	AUTH_RESPONSE = 'Response'
+	AUTH_LOGOUT = 'Logout'
+
+	def __init__(self, login_url, params, post=True, logout_url=None):
+		super(Authenticate, self).__init__()
+		self.login_url = login_url
+		self.params = params
+		self.post = post
+		self.logout_url = logout_url
+
+	def begin(self):
+		if self.logout_url:
+			if not self.logout_url in self.sitecheck.session.ignore_url: self.sitecheck.session.ignore_url.append(self.logout_url)
+
+		req = Request(self.name, self.login_url, self.sitecheck.session.domain)
+		req.meta[Authenticate.AUTH_META_KEY] = Authenticate.AUTH_REQUEST
+		req.modules = [self]
+		self.sitecheck.request_queue.put(req)
+
+	def _log(self, request, response, report, message=None):
+		if message: self.add_message(report, message)
+		self.add_message(report, 'Method: [{0}]'.format(request.verb))
+		self.add_message(report, 'Status: [{0}]'.format(str(response.status)))
+		self.add_message(report, 'Request Headers: {0}'.format(request.headers))
+		self.add_message(report, 'Response Headers: {0}\n'.format(response.headers))
+
+		if response.status >= 400:
+			self.add_message(report, 'ERROR: Authentication Failed')
+			if len(request.postdata) > 0:
+				self.add_message(report, 'Post Data: {0}'.format(request.get_post_data()))
+		elif self.sitecheck.session.log.post_data and len(request.postdata) > 0:
+			self.add_message(report, 'Post Data: {0}'.format(request.get_post_data()))
+
+	def process(self, request, response, report):
+		if Authenticate.AUTH_META_KEY in request.meta:
+			if request.meta[Authenticate.AUTH_META_KEY] == Authenticate.AUTH_REQUEST:
+				self._log('Authenticating', request, response, report)
+
+				if self.post:
+					url = self.login_url
+				else:
+					if len(urllib.parse.urlparse(self.login_url).query) > 0:
+						sep = '&'
+					else:
+						sep = '?'
+					url = '{0}{1}{2}'.format(self.login_url, sep, urllib.parse.urlencode(self.params, True))
+
+				req = Request(self.name, url, str(request))
+				req.meta[Authenticate.AUTH_META_KEY] = Authenticate.AUTH_RESPONSE
+				if self.post: req.set_post_data(self.params)
+				req.modules = [self]
+				self.sitecheck.request_queue.put(req)
+			elif request.meta[Authenticate.AUTH_META_KEY] == Authenticate.AUTH_RESPONSE:
+				self._log('Authenticated', request, response, report)
+				self.sitecheck._begin()
+			elif request.meta[Authenticate.AUTH_META_KEY] == Authenticate.AUTH_LOGOUT:
+				self._log('Logging out', request, response, report)
+
+	def complete(self):
+		if self.logout_url:
+			if self.logout_url in self.sitecheck.session.ignore_url:
+				self.sitecheck.session.ignore_url.remove(self.logout_url)
+
+			req = Request(self.name, self.logout_url, self.sitecheck.session.domain)
+			req.meta[Authenticate.AUTH_META_KEY] = Authenticate.AUTH_LOGOUT
+			self.sitecheck.request_queue.put(req)
+
 class Spider(ModuleBase):
 	def process(self, request, response, report):
 		if response.is_html:

@@ -38,7 +38,7 @@ import copy
 
 from sitecheck.reporting import OutputQueue, ReportData, FlatFile
 
-VERSION = '1.5'
+VERSION = '1.6'
 
 class SiteCheck(object):
 	def __init__(self, root_path):
@@ -132,20 +132,9 @@ class SiteCheck(object):
 			thread.start()
 			self._threads.append(thread)
 
-		a = self.session.authenticate
-		if a.login_url == None or len(a.login_url) == 0:
+		# Unless a module has added a start page
+		if self.request_queue.empty():
 			self._begin()
-		else:
-			# Authenticate before spidering begins
-			if not a.logout_url == None:
-				if not a.logout_url in self.session.ignore_url: self.session.ignore_url.append(a.logout_url)
-
-			auth = Authenticate()
-			req = Request(auth.name, a.login_url, self.session.domain)
-			req.meta[Authenticate.AUTH_META_KEY] = Authenticate.AUTH_REQUEST
-			auth.initialise(self)
-			req.modules = [auth]
-			self.request_queue.put(req)
 
 	def _begin(self):
 		if self._resume_data:
@@ -163,14 +152,19 @@ class SiteCheck(object):
 	def end(self):
 		if self.session == None: raise SessionNotSetException()
 
+		if self.is_complete():
+			for mod in self.session.modules:
+				if hasattr(mod, 'complete'): mod.complete()
+			while True:
+				if self.is_complete():
+					break
+				else:
+					time.sleep(1)
+
 		# Wait for worker threads to complete
 		Checker.terminate.set()
 		for thread in self._threads:
 			thread.join()
-
-		if self.is_complete():
-			for mod in self.session.modules:
-				if hasattr(mod, 'complete'): mod.complete()
 
 		# Wait for log entries to be written
 		self.session.report.end()
@@ -745,43 +739,3 @@ def report(method):
 			self.sitecheck.output_queue.put_report(r)
 
 	return inner
-
-class Authenticate(ModuleBase):
-	AUTH_META_KEY = '__AUTHENTICATION'
-	AUTH_REQUEST = 'Request'
-	AUTH_RESPONSE = 'Response'
-
-	def _log(self, request, response, report):
-		self.add_message(report, 'Method: [{0}]'.format(request.verb))
-		self.add_message(report, 'Status: [{0}]'.format(str(response.status)))
-		self.add_message(report, 'Request Headers: {0}'.format(request.headers))
-		self.add_message(report, 'Response Headers: {0}\n'.format(response.headers))
-
-		if response.status >= 400:
-			self.add_message(report, 'ERROR: Authentication Failed')
-			if len(request.postdata) > 0:
-				self.add_message(report, 'Post Data: {0}'.format(request.get_post_data()))
-
-	def process(self, request, response, report):
-		a = self.sitecheck.session.authenticate
-		if request.meta[Authenticate.AUTH_META_KEY] == Authenticate.AUTH_REQUEST:
-			self._log(request, response, report)
-
-			if a.post:
-				url = a.login_url
-			else:
-				if len(urllib.parse.urlparse(a.login_url).query) > 0:
-					sep = '&'
-				else:
-					sep = '?'
-				url = '{0}{1}{2}'.format(a.login_url, sep, urllib.parse.urlencode(a.params, True))
-
-			req = Request(self.name, url, str(request))
-			req.meta[Authenticate.AUTH_META_KEY] = Authenticate.AUTH_RESPONSE
-			if a.post: req.set_post_data(a.params)
-			req.modules = [self]
-			self.sitecheck.request_queue.put(req)
-		if request.meta[Authenticate.AUTH_META_KEY] == Authenticate.AUTH_RESPONSE:
-			self._log(request, response, report)
-
-			self.sitecheck._begin()

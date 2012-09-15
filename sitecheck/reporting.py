@@ -21,6 +21,7 @@ import os
 import queue
 import threading
 import datetime
+import html
 
 class ReportData(object):
 	DEFAULT_SOURCE = 'sitecheck'
@@ -106,8 +107,6 @@ class FlatFile(ReportBase):
 				for m in msgs:
 					self._outfiles[src].write('{0}\n'.format(m))
 
-			#self._outfiles[src].write('\n')
-
 	def run(self):
 		st = datetime.datetime.now()
 		self._output_queue.put_message('Started: {0}\n'.format(st))
@@ -116,10 +115,71 @@ class FlatFile(ReportBase):
 			self._write_next()
 
 		et = datetime.datetime.now()
-		self._output_queue.put_message('\nCompleted: {0} ({1})'.format(et, str(et - st)))
+		#self._output_queue.put_message('\nCompleted: {0} ({1})'.format(et, str(et - st)))
+		self._output_queue.put_message('\nCompleted: {0}'.format(et))
+		self._output_queue.put_message('Duration: {0}'.format(str(et - st)))
 
 		while not self._output_queue.empty():
 			self._write_next()
 
 		for fl in self._outfiles.items():
 			fl[1].close()
+
+class HTML(ReportBase):
+	def initialise(self, sitecheck):
+		super(HTML, self).initialise(sitecheck)
+		self.root_path = sitecheck.root_path
+		self._outfiles = {}
+		self.default_log_file = 'sitecheck'
+		self.extension = '.html'
+		self.header = '<html>\n\t<body>\n'
+		self.footer = '\t</body>\n<html>\n'
+
+	def _write_next(self):
+		req, res, rep = self._get_next()
+
+		for src, msgs in rep:
+			if src in self._outfiles:
+				fl = self._outfiles[src]
+			else:
+				fl = open('{0}{1}{2}{3}{4}'.format(self.root_path, self._session.output, os.sep, src, self.extension), mode='a')
+				self._outfiles[src] = fl
+				fl.write(self.header)
+				fl.write('\t\t<h1>{0}</h1>\n'.format(html.escape(src.title())))
+				fl.write('\t\t<a href="index{0}">&lt;- Back</a>\n'.format(self.extension))
+
+			if req:
+				fl.write('\t\t<p>URL: <a href="{0}">{0}</a></p>\n\t\t<ul>\n'.format(html.escape(str(req))))
+				for m in msgs:
+					fl.write('\t\t\t<li>{0}</li>\n'.format(html.escape(m)))
+				fl.write('\t\t</ul>\n')
+			else:
+				for m in msgs:
+					fl.write('\t\t<p>{0}</p>\n'.format(html.escape(m)))
+
+	def run(self):
+		st = datetime.datetime.now()
+		self._output_queue.put_message('Started: {0}'.format(st))
+
+		while not self.terminate.isSet():
+			self._write_next()
+
+		et = datetime.datetime.now()
+		self._output_queue.put_message('Completed: {0}'.format(et))
+		self._output_queue.put_message('Duration: {0}'.format(str(et - st)))
+
+		while not self._output_queue.empty():
+			self._write_next()
+
+		ix = open('{0}{1}{2}index{3}'.format(self.root_path, self._session.output, os.sep, self.extension), mode='w')
+		ix.write(self.header)
+		ix.write('\t\t<h1>Results</h1>\n\t\t<ul>\n')
+
+		for fl in self._outfiles.items():
+			ix.write('\t\t\t<li><a href="{0}{1}">{2}</a></li>\n'.format(html.escape(fl[0]), self.extension, html.escape(fl[0].title())))
+			fl[1].write(self.footer)
+			fl[1].close()
+
+		ix.write('\t\t</ul>\n')
+		ix.write(self.footer)
+		ix.close()

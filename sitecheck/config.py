@@ -45,10 +45,10 @@ class Session(object):
 		self.max_redirects = 5 # Trap looping redirects
 		self.slow_request = 5.0 # Requests taking longer than this are logged
 		self.log = Struct(request_headers=True, response_headers=True, post_data=False)
-		self.authenticate = Struct(login_url=None, logout_url=None, params=[('username', ''), ('password', '')], post=True)
 		self.ignore_url = []
 		self.report = FlatFile()
 		self.modules = [
+			#Authenticate('login.php', params=[('username', ''), ('password', '')], logout_url=None, post=True),
 			DuplicateContent(),
 			#DomainCheck(relay=False),
 			#Persister(directory='output'),
