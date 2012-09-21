@@ -48,7 +48,7 @@ class Session(object):
 		self.ignore_url = []
 		self.report = FlatFile()
 		self.modules = [
-			#Authenticate('login.php', params=[('username', ''), ('password', '')], logout_url=None, post=True),
+			#Authenticate('login.php', params=[('username', ''), ('password', '')], post=True, logout_url=None),
 			DuplicateContent(),
 			InsecureContent(),
 			#DomainCheck(relay=False),

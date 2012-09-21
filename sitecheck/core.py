@@ -122,6 +122,14 @@ class SiteCheck(object):
 		self.session.report.setDaemon(True)
 		self.session.report.start()
 
+		if not hasattr(self.session, 'authenticate'):
+			#TODO: Remove this section on next major release
+			print('\nWARNING: Using deprecated authentication attribute - please update your config file.')
+			print('See CHANGELOG.txt for more details.\n')
+			if [m for m in self.session.modules if m.name == 'Authenticate']:
+				auth = Authenticate(login_url=self.session.authenticate.login_url, params=self.session.authenticate.params, post=self.session.authenticate.post, logout_url=self.session.authenticate.logout_url)
+				self.session.modules.append(auth)
+
 		# Initialise modules
 		self.session.modules = [m for m in self.session.modules if self.initialise_module(m)]
 
