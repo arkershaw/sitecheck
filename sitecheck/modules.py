@@ -90,7 +90,7 @@ class Authenticate(ModuleBase):
 	def process(self, request, response, report):
 		if Authenticate.AUTH_META_KEY in request.meta:
 			if request.meta[Authenticate.AUTH_META_KEY] == Authenticate.AUTH_REQUEST:
-				self._log('Authenticating', request, response, report)
+				self._log(request, response, report, 'Authenticating')
 
 				if self.post:
 					url = self.login_url
@@ -107,10 +107,10 @@ class Authenticate(ModuleBase):
 				req.modules = [self]
 				self.sitecheck.request_queue.put(req)
 			elif request.meta[Authenticate.AUTH_META_KEY] == Authenticate.AUTH_RESPONSE:
-				self._log('Authenticated', request, response, report)
+				self._log(request, response, report, 'Authenticated')
 				self.sitecheck._begin()
 			elif request.meta[Authenticate.AUTH_META_KEY] == Authenticate.AUTH_LOGOUT:
-				self._log('Logging out', request, response, report)
+				self._log(request, response, report, 'Logging out')
 
 	def complete(self):
 		if self.logout_url:
@@ -145,6 +145,19 @@ class Spider(ModuleBase):
 						self.add_message(report, '-> [{0}] *Unencoded'.format(url))
 					else:
 						self.add_message(report, '-> [{0}]'.format(url))
+
+class InsecureContent(ModuleBase):
+	def process(self, request, response, report):
+		if response.is_html and request.protocol.lower() == 'https':
+			doc = HtmlHelper(response.content)
+
+			for e, a, v in doc.get_attribute('src'): #img, script
+				if v.lower().startswith('http:'):
+					self.add_message(report, '{0}'.format(v))
+
+			for e, a, v in doc.get_attribute('href', 'link'):
+				if v.lower().startswith('http:'):
+					self.add_message(report, '{0}'.format(v))
 
 class StatusLog(ModuleBase):
 	def process(self, request, response, report):

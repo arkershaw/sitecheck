@@ -50,6 +50,7 @@ class Session(object):
 		self.modules = [
 			#Authenticate('login.php', params=[('username', ''), ('password', '')], logout_url=None, post=True),
 			DuplicateContent(),
+			InsecureContent(),
 			#DomainCheck(relay=False),
 			#Persister(directory='output'),
 			#InboundLinks(engines=['Google', 'Bing']),
