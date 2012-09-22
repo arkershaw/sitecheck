@@ -68,7 +68,7 @@ class SiteCheck(object):
 			module.initialise(self)
 
 			if not self._resume_data:
-				if hasattr(module, 'begin'): module.begin()
+				if hasattr(module, 'setup'): module.setup()
 		except:
 			if self.session._debug: raise
 			self.output_queue.put_message('ERROR: {0}'.format(str(sys.exc_info()[1])), module.source)
@@ -122,13 +122,22 @@ class SiteCheck(object):
 		self.session.report.setDaemon(True)
 		self.session.report.start()
 
-		if not hasattr(self.session, 'authenticate'):
+		if hasattr(self.session, 'authenticate'):
 			#TODO: Remove this section on next major release
 			print('\nWARNING: Using deprecated authentication attribute - please update your config file.')
 			print('See CHANGELOG.txt for more details.\n')
-			if [m for m in self.session.modules if m.name == 'Authenticate']:
-				auth = Authenticate(login_url=self.session.authenticate.login_url, params=self.session.authenticate.params, post=self.session.authenticate.post, logout_url=self.session.authenticate.logout_url)
-				self.session.modules.append(auth)
+			if not [m for m in self.session.modules if m.name == 'Authenticate']:
+				login = []
+				if len(self.session.authenticate.login_url) > 0:
+					login.append(Request(self.session.authenticate.login_url))
+					if len(self.session.authenticate.params) > 0:
+						login.append(Request(self.session.authenticate.login_url, post_data=self.session.authenticate.params))
+
+				logout = []
+				if len(self.session.authenticate.logout_url) > 0:
+					logout.append(Request(self.session.authenticate.logout_url))
+
+				self.session.modules.append(Authenticate(login=login, logout=logout))
 
 		# Initialise modules
 		self.session.modules = [m for m in self.session.modules if self.initialise_module(m)]
@@ -148,6 +157,9 @@ class SiteCheck(object):
 		if self._resume_data:
 			self._resume()
 		else:
+			self.request_queue.urls = {} # Clear authentication URLs
+			for module in self.session.modules:
+				if hasattr(module, 'begin'): module.begin()
 			self.request_queue.put_url('', self.session.page, self.session.domain)
 
 	def _resume(self):
@@ -162,12 +174,16 @@ class SiteCheck(object):
 
 		if self.is_complete():
 			for mod in self.session.modules:
-				if hasattr(mod, 'complete'): mod.complete()
+				if hasattr(mod, 'end'): mod.end()
+
 			while True:
 				if self.is_complete():
 					break
 				else:
 					time.sleep(1)
+
+		for mod in self.session.modules:
+			if hasattr(mod, 'complete'): mod.complete()
 
 		# Wait for worker threads to complete
 		Checker.terminate.set()
@@ -271,7 +287,7 @@ class Checker(threading.Thread):
 		self._request_queue = sitecheck.request_queue
 
 	def set_verb(self, request):
-		if len(request.verb) == 0:
+		if len(request._verb) == 0:
 			dom = urllib.parse.urlparse(self._session.domain)
 			if not request.domain == dom.netloc:
 				# External domain
@@ -281,8 +297,6 @@ class Checker(threading.Thread):
 				request.verb = 'HEAD'
 			elif request.extension in self._session.test_ext:
 				request.verb = 'HEAD'
-			else:
-				request.set_verb()
 
 	def set_headers(self, request):
 		hdrs = self._session.headers.copy()
@@ -381,7 +395,7 @@ class Checker(threading.Thread):
 
 					report.add_message('Status: [{0}]'.format(str(res.status)), 'request')
 					if self._session.log.request_headers: report.add_message('Request Headers: {0}'.format(req.headers), 'request')
-					if self._session.log.post_data and len(req.postdata) > 0: report.add_message('Post Data: {0}'.format(req.get_post_data()), 'request')
+					if self._session.log.post_data and len(req.post_data) > 0: report.add_message('Post Data: {0}'.format(req.get_post_data()), 'request')
 					if self._session.log.response_headers: report.add_message('Response Headers: {0}'.format(res.headers), 'request')
 
 					# Only warn about slow requests once
@@ -410,7 +424,7 @@ class Checker(threading.Thread):
 							report.add_message('ERROR: Redirect with no location: [{0}]'.format(req.referrer))
 					elif res.status >= 400 and not res.status in self._session._processed and req.domain == dom.netloc and req.verb == 'HEAD':
 						# If first error page is on a HEAD request, get the resource again
-						req.set_verb()
+						req.verb = ''
 						self._request_queue.put(req)
 					else:
 						if res.status >= 400 and req.domain == dom.netloc:
@@ -430,33 +444,47 @@ class Checker(threading.Thread):
 				self._output_queue.put(req, res, report)
 
 class Request(object):
-	def __init__(self, source, url, referrer, encoding='application/x-www-form-urlencoded'):
-		self.source = source
-		self.referrer = referrer
-		self.encoding = encoding
-		self.boundary = uuid.uuid4().hex
-		self.verb = '' # Do not default to GET so we can tell if it is set manually or not
+	def __init__(self, url, post_data=[], referrer=None):
+		self.source = ''
+		self._referrer = referrer
+		self.encoding = 'application/x-www-form-urlencoded'
+
+		self.boundary = None
+		self._verb = '' # Do not default to GET so we can tell if it is set manually or not
 		self.redirects = 0
 		self.timeouts = 0
+		self.sequence = 0
 		self.modules = []
-		self.postdata = []
+		self.post_data = post_data
 		self.headers = {} # Dictionary for httplib
-		self._set_url(url)
 		self.meta = {}
+
+		self.protocol = ''
+		self.domain = ''
+		self.path = ''
+		self.extension = ''
+		self.query = ''
+
+		self._set_url(url)
 
 	def _set_url(self, url):
 		url = HtmlHelper.html_decode(url.replace(' ', '%20'))
 		url_parts = urllib.parse.urlparse(url)
 
-		if len(url_parts.scheme) == 0:
+		if len(url_parts.netloc) == 0 and self._referrer:
 			# Relative URL - join with referrer
-			url = urllib.parse.urljoin(self.referrer, url)
+			url = urllib.parse.urljoin(self._referrer, url)
 			url_parts = urllib.parse.urlparse(url)
 
-		self.protocol = url_parts.scheme.lower()
-		self.domain = url_parts.netloc.lower()
-		self.path = url_parts.path
-		self.extension = os.path.splitext(url_parts.path)[1][1:].lower()
+		if len(url_parts.scheme) > 0:
+			self.protocol = url_parts.scheme.lower()
+
+		if len(url_parts.netloc) > 0:
+			self.domain = url_parts.netloc.lower()
+
+		if len(url_parts.path) > 0:
+			self.path = url_parts.path
+			self.extension = os.path.splitext(url_parts.path)[1][1:].lower()
 
 		if len(url_parts.query) == 0:
 			self.query = ''
@@ -466,11 +494,52 @@ class Request(object):
 			qsout = dict_to_sorted_list(qsin)
 			self.query = urllib.parse.urlencode(qsout)
 
+	@property
+	def url(self):
+		return str(self)
+
+	@url.setter
+	def url(self, value):
+		self._set_url(value)
+
+	@property
+	def referrer(self):
+		return self._referrer
+
+	@referrer.setter
+	def referrer(self, value):
+		self_referrer = value
+		self._set_url(str(self))
+
+	@referrer.deleter
+	def referrer(self):
+		del self._referrer
+
+	@property
+	def verb(self):
+		if len(self.get_post_data()) > 0:
+			return 'POST'
+		elif len(self._verb) > 0:
+				return self._verb.upper()
+		else:
+			return 'GET'
+
+	@verb.setter
+	def verb(self, value):
+		if value.upper() in ['GET', 'POST', 'HEAD', '']:
+			self._verb = value.upper()
+
+	@verb.deleter
+	def verb(self):
+		del self._verb
+
 	def get_post_data(self):
 		if self.encoding == 'multipart/form-data':
+			if not self.boundary: self.boundary = uuid.uuid4().hex
+
 			# Adapted from: http://code.activestate.com/recipes/146306-http-client-to-post-using-multipartform-data/
 			dat = []
-			for key, value in self.postdata:
+			for key, value in self.post_data:
 				dat.append('--' + self.boundary)
 				dat.append('Content-Disposition: form-data; name="{0}"'.format(key))
 				dat.append('')
@@ -479,18 +548,21 @@ class Request(object):
 			dat.append('')
 			return r'\r\n'.join(dat)
 		else:
-			return urllib.parse.urlencode(self.postdata)
+			return urllib.parse.urlencode(self.post_data)
 
-	def set_post_data(self, postdata):
-		self.postdata = []
-		keys = [x for x, y in postdata]
+	def set_post_data(self, post_data):
+		self.post_data = []
+		keys = [x for x, y in post_data]
 		keys.sort()
 		for k in keys:
-			for v in [v for v in postdata if v[0] == k]:
-				self.postdata.append((k, v[1]))
+			for v in [v for v in post_data if v[0] == k]:
+				self.post_data.append((k, v[1]))
 
 	def __str__(self):
-		url = '{0}://{1}{2}'.format(self.protocol, self.domain, self.path)
+		if len(self.domain) > 0:
+			url = '{0}://{1}{2}'.format(self.protocol, self.domain, self.path)
+		else:
+			url = self.path
 		#if len(self.parameters) > 0: url += ';' + self.parameters
 		if len(self.query) > 0: url += '?' + self.query
 		return url
@@ -508,12 +580,6 @@ class Request(object):
 		if len(pd) > 0: m.update(pd.encode())
 
 		return m.hexdigest()
-
-	def set_verb(self):
-		if len(self.get_post_data()) > 0:
-			self.verb = 'POST'
-		else:
-			self.verb = 'GET'
 
 class Response(object):
 	def __init__(self, response, start_time):
@@ -572,9 +638,25 @@ class RequestQueue(queue.Queue):
 		else:
 			return False
 
+	def validate(self, request):
+		if request.domain == None or len(request.domain) == 0:
+			url_parts = urllib.parse.urlparse(self.session.domain)
+
+			if len(request.protocol) == 0:
+				request.protocol = url_parts.scheme
+
+			if len(request.domain) == 0:
+				request.domain = url_parts.netloc.lower()
+
+			request.path = url_parts.path.lower() + request.path
+
+		return self.is_valid(str(request))
+
 	def _put_url(self, source, url, referrer, block, timeout):
-		req = Request(source, url, referrer)
-		if self.is_valid(str(req)):
+		req = Request(url, referrer=referrer)
+		req.source = source
+
+		if self.validate(req):
 			hc = req.hash()
 			if not hc in self.urls:
 				self.urls[hc] = True
@@ -589,7 +671,7 @@ class RequestQueue(queue.Queue):
 				self._put_url(source, str(url), referrer, block, timeout)
 
 	def put(self, request, block=True, timeout=None):
-		if self.is_valid(str(request)):
+		if self.validate(request):
 			with self._lock:
 				hc = request.hash()
 				if not hc in self.urls:
@@ -610,7 +692,7 @@ class RequestQueue(queue.Queue):
 	def retry(self, request):
 		if request.timeouts >= self.session.max_retries:
 			return False
-		else:
+		elif self.validate(request):
 			request.timeouts += 1
 			queue.Queue.put(self, request)
 			return True
@@ -620,14 +702,15 @@ class RequestQueue(queue.Queue):
 			return (False, 'Max redirects exceeded: [{0}]'.format(request.referrer))
 		else:
 			req = copy.copy(request)
-			req._set_url(url)
+			req.referrer = str(request)
+			req.url = url
+
 			if str(req) == str(request):
 				return (False, 'Page redirects to itself')
-			else:
+			elif self.validate(req):
 				if req.redirects == 0:
-					req.referrer = str(request)
-					req.postdata = [] # Reset to get on redirect
-					req.verb = 'GET'
+					req.post_data = [] # Reset to get on redirect
+					req.verb = ''
 
 				req.redirects += 1
 				queue.Queue.put(self, req)
@@ -729,6 +812,11 @@ class ModuleBase(object):
 	def add_request(self, url, referrer):
 		self.sitecheck.request_queue.put_url(self.name, url, referrer)
 
+	def create_request(self, url, referrer):
+		req = Request(url, referrer=referrer)
+		req.source = self.name
+		return req
+
 	def __getstate__(self):
 		state = dict(self.__dict__)
 		return self._clean_state(state)
@@ -747,3 +835,79 @@ def report(method):
 			self.sitecheck.output_queue.put_report(r)
 
 	return inner
+
+class Authenticate(ModuleBase):
+	AUTH_META_KEY = '__AUTHENTICATION'
+	LOGIN = 'Login'
+	LOGOUT = 'Logout'
+
+	def __init__(self, login=[], logout=[]):
+		super(Authenticate, self).__init__()
+		self.login = login
+		self.logout = logout
+
+	def setup(self):
+		for req in self.logout:
+			if not str(req) in self.sitecheck.session.ignore_url: self.sitecheck.session.ignore_url.append(str(req))
+
+		if len(self.login) > 0:
+			req = self.login[0]
+			req.sequence = 1
+			req.source = self.name
+			req.meta[Authenticate.AUTH_META_KEY] = Authenticate.LOGIN
+			req.modules = [self]
+			self.sitecheck.request_queue.put(req)
+
+	def _log(self, request, response, report, message=None):
+		if message: self.add_message(report, message)
+		self.add_message(report, 'Method: [{0}]'.format(request.verb))
+		self.add_message(report, 'Status: [{0}]'.format(str(response.status)))
+		self.add_message(report, 'Request Headers: {0}'.format(request.headers))
+		self.add_message(report, 'Response Headers: {0}\n'.format(response.headers))
+
+		if response.status >= 400:
+			self.add_message(report, 'ERROR: Authentication Failed')
+			if len(request.post_data) > 0:
+				self.add_message(report, 'Post Data: {0}'.format(request.get_post_data()))
+		elif self.sitecheck.session.log.post_data and len(request.post_data) > 0:
+			self.add_message(report, 'Post Data: {0}'.format(request.get_post_data()))
+
+	def process(self, request, response, report):
+		if request.source == self.name:
+			if request.meta[Authenticate.AUTH_META_KEY] == Authenticate.LOGIN:
+				self._log(request, response, report, 'Authenticating')
+				if request.sequence < len(self.login):
+					req = self.login[request.sequence]
+					req.referrer = str(request)
+					req.sequence = request.sequence + 1
+					req.source =  self.name
+					req.meta[Authenticate.AUTH_META_KEY] = Authenticate.LOGIN
+					req.modules = [self]
+					self.sitecheck.request_queue.put(req)
+				else:
+					self.sitecheck._begin()
+			elif request.meta[Authenticate.AUTH_META_KEY] == Authenticate.LOGOUT:
+				self._log(request, response, report, 'Logging out')
+				if request.sequence < len(self.logout):
+					req = self.logout[request.sequence]
+					req.referrer = str(request)
+					req.sequence = request.sequence + 1
+					req.source =  self.name
+					req.meta[Authenticate.AUTH_META_KEY] = Authenticate.LOGOUT
+					self.sitecheck.request_queue.put(req)
+				else:
+					# Now scan all the login pages
+					for req in self.login:
+						self.sitecheck.request_queue.put_url('', str(req), self.sitecheck.session.domain)
+
+	def end(self):
+		if len(self.logout) > 0:
+			for req in self.logout:
+				if str(req) in self.sitecheck.session.ignore_url:
+					self.sitecheck.session.ignore_url.remove(str(req))
+
+			req = self.logout[0]
+			req.sequence = 1
+			req.source = self.name
+			req.meta[Authenticate.AUTH_META_KEY] = Authenticate.LOGOUT
+			self.sitecheck.request_queue.put(req)

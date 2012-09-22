@@ -18,9 +18,9 @@
 # along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
 
 import re
-from sitecheck.core import Struct
+from sitecheck.core import Struct, Request
 from sitecheck.modules import *
-from sitecheck.reporting import FlatFile
+from sitecheck.reporting import FlatFile, HTML
 
 media_files = set(['gif', 'jpg', 'jpeg', 'png', 'swf'])
 resource_files = set(['js', 'css', 'htc'])
@@ -31,7 +31,7 @@ class Session(object):
 		self.check_for_updates = True # Checks online for current version and search engines in inbound links module
 		self.output = '' # Override output folder
 		# Domain is populated by the -d parameter
-		self.domain = '' # Domain to spider
+		self.domain = '' # Domain (and path) to spider
 		# Page is populated by the -p parameter
 		self.page = '' # Start with this page
 		self.thread_pool = 10 # Number of spider threads to spawn. An extra thread is used for output.
@@ -46,9 +46,11 @@ class Session(object):
 		self.slow_request = 5.0 # Requests taking longer than this are logged
 		self.log = Struct(request_headers=True, response_headers=True, post_data=False)
 		self.ignore_url = []
-		self.report = FlatFile()
+		self.report = FlatFile() #HTML()
 		self.modules = [
-			#Authenticate('login.php', params=[('username', ''), ('password', '')], post=True, logout_url=None),
+			#Authenticate(login=[Request('login.php'), Request('login.php', post_data=[('username', ''), ('password', '')])], logout=Request('logout.php')),
+			#RequestList(Request('index.html')),
+			#RequiredPages('page1.html', 'page2.html'),
 			DuplicateContent(),
 			InsecureContent(),
 			#DomainCheck(relay=False),

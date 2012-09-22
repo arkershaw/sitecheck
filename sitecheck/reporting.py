@@ -23,6 +23,16 @@ import threading
 import datetime
 import html
 
+__all__ = ['FlatFile', 'HTML']
+
+
+# From: http://stackoverflow.com/questions/8906926/formatting-python-timedelta-objects
+def strfdelta(tdelta, fmt):
+    d = {"days": tdelta.days}
+    d["hours"], rem = divmod(tdelta.seconds, 3600)
+    d["minutes"], d["seconds"] = divmod(rem, 60)
+    return fmt.format(**d)
+
 class ReportData(object):
 	DEFAULT_SOURCE = 'sitecheck'
 
@@ -109,15 +119,14 @@ class FlatFile(ReportBase):
 
 	def run(self):
 		st = datetime.datetime.now()
-		self._output_queue.put_message('Started: {0}\n'.format(st))
+		self._output_queue.put_message('Started: {0:%Y-%m-%d %H:%M:%S}\n'.format(st))
 
 		while not self.terminate.isSet():
 			self._write_next()
 
 		et = datetime.datetime.now()
-		#self._output_queue.put_message('\nCompleted: {0} ({1})'.format(et, str(et - st)))
-		self._output_queue.put_message('\nCompleted: {0}'.format(et))
-		self._output_queue.put_message('Duration: {0}'.format(str(et - st)))
+		self._output_queue.put_message('\nCompleted: {0:%Y-%m-%d %H:%M:%S}'.format(et))
+		self._output_queue.put_message(strfdelta(et - st, 'Duration: {days} days {hours}:{minutes:>02}:{seconds:>02}'))
 
 		while not self._output_queue.empty():
 			self._write_next()
@@ -151,22 +160,22 @@ class HTML(ReportBase):
 			if req:
 				fl.write('\t\t<p>URL: <a href="{0}">{0}</a></p>\n\t\t<ul>\n'.format(html.escape(str(req))))
 				for m in msgs:
-					fl.write('\t\t\t<li>{0}</li>\n'.format(html.escape(m)))
+					fl.write('\t\t\t<li>{0}</li>\n'.format(html.escape(m.replace('\n', '<br/>\n'))))
 				fl.write('\t\t</ul>\n')
 			else:
 				for m in msgs:
-					fl.write('\t\t<p>{0}</p>\n'.format(html.escape(m)))
+					fl.write('\t\t<p>{0}</p>\n'.format(html.escape(m.replace('\n', '<br/>\n'))))
 
 	def run(self):
 		st = datetime.datetime.now()
-		self._output_queue.put_message('Started: {0}'.format(st))
+		self._output_queue.put_message('Started: {0:%Y-%m-%d %H:%M:%S}'.format(st))
 
 		while not self.terminate.isSet():
 			self._write_next()
 
 		et = datetime.datetime.now()
-		self._output_queue.put_message('Completed: {0}'.format(et))
-		self._output_queue.put_message('Duration: {0}'.format(str(et - st)))
+		self._output_queue.put_message('Completed: {0:%Y-%m-%d %H:%M:%S}'.format(et))
+		self._output_queue.put_message(strfdelta(et - st, 'Duration: {days} days {hours}:{minutes:>02}:{seconds:>02}'))
 
 		while not self._output_queue.empty():
 			self._write_next()

@@ -49,77 +49,9 @@ except:
 else:
 	_domaincheck_available = True
 
-from sitecheck.core import Request, ModuleBase, HtmlHelper, Checker, report, ensure_dir
+from sitecheck.core import Authenticate, Request, ModuleBase, HtmlHelper, report, ensure_dir
 
-class Authenticate(ModuleBase):
-	AUTH_META_KEY = '__AUTHENTICATION'
-	AUTH_REQUEST = 'Request'
-	AUTH_RESPONSE = 'Response'
-	AUTH_LOGOUT = 'Logout'
-
-	def __init__(self, login_url, params, post=True, logout_url=None):
-		super(Authenticate, self).__init__()
-		self.login_url = login_url
-		self.params = params
-		self.post = post
-		self.logout_url = logout_url
-
-	def begin(self):
-		if self.logout_url:
-			if not self.logout_url in self.sitecheck.session.ignore_url: self.sitecheck.session.ignore_url.append(self.logout_url)
-
-		req = Request(self.name, self.login_url, self.sitecheck.session.domain)
-		req.meta[Authenticate.AUTH_META_KEY] = Authenticate.AUTH_REQUEST
-		req.modules = [self]
-		self.sitecheck.request_queue.put(req)
-
-	def _log(self, request, response, report, message=None):
-		if message: self.add_message(report, message)
-		self.add_message(report, 'Method: [{0}]'.format(request.verb))
-		self.add_message(report, 'Status: [{0}]'.format(str(response.status)))
-		self.add_message(report, 'Request Headers: {0}'.format(request.headers))
-		self.add_message(report, 'Response Headers: {0}\n'.format(response.headers))
-
-		if response.status >= 400:
-			self.add_message(report, 'ERROR: Authentication Failed')
-			if len(request.postdata) > 0:
-				self.add_message(report, 'Post Data: {0}'.format(request.get_post_data()))
-		elif self.sitecheck.session.log.post_data and len(request.postdata) > 0:
-			self.add_message(report, 'Post Data: {0}'.format(request.get_post_data()))
-
-	def process(self, request, response, report):
-		if Authenticate.AUTH_META_KEY in request.meta:
-			if request.meta[Authenticate.AUTH_META_KEY] == Authenticate.AUTH_REQUEST:
-				self._log(request, response, report, 'Authenticating')
-
-				if self.post:
-					url = self.login_url
-				else:
-					if len(urllib.parse.urlparse(self.login_url).query) > 0:
-						sep = '&'
-					else:
-						sep = '?'
-					url = '{0}{1}{2}'.format(self.login_url, sep, urllib.parse.urlencode(self.params, True))
-
-				req = Request(self.name, url, str(request))
-				req.meta[Authenticate.AUTH_META_KEY] = Authenticate.AUTH_RESPONSE
-				if self.post: req.set_post_data(self.params)
-				req.modules = [self]
-				self.sitecheck.request_queue.put(req)
-			elif request.meta[Authenticate.AUTH_META_KEY] == Authenticate.AUTH_RESPONSE:
-				self._log(request, response, report, 'Authenticated')
-				self.sitecheck._begin()
-			elif request.meta[Authenticate.AUTH_META_KEY] == Authenticate.AUTH_LOGOUT:
-				self._log(request, response, report, 'Logging out')
-
-	def complete(self):
-		if self.logout_url:
-			if self.logout_url in self.sitecheck.session.ignore_url:
-				self.sitecheck.session.ignore_url.remove(self.logout_url)
-
-			req = Request(self.name, self.logout_url, self.sitecheck.session.domain)
-			req.meta[Authenticate.AUTH_META_KEY] = Authenticate.AUTH_LOGOUT
-			self.sitecheck.request_queue.put(req)
+__all__ = ['Authenticate', 'RequestList', 'RequiredPages', 'DuplicateContent', 'InsecureContent', 'DomainCheck', 'Persister', 'InboundLinks', 'RegexMatch', 'Validator', 'Accessibility', 'MetaData', 'StatusLog', 'Security', 'Comments', 'Spelling', 'Readability', 'Spider']
 
 class Spider(ModuleBase):
 	def process(self, request, response, report):
@@ -145,19 +77,6 @@ class Spider(ModuleBase):
 						self.add_message(report, '-> [{0}] *Unencoded'.format(url))
 					else:
 						self.add_message(report, '-> [{0}]'.format(url))
-
-class InsecureContent(ModuleBase):
-	def process(self, request, response, report):
-		if response.is_html and request.protocol.lower() == 'https':
-			doc = HtmlHelper(response.content)
-
-			for e, a, v in doc.get_attribute('src'): #img, script
-				if v.lower().startswith('http:'):
-					self.add_message(report, '{0}'.format(v))
-
-			for e, a, v in doc.get_attribute('href', 'link'):
-				if v.lower().startswith('http:'):
-					self.add_message(report, '{0}'.format(v))
 
 class StatusLog(ModuleBase):
 	def process(self, request, response, report):
@@ -288,7 +207,7 @@ class Readability(ModuleBase):
 	@report
 	def complete(self, report):
 		if self.count > 0:
-			self.add_message(report, 'Summary: Min {:.2f}, Max {:.2f}, Avg {:.2f}'.format(self.min, self.max, self.total / self.count))
+			self.add_message(report, '\nSummary: Min {:.2f}, Max {:.2f}, Avg {:.2f}'.format(self.min, self.max, self.total / self.count))
 
 	def process(self, request, response, report):
 		if response.is_html:
@@ -415,7 +334,7 @@ class Persister(ModuleBase):
 
 	def process(self, request, response, report):
 		if request.verb == 'HEAD' and response.status < 300 and request.domain == urllib.parse.urlparse(self.sitecheck.session.domain).netloc:
-			request.set_verb()
+			request.verb = 'GET'
 			request.modules = [self]
 			self.sitecheck.request_queue.put(request)
 		elif len(response.content) > 0 and response.status < 300:
@@ -583,9 +502,9 @@ class InboundLinks(ModuleBase):
 				e = self.engine_parameters[se]
 				e.extend([0, e[3]]) # Total results, current result offset
 				url = e[0].format(domain=self.domain, index=e[3])
-				req = Request(self.name, url, se)
+				req = self.create_request(url, se)
 				req.modules = [self]
-				req.verb = 'GET'
+				req.verb = 'GET' # Otherwise it will be set to HEAD as it is on another domain
 				self.sitecheck.request_queue.put(req)
 			else:
 				self.add_message(report, 'ERROR: Unknown search engine: [{0}]'.format(se))
@@ -607,9 +526,9 @@ class InboundLinks(ModuleBase):
 					e[5] += e[2]
 					if e[5] < e[4]:
 						url = e[0].format(domain=self.domain, index=e[5])
-						req = Request(self.name, url, request.referrer)
+						req = self.create_request(url, request.referrer)
 						req.modules = [self]
-						req.verb = 'GET'
+						req.verb = 'GET' # Otherwise it will be set to HEAD as it is on another domain
 						self.sitecheck.request_queue.put(req)
 
 	@report
@@ -657,8 +576,8 @@ class Security(ModuleBase):
 				self.add_message(report, 'WARNING: Possible XSS')
 
 			if 'vector' in request.meta and err:
-				if request.meta['vector'] == 'postdata':
-					self.add_message(report, 'Post data: {0}'.format(request.postdata))
+				if request.meta['vector'] == 'post_data':
+					self.add_message(report, 'Post data: {0}'.format(request.post_data))
 				elif request.meta['vector'] == 'headers':
 					self.add_message(report, 'Request headers: {0}'.format(request.headers))
 
@@ -675,7 +594,7 @@ class Security(ModuleBase):
 		hdrs = request.headers.copy()
 		for h in hdrs:
 			hdrs[h] = value
-		req = Request(self.name, str(request), str(request))
+		req = self.create_request(str(request), str(request))
 		req.headers = hdrs
 		req.modules = [self]
 		req.meta['vector'] = 'headers'
@@ -686,14 +605,13 @@ class Security(ModuleBase):
 			for param in qs.keys():
 				qs[param] = value
 
-			req = Request(self.name, str(request), str(request))
+			req = self.create_request(str(request), str(request))
 			req.query = self._build_query(qs)
 			req.modules = [self]
 			req.meta['vector'] = 'querystring'
 			self.sitecheck.request_queue.put(req)
 
 		if self.post:
-			postdata = []
 			for f in document.get_element('form'):
 				url, post, params = self._parse_form(f)
 				if url:
@@ -703,10 +621,10 @@ class Security(ModuleBase):
 
 				rp = [(p[0], value) for p in params]
 
-				req = Request(self.name, url, str(request))
+				req = self.create_request(url, str(request))
 				if post:
 					req.set_post_data(rp)
-					req.meta['vector'] = 'postdata'
+					req.meta['vector'] = 'post_data'
 				else:
 					if len(req.query) > 0:
 						req.query += '&'
@@ -721,7 +639,7 @@ class Security(ModuleBase):
 		for h in hdrs:
 			temp = hdrs[h]
 			hdrs[h] = value
-			req = Request(self.name, str(request), str(request))
+			req = self.create_request(str(request), str(request))
 			req.headers = hdrs
 			req.modules = [self]
 			req.meta['vector'] = 'headers'
@@ -733,7 +651,7 @@ class Security(ModuleBase):
 			for param in qs.keys():
 				temp = qs[param]
 				qs[param] = value
-				req = Request(self.name, str(request), str(request))
+				req = self.create_request(str(request), str(request))
 				req.query = self._build_query(qs)
 				req.modules = [self]
 				req.meta['vector'] = 'querystring'
@@ -741,7 +659,6 @@ class Security(ModuleBase):
 				qs[param] = temp
 
 		if self.post:
-			postdata = []
 			for f in document.get_element('form'):
 				url, post, params = self._parse_form(f)
 				if url:
@@ -752,10 +669,10 @@ class Security(ModuleBase):
 				for cp in params:
 					rp = [self._insert_param(p, cp[0], value) for p in params] # Construct new list
 
-					req = Request(self.name, url, str(request))
+					req = self.create_request(url, str(request))
 					if post:
 						req.set_post_data(rp)
-						req.meta['vector'] = 'postdata'
+						req.meta['vector'] = 'post_data'
 					else:
 						if len(req.query) > 0:
 							req.query += '&'
@@ -904,3 +821,60 @@ class DuplicateContent(ModuleBase):
 					self.add_message(report, 'Duplicate of: {0}'.format(self.content[h]))
 			else:
 				self.content[h] = str(request)
+
+class InsecureContent(ModuleBase):
+	def process(self, request, response, report):
+		if response.is_html and request.protocol.lower() == 'https':
+			doc = HtmlHelper(response.content)
+
+			for e, a, v in doc.get_attribute('src'): #img, script
+				if v.lower().startswith('http:'):
+					self.add_message(report, '{0}'.format(v))
+
+			for e, a, v in doc.get_attribute('href', 'link'):
+				if v.lower().startswith('http:'):
+					self.add_message(report, '{0}'.format(v))
+
+class RequestList(ModuleBase):
+	def __init__(self, *args):
+		super(RequestList, self).__init__()
+		self.requests = args
+
+	def begin(self):
+		if len(self.requests) > 0:
+			req = self.requests[0]
+			req.sequence = 1
+			req.source = self.name
+			self.sitecheck.request_queue.put(req)
+
+	def process(self, request, response, report):
+		if request.source == self.name:
+			if request.sequence < len(self.requests):
+				req = self.requests[request.sequence]
+				req.referrer = str(request)
+				req.sequence = request.sequence + 1
+				req.source = self.name
+				self.sitecheck.request_queue.put(req)
+
+class RequiredPages(ModuleBase):
+	def __init__(self, *args):
+		super(RequiredPages, self).__init__()
+		self.pages = set(args)
+		self.total = len(self.pages)
+
+	def begin(self):
+		self.root_path = urllib.parse.urlparse(self.sitecheck.session.domain).path
+		self.root_path_length = len(self.root_path)
+
+	def process(self, request, response, report):
+		self.pages.discard(str(request))
+		rp = urllib.parse.urlparse(str(request)).path
+		if rp.startswith(self.root_path):
+			self.pages.discard(rp[self.root_path_length:])
+
+	@report
+	def complete(self, report):
+		if len(self.pages) > 0:
+			self.add_message(report, '{0}/{1} pages unmatched\n'.format(len(self.pages), self.total))
+			for p in self.pages:
+				self.add_message(report, p)

@@ -1,4 +1,22 @@
 ------------------------
+Version 1.6 (20??-??-??)
+------------------------
+
+Added basic HTML reporting option
+	To update existing config files:
+	On line 23 of example config.py change "from sitecheck.reporting import FlatFile" to "from sitecheck.reporting import FlatFile, HTML"
+	On line 49 of example config.py change "self.report = FlatFile()" to "self.report = HTML()"
+Moved authentication to a module
+	To update existing config files:
+	On line 21 of example config.py, from "sitecheck.core import Struct" becomes "from sitecheck.core import Struct, Request"
+	Remove the "authenticate" attribute (line 48 of example config.py)
+	Add the new module to the modules list, e.g: "Authenticate(login=[Request('login.php'), Request('login.php', post_data=[('username', ''), ('password', '')])], logout=Request('logout.php')),"
+Login and logout URLs are now scanned once all other scanning is complete
+Added new module to check for insecure content referenced from secure pages
+Added new module to execute a sequence of manually defined requests
+Added new module to flag when specific URLs are not found on the site
+
+------------------------
 Version 1.5 (2012-08-11)
 ------------------------
 
