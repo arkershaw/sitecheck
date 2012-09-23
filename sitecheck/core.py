@@ -403,7 +403,7 @@ class Checker(threading.Thread):
 						self._session._slow = []
 
 					if res.time > self._session.slow_request and not str(req) in self._session._slow:
-						report.add_message('WARNING: Slow request: [{0}] ({1:.3f} seconds)'.format(str(req), res.time))
+						report.add_message('WARNING: Slow request ({0:.3f} seconds)'.format(res.time))
 						self._session._slow.append(str(req))
 
 					# Only process markup of error pages once
@@ -411,17 +411,20 @@ class Checker(threading.Thread):
 						self._session._processed = []
 
 					if (res.status >= 300 and res.status < 400) and req.domain == dom.netloc:
-						loc = res.get_headers('location')
-						if len(loc) > 0:
-							if len(loc) > 1:
-								report.add_message('ERROR: Multiple redirect locations found: [{0}]'.format(loc))
+						locs = res.get_headers('location')
+						if len(locs) > 0:
+							if len(locs) > 1:
+								report.add_message('ERROR: Multiple redirect locations found')
+								for loc in locs:
+									report.add_message(loc)
 
-							redir, err = self._request_queue.redirect(req, loc[-1])
+							redir, msgs = self._request_queue.redirect(req, locs[-1])
 
 							if not redir:
-								report.add_message('ERROR: {0}'.format(err))
+								for msg in msgs:
+									report.add_message(msg)
 						else:
-							report.add_message('ERROR: Redirect with no location: [{0}]'.format(req.referrer))
+							report.add_message('ERROR: Redirect with no location')
 					elif res.status >= 400 and not res.status in self._session._processed and req.domain == dom.netloc and req.verb == 'HEAD':
 						# If first error page is on a HEAD request, get the resource again
 						req.verb = ''
@@ -436,10 +439,10 @@ class Checker(threading.Thread):
 						self.process(req, res, report)
 				else:
 					if err:
-						report.add_message('ERROR: {0}: [{1}]'.format(err, str(req)))
+						report.add_message('ERROR: {0}'.format(err))
 
 					if not self._request_queue.retry(req):
-						report.add_message('ERROR: Exceeded max retries for: [{0}]'.format(str(req)))
+						report.add_message('ERROR: Exceeded max retries')
 
 				self._output_queue.put(req, res, report)
 
@@ -699,14 +702,14 @@ class RequestQueue(queue.Queue):
 
 	def redirect(self, request, url):
 		if request.redirects >= self.session.max_redirects:
-			return (False, 'Max redirects exceeded: [{0}]'.format(request.referrer))
+			return (False, ['ERROR: Max redirects exceeded', 'Original referrer: {0}'.format(request.referrer)])
 		else:
 			req = copy.copy(request)
 			req.referrer = str(request)
 			req.url = url
 
 			if str(req) == str(request):
-				return (False, 'Page redirects to itself')
+				return (False, ['ERROR: Page redirects to itself'])
 			elif self.validate(req):
 				if req.redirects == 0:
 					req.post_data = [] # Reset to get on redirect
@@ -714,7 +717,7 @@ class RequestQueue(queue.Queue):
 
 				req.redirects += 1
 				queue.Queue.put(self, req)
-				return (True, '')
+				return (True, [])
 
 class HtmlHelper(object):
 	# From: http://effbot.org/zone/re-sub.htm#unescape-html

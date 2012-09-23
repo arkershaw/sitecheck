@@ -25,6 +25,7 @@ import urllib.parse
 import urllib.request
 from io import StringIO
 import json
+from socket import gaierror
 
 try:
 	from tidylib import tidy_document
@@ -742,9 +743,14 @@ class DomainCheck(ModuleBase):
 			today = datetime.date.today()
 
 			domain = urllib.parse.urlparse(self.sitecheck.session.domain).netloc
+			if domain.startswith('www.'): domain = domain[4:]
 			self.add_message(report, 'Checking: {0}'.format(domain))
 
-			d = DomainInfo(domain)
+			try:
+				d = DomainInfo(domain)
+			except gaierror:
+				self.add_message(report, 'Domain not found: {0}'.format(domain))
+				return
 
 			self.add_message(report, 'Nameservers:')
 			for ns in d.name_servers:

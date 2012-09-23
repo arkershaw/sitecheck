@@ -105,7 +105,7 @@ class SocketHelper(object):
 			if not r:
 				break
 			else:
-				res.append(r.decode('ascii'))
+				res.append(r.decode('utf-8'))
 				if self.end and r.endswith(self.end.encode()): break
 
 		return ''.join(res)
@@ -222,17 +222,17 @@ class DomainInfo(object):
 				#Record expires on 08-Aug-2012.
 
 				ed = re.search('(?:renew|expir).*?(?:(?P<alpha>\d{2}-\w{3}-\d{4})|(?P<numer>\d{4}-\d{2}-\d{2}))', whois, re.IGNORECASE)
-				if ed.group('numer'):
-					self.domain_expiry = datetime.datetime.strptime(ed.group('numer'), '%Y-%m-%d').date()
-				elif ed.group('alpha'):
-					self.domain_expiry = datetime.datetime.strptime(ed.group('alpha'), '%d-%b-%Y').date()
+				if ed:
+					if ed.group('numer'):
+						self.domain_expiry = datetime.datetime.strptime(ed.group('numer'), '%Y-%m-%d').date()
+					elif ed.group('alpha'):
+						self.domain_expiry = datetime.datetime.strptime(ed.group('alpha'), '%d-%b-%Y').date()
 
 				#whoisserver = re.search('whois: (.*)', self.whois_data)
 				break
 			else:
 				d = d[1:]
 				if len(d) == 1: break
-
 
 	def _whois_lookup(self, domain):
 		whois = None
@@ -314,7 +314,10 @@ if __name__ == '__main__':
 
 	print('Checking: {0}'.format(args.domain))
 
-	d = DomainInfo(args.domain)
+	try:
+		d = DomainInfo(args.domain)
+	except socket.gaierror:
+		sys.exit('Domain not found: {0}'.format(args.domain))
 
 	print('Nameservers:')
 	for ns in d.name_servers:

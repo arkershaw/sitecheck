@@ -112,6 +112,14 @@ Modules:
 
 	DomainCheck -> Gets important domain information including expiry date, SSL certificate expiry date, reverse DNS etc.
 
+	Authenticate -> Issues requests to authenticate with the target site before spidering beings. If specified, logout requests will be executed after spidering ends.
+
+	RequestList -> Define a list of requests manually which are executed in sequence.
+
+	RequiredPages -> Creates a list of URLs which are logged if they are not found on the site.
+
+	InsecureContent -> Logs insecure content referenced from secure pages.
+
 Configuration:
 
 	Configuration for the spider and individual modules can be found in "config.py".
