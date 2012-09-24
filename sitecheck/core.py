@@ -51,6 +51,8 @@ class SiteCheck(object):
 		self._threads = []
 		self._resume_data = None
 
+		self.sleep_time = 5
+
 	def set_session(self, session):
 		if self._started: raise SiteCheckStartedException()
 
@@ -88,7 +90,7 @@ class SiteCheck(object):
 
 		return cmpl
 
-	def begin(self):
+	def begin(self, background=False):
 		if self.session == None: raise SessionNotSetException()
 		if self._started: raise SiteCheckStartedException()
 
@@ -153,6 +155,15 @@ class SiteCheck(object):
 		if self.request_queue.empty():
 			self._begin()
 
+		if not backgound:
+			while True:
+				if self.is_complete():
+					break
+				else:
+					time.sleep(self.sleep_time)
+
+			self.end()
+
 	def _begin(self):
 		if self._resume_data:
 			self._resume()
@@ -180,12 +191,12 @@ class SiteCheck(object):
 				if self.is_complete():
 					break
 				else:
-					time.sleep(1)
+					time.sleep(self.sleep_time)
 
-		for mod in self.session.modules:
-			if hasattr(mod, 'complete'): mod.complete()
+			for mod in self.session.modules:
+				if hasattr(mod, 'complete'): mod.complete()
 
-		# Wait for worker threads to complete
+		# Wait for worker threclassads to complete
 		Checker.terminate.set()
 		for thread in self._threads:
 			thread.join()

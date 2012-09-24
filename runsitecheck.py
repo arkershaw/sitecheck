@@ -170,7 +170,7 @@ This program comes with ABSOLUTELY NO WARRANTY
 		print('Cancelled')
 		sys.exit(0)
 
-	_sitecheck.begin()
+	_sitecheck.begin(background=True)
 
 	# If sitecheck starts successfully then remove suspend data
 	if os.path.exists(suspend_file):
