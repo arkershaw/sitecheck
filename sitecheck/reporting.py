@@ -25,13 +25,12 @@ import html
 
 __all__ = ['FlatFile', 'HTML']
 
-
 # From: http://stackoverflow.com/questions/8906926/formatting-python-timedelta-objects
 def strfdelta(tdelta, fmt):
-    d = {"days": tdelta.days}
-    d["hours"], rem = divmod(tdelta.seconds, 3600)
-    d["minutes"], d["seconds"] = divmod(rem, 60)
-    return fmt.format(**d)
+	d = {"days": tdelta.days}
+	d["hours"], rem = divmod(tdelta.seconds, 3600)
+	d["minutes"], d["seconds"] = divmod(rem, 60)
+	return fmt.format(**d)
 
 class ReportData(object):
 	DEFAULT_SOURCE = 'sitecheck'
@@ -76,20 +75,20 @@ class OutputQueue(queue.Queue):
 class ReportBase(threading.Thread):
 	def __init__(self):
 		super(ReportBase, self).__init__()
-		self.terminate = threading.Event()
+		self._terminate = threading.Event()
 
 	def initialise(self, sitecheck):
 		self._session = sitecheck.session
 		self._output_queue = sitecheck.output_queue
 
 	def end(self):
-		self.terminate.set()
+		self._terminate.set()
 
 	def _get_next(self):
 		try:
 			req, res, rep = self._output_queue.get(block=False)
 		except queue.Empty:
-			self.terminate.wait(self._session.wait_seconds)
+			self._terminate.wait(self._session.wait_seconds)
 			return (None, None, [])
 		else:
 			return (req, res, rep)
@@ -97,7 +96,7 @@ class ReportBase(threading.Thread):
 class FlatFile(ReportBase):
 	def initialise(self, sitecheck):
 		super(FlatFile, self).initialise(sitecheck)
-		self.root_path = sitecheck.root_path
+		self.root_path = sitecheck.session.root_path
 		self._outfiles = {}
 		self.default_log_file = 'sitecheck'
 		self.extension = '.log'
@@ -121,7 +120,7 @@ class FlatFile(ReportBase):
 		st = datetime.datetime.now()
 		self._output_queue.put_message('Started: {0:%Y-%m-%d %H:%M:%S}\n'.format(st))
 
-		while not self.terminate.isSet():
+		while not self._terminate.isSet():
 			self._write_next()
 
 		et = datetime.datetime.now()
@@ -137,7 +136,7 @@ class FlatFile(ReportBase):
 class HTML(ReportBase):
 	def initialise(self, sitecheck):
 		super(HTML, self).initialise(sitecheck)
-		self.root_path = sitecheck.root_path
+		self.root_path = sitecheck.session.root_path
 		self._outfiles = {}
 		self.default_log_file = 'sitecheck'
 		self.extension = '.html'
@@ -170,7 +169,7 @@ class HTML(ReportBase):
 		st = datetime.datetime.now()
 		self._output_queue.put_message('Started: {0:%Y-%m-%d %H:%M:%S}'.format(st))
 
-		while not self.terminate.isSet():
+		while not self._terminate.isSet():
 			self._write_next()
 
 		et = datetime.datetime.now()

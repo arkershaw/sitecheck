@@ -21,6 +21,7 @@
 CONTACT_EMAIL = 'arkershaw@users.sourceforge.net'
 UPDATE_URL = 'http://sitecheck.sourceforge.net/settings.js'
 SUSPEND_FILE_NAME = 'suspend.pkl'
+CONFIG_FILE_NAME = 'config.py'
 
 _sitecheck = None
 
@@ -35,12 +36,12 @@ Return -> Abort''')
 
 		char = input()
 		if char.strip().lower() == 's':
-			sf = _sitecheck.root_path + SUSPEND_FILE_NAME
+			sf = _sitecheck.session.root_path + SUSPEND_FILE_NAME
 
-			try:
-				sd = _sitecheck.suspend()
-			except:
-				sys.exit('An error occurred while suspending.')
+			#try:
+			sd = _sitecheck.suspend()
+			#except:
+				#sys.exit('An error occurred while suspending.')
 
 			try:
 				f = open(sf, 'wb')
@@ -74,32 +75,26 @@ if __name__ == '__main__':
 	import math
 
 	from sitecheck import *
-	from sitecheck.core import VERSION, ensure_dir, append
+	from sitecheck.core import VERSION, ensure_dir, append, Authenticate, Request
+	from sitecheck.reporting import FlatFile
 
 	signal.signal(signal.SIGINT, signal_handler)
+
+	parser = ArgumentParser()
+	parser.add_argument('-d', '--domain', dest='domain', default=None, help='The domain to spider. This can also be set in the config file.')
+	parser.add_argument('-p', '--page', dest='page', default=None, help='The first page to request. This can also be set in the config file.')
+	parser.add_argument('--version', action='version', version='Sitecheck {0}'.format(VERSION))
+	parser.add_argument('directory', help='The directory containing the configuration and output.')
+	args = parser.parse_args()
 
 	print('''Sitecheck {0} Copyright (C) 2009-2012 Andrew Kershaw
 ({1})
 This program comes with ABSOLUTELY NO WARRANTY
 '''.format(VERSION, CONTACT_EMAIL))
 
-	parser = ArgumentParser()
-	parser.add_argument('-d', '--domain', dest='domain', default=None, help='The domain to spider. This can also be set in the config file.')
-	parser.add_argument('-p', '--page', dest='page', default=None, help='The first page to request. This can also be set in the config file.')
-	parser.add_argument('directory', help='The directory containing the configuration and output.')
-	args = parser.parse_args()
-
-	_sitecheck = SiteCheck(append(args.directory, os.sep))
-
-	suspend_file = _sitecheck.root_path + SUSPEND_FILE_NAME
-	config_file = _sitecheck.root_path + 'config.py'
-	conf = None
-	if os.path.exists(config_file):
-		# Load existing configuration (must be done before unpickle)
-		try:
-			conf = imp.load_source('savedconfig', config_file)
-		except:
-			sys.exit('Invalid config file found in directory.')
+	root_path = append(args.directory, os.sep)
+	suspend_file = root_path + SUSPEND_FILE_NAME
+	config_file = root_path + CONFIG_FILE_NAME
 
 	if os.path.exists(suspend_file):
 		print('Resuming session...')
@@ -108,18 +103,30 @@ This program comes with ABSOLUTELY NO WARRANTY
 			sd = f.read()
 			f.close()
 
-			_sitecheck.resume(sd)
+			_sitecheck = SiteCheck(sd)
 		except:
 			sys.exit('Unable to load suspend data.')
+
+		# Set the path again in case the suspend data has been moved
+		_sitecheck.session.root_path = root_path
 	else:
+		conf = None
+		if os.path.exists(config_file):
+			try:
+				conf = imp.load_source('config', config_file)
+			except:
+				sys.exit('Invalid config file found in directory.')
+
 		if conf:
 			print('Loading config...')
-			_sitecheck.set_session(conf.Session())
+			session = conf.Session()
 		else:
 			print('Using default config...')
-			_sitecheck.set_session(Session())
+			session = Session()
 
-		if hasattr(_sitecheck.session, 'check_for_updates') and _sitecheck.session.check_for_updates:
+		session.root_path = root_path
+
+		if hasattr(session, 'check_for_updates') and session.check_for_updates:
 			print('Checking for updates...')
 			try:
 				settings = urllib.request.urlopen(UPDATE_URL).read().decode('utf-8')
@@ -134,23 +141,23 @@ This program comes with ABSOLUTELY NO WARRANTY
 		op = ''
 		if args.domain:
 			if re.match('^https?://', args.domain, re.IGNORECASE):
-				_sitecheck.session.domain = args.domain
+				session.domain = args.domain
 			else:
-				_sitecheck.session.domain = 'http://{0}'.format(args.domain)
-			op = urllib.parse.urlparse(_sitecheck.session.domain).netloc + os.sep
+				session.domain = 'http://{0}'.format(args.domain)
+			op = urllib.parse.urlparse(session.domain).netloc + os.sep
 
-		if args.page: _sitecheck.session.page = args.page
+		if args.page: session.page = args.page
 
-		if len(_sitecheck.session.domain) == 0:
+		if len(session.domain) == 0:
 			sys.exit('Please supply either a domain, a config file or a suspended session.')
 
-		if _sitecheck.session.output == None or len(_sitecheck.session.output) == 0:
+		if session.output == None or len(session.output) == 0:
 			op += datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S') + os.sep
 
-		_sitecheck.session.output = op + _sitecheck.session.output
+		session.output = op + session.output
 
 		# Clear output directory
-		od = _sitecheck.root_path + _sitecheck.session.output
+		od = root_path + session.output
 		if os.path.exists(od):
 			try:
 				shutil.rmtree(od)
@@ -162,8 +169,36 @@ This program comes with ABSOLUTELY NO WARRANTY
 		except:
 			sys.exit('Unable to create output directory.')
 
+		if not hasattr(session, 'report'):
+			if hasattr(session, 'logger'):
+				#TODO: Remove this section on next major release
+				print('\nWARNING: Using deprecated logger attribute - please update your config file.')
+				print('See CHANGELOG.txt for more details.\n')
+				session.report = session.logger
+			else:
+				session.report = FlatFile()
+
+		if hasattr(session, 'authenticate'):
+			#TODO: Remove this section on next major release
+			print('\nWARNING: Using deprecated authentication attribute - please update your config file.')
+			print('See CHANGELOG.txt for more details.\n')
+			if not [m for m in session.modules if m.name == 'Authenticate']:
+				login = []
+				if len(session.authenticate.login_url) > 0:
+					login.append(Request(session.authenticate.login_url))
+					if len(session.authenticate.params) > 0:
+						login.append(Request(session.authenticate.login_url, post_data=session.authenticate.params))
+
+				logout = []
+				if len(session.authenticate.logout_url) > 0:
+					logout.append(Request(session.authenticate.logout_url))
+
+				session.modules.append(Authenticate(login=login, logout=logout))
+
+		_sitecheck = SiteCheck(session)
+
 	print('\nTarget: [{0}]'.format(_sitecheck.session.domain))
-	print('Output: [{0}]'.format(_sitecheck.root_path + _sitecheck.session.output))
+	print('Output: [{0}]'.format(root_path + _sitecheck.session.output))
 	print('Continue [Y/n]? ', end='')
 	char = input()
 	if char.strip().lower() == 'n':
@@ -182,7 +217,7 @@ This program comes with ABSOLUTELY NO WARRANTY
 	print('Checking...')
 
 	while True:
-		if _sitecheck.is_complete():
+		if _sitecheck.complete:
 			break
 		else:
 			ttl = len(_sitecheck.request_queue.urls)

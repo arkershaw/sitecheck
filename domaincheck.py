@@ -21,7 +21,6 @@
 import socket
 import sys
 import re
-import os
 import ssl
 import datetime
 
@@ -91,9 +90,8 @@ def name_and_address(host):
 	return name, addr
 
 class SocketHelper(object):
-	BUFFER_SIZE = 4096
-
 	def __init__(self, socket, end=None):
+		self.buffer_size = 4096
 		self.socket = socket
 		self.end = end
 
@@ -101,7 +99,7 @@ class SocketHelper(object):
 		res = []
 
 		while True:
-			r = self.socket.recv(SocketHelper.BUFFER_SIZE)
+			r = self.socket.recv(self.buffer_size)
 			if not r:
 				break
 			else:
@@ -121,7 +119,8 @@ class HostInfo(object):
 	def __init__(self, host, record='A'):
 		self.name, self.address = name_and_address(host)
 
-		self.records = set(record)
+		self.records = set()
+		self.records.add(record)
 		self.cert_expiry = None
 		self.sslv2 = False
 

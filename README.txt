@@ -1,30 +1,15 @@
 Copyright 2009-2012 Andrew Kershaw
 Licensed under the GNU Affero General Public License v3 (see "LICENSE.txt" file).
 
-*******************************************************************
-
-Existing settings files require an update to work with version 1.4.
-See "CHANGELOG.txt" for details.
-
-*******************************************************************
-
 Dependencies:
 
 	HTML Tidy, pytidylib (validation, accessibility)
 	Enchant, pyenchant (spelling)
-	dnspython, pyopenssl (domain check)
+	dnspython3, pyOpenSSL (domain check)
 
 	*The version of pytidylib in PyPI is not yet updated for Python 3 so easy_install or pip will not install the required version. The source is available here:
 
 	https://github.com/countergram/pytidylib/
-
-	*dnspython has not yet been released for Python 3. The source is available here:
-
-	https://github.com/rthalley/dnspython
-
-	To switch to the Python 3 branch:
-
-	git checkout -b python3 origin/python3
 
 	Using VirtualEnv is recommended due to the development status of these dependencies. Alternatively, on Linux they can be symlinked into the site-packages directory rather than installed.
 
@@ -33,7 +18,7 @@ Installation:
 	Windows:
 
 		Download and install the following:
-		Python 3.2: http://www.python.org/download/
+		Python 3.X: http://www.python.org/download/
 
 		pyenchant (if spellcheck is required): http://www.rfk.id.au/software/pyenchant/download.html (the Windows installer includes the Enchant library)
 		pytidylib (if validation or accessibility are required): http://countergram.com/open-source/pytidylib

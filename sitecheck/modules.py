@@ -50,11 +50,25 @@ except:
 else:
 	_domaincheck_available = True
 
-from sitecheck.core import Authenticate, Request, ModuleBase, HtmlHelper, report, ensure_dir
+from sitecheck.core import Authenticate, ModuleBase, HtmlHelper, report, ensure_dir
 
 __all__ = ['Authenticate', 'RequestList', 'RequiredPages', 'DuplicateContent', 'InsecureContent', 'DomainCheck', 'Persister', 'InboundLinks', 'RegexMatch', 'Validator', 'Accessibility', 'MetaData', 'StatusLog', 'Security', 'Comments', 'Spelling', 'Readability', 'Spider']
 
 class Spider(ModuleBase):
+	def log_url(self, url):
+		if url == None: return False
+		if len(url) == 0: return False
+		if url.startswith('#'): return False
+
+		parts = urllib.parse.urlparse(url)
+		#if (parts.netloc == request.domain or len(parts.netloc) == 0) and parts.path == request.path:
+		#	return False
+
+		if re.match('^http', parts.scheme, re.IGNORECASE) or len(parts.scheme) == 0:
+			return True
+		else:
+			return False
+
 	def process(self, request, response, report):
 		if response.is_html:
 			doc = HtmlHelper(response.content)
@@ -67,7 +81,7 @@ class Spider(ModuleBase):
 			urls = set()
 			for href in doc.get_attribute('href'):
 				if href[0] == 'a':
-					if self.sitecheck.request_queue.is_valid(href[2]): urls.add(href[2])
+					if self.log_url(href[2]): urls.add(href[2])
 				self.add_request(href[2], referrer)
 
 			out = list(urls)
@@ -335,11 +349,12 @@ class Persister(ModuleBase):
 
 	def process(self, request, response, report):
 		if request.verb == 'HEAD' and response.status < 300 and request.domain == urllib.parse.urlparse(self.sitecheck.session.domain).netloc:
-			request.verb = 'GET'
-			request.modules = [self]
-			self.sitecheck.request_queue.put(request)
+			req = self.create_request(str(request), request.referrer)
+			req.verb = 'GET'
+			req.modules = [self]
+			self.sitecheck.request_queue.put(req)
 		elif len(response.content) > 0 and response.status < 300:
-			od = self.sitecheck.root_path + self.sitecheck.session.output + os.sep
+			od = self.sitecheck.session.root_path + self.sitecheck.session.output + os.sep
 			if len(self.directory) >  0: od += self.directory + os.sep
 			od += request.domain
 
@@ -371,6 +386,7 @@ class Spelling(ModuleBase):
 		self.language = language
 		self.sentence_end = '!?.'
 		self.dictionary = None
+		self.spell_checker = None
 
 	def __getstate__(self):
 		state = self._clean_state(dict(self.__dict__))
@@ -384,7 +400,7 @@ class Spelling(ModuleBase):
 		global _enchant_available
 		if _enchant_available:
 			ddp = os.path.dirname(os.path.abspath(__file__)) + 'dict.txt'
-			cdp = self.sitecheck.root_path + 'dict.txt'
+			cdp = self.sitecheck.session.root_path + 'dict.txt'
 
 			if os.path.exists(cdp):
 				self.dictionary = cdp
@@ -442,6 +458,7 @@ class Spelling(ModuleBase):
 		l = len(t)
 		if l > 0:
 			self.spell_checker.set_text(t)
+			import pdb; pdb.set_trace()
 			for err in self.spell_checker:
 				if len(err.word) > 1 and err.word[1].islower(): # Ignore abbreviations
 					w = err.word.lower()
@@ -624,7 +641,7 @@ class Security(ModuleBase):
 
 				req = self.create_request(url, str(request))
 				if post:
-					req.set_post_data(rp)
+					req.post_data = rp
 					req.meta['vector'] = 'post_data'
 				else:
 					if len(req.query) > 0:
@@ -672,7 +689,7 @@ class Security(ModuleBase):
 
 					req = self.create_request(url, str(request))
 					if post:
-						req.set_post_data(rp)
+						req.post_data = rp
 						req.meta['vector'] = 'post_data'
 					else:
 						if len(req.query) > 0:
