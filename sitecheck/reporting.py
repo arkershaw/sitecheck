@@ -72,92 +72,99 @@ class OutputQueue(queue.Queue):
 	def put(self, request, response, report, block=True, timeout=None):
 		queue.Queue.put(self, (request, response, report), block, timeout)
 
-class ReportBase(threading.Thread):
-	def __init__(self):
-		super(ReportBase, self).__init__()
+class ReportThread(threading.Thread):
+	def __init__(self, sitecheck):
+		super(ReportThread, self).__init__()
 		self._terminate = threading.Event()
-
-	def initialise(self, sitecheck):
+		self._report = sitecheck.session.report
+		self._report.initialise(sitecheck)
 		self._session = sitecheck.session
 		self._output_queue = sitecheck.output_queue
 
 	def end(self):
 		self._terminate.set()
 
-	def _get_next(self):
-		try:
-			req, res, rep = self._output_queue.get(block=False)
-		except queue.Empty:
-			self._terminate.wait(self._session.wait_seconds)
-			return (None, None, [])
-		else:
-			return (req, res, rep)
+	def run(self):
+		st = datetime.datetime.now()
+		self._output_queue.put_message('Started: {0:%Y-%m-%d %H:%M:%S}'.format(st))
 
-class FlatFile(ReportBase):
+		if hasattr(self._report, 'begin'): self._report.begin()
+
+		while not self._terminate.isSet():
+			self._terminate.wait(self._session.wait_seconds)
+			try:
+				req, res, rep = self._output_queue.get(block=False)
+			except queue.Empty:
+				pass
+			else:
+				self._report.write(req, res, rep)
+
+		et = datetime.datetime.now()
+		self._output_queue.put_message('Completed: {0:%Y-%m-%d %H:%M:%S}'.format(et))
+		self._output_queue.put_message(strfdelta(et - st, 'Duration: {days} days {hours}:{minutes:>02}:{seconds:>02}'))
+
+		while not self._output_queue.empty():
+			req, res, rep = self._output_queue.get(block=False)
+			self._report.write(req, res, rep)
+
+		if hasattr(self._report, 'end'): self._report.end()
+
+class FlatFile(object):
 	def initialise(self, sitecheck):
-		super(FlatFile, self).initialise(sitecheck)
-		self.root_path = sitecheck.session.root_path
+		self.root_path = sitecheck.session.root_path + sitecheck.session.output
 		self._outfiles = {}
 		self.default_log_file = 'sitecheck'
 		self.extension = '.log'
 
-	def _write_next(self):
-		req, res, rep = self._get_next()
+	def __getstate__(self):
+		state = dict(self.__dict__)
+		del state['_outfiles']
+		return state
 
-		for src, msgs in rep:
+	def write(self, request, response, report):
+		for src, msgs in report:
 			if not src in self._outfiles:
-				self._outfiles[src] = open('{0}{1}{2}{3}{4}'.format(self.root_path, self._session.output, os.sep, src, self.extension), mode='a')
+				self._outfiles[src] = open('{0}{1}{2}{3}'.format(self.root_path, os.sep, src, self.extension), mode='a')
 
-			if req:
-				self._outfiles[src].write('URL: [{0}]\n'.format(str(req)))
+			if request:
+				self._outfiles[src].write('URL: [{0}]\n'.format(str(request)))
 				for m in msgs:
 					self._outfiles[src].write('\t{0}\n'.format(m))
 			else:
 				for m in msgs:
 					self._outfiles[src].write('{0}\n'.format(m))
 
-	def run(self):
-		st = datetime.datetime.now()
-		self._output_queue.put_message('Started: {0:%Y-%m-%d %H:%M:%S}\n'.format(st))
-
-		while not self._terminate.isSet():
-			self._write_next()
-
-		et = datetime.datetime.now()
-		self._output_queue.put_message('\nCompleted: {0:%Y-%m-%d %H:%M:%S}'.format(et))
-		self._output_queue.put_message(strfdelta(et - st, 'Duration: {days} days {hours}:{minutes:>02}:{seconds:>02}'))
-
-		while not self._output_queue.empty():
-			self._write_next()
-
+	def end(self):
 		for fl in self._outfiles.items():
 			fl[1].close()
 
-class HTML(ReportBase):
+class HTML(object):
 	def initialise(self, sitecheck):
-		super(HTML, self).initialise(sitecheck)
-		self.root_path = sitecheck.session.root_path
+		self.root_path = sitecheck.session.root_path + sitecheck.session.output
 		self._outfiles = {}
 		self.default_log_file = 'sitecheck'
 		self.extension = '.html'
 		self.header = '<html>\n\t<body>\n'
 		self.footer = '\t</body>\n<html>\n'
 
-	def _write_next(self):
-		req, res, rep = self._get_next()
+	def __getstate__(self):
+		state = self._clean_state(dict(self.__dict__))
+		del state['_outfiles']
+		return state
 
-		for src, msgs in rep:
+	def write(self, request, response, report):
+		for src, msgs in report:
 			if src in self._outfiles:
 				fl = self._outfiles[src]
 			else:
-				fl = open('{0}{1}{2}{3}{4}'.format(self.root_path, self._session.output, os.sep, src, self.extension), mode='a')
+				fl = open('{0}{1}{2}{3}'.format(self.root_path, os.sep, src, self.extension), mode='a')
 				self._outfiles[src] = fl
 				fl.write(self.header)
 				fl.write('\t\t<h1>{0}</h1>\n'.format(html.escape(src.title())))
 				fl.write('\t\t<a href="index{0}">&lt;- Back</a>\n'.format(self.extension))
 
-			if req:
-				fl.write('\t\t<p>URL: <a href="{0}">{0}</a></p>\n\t\t<ul>\n'.format(html.escape(str(req))))
+			if request:
+				fl.write('\t\t<p>URL: <a href="{0}">{0}</a></p>\n\t\t<ul>\n'.format(html.escape(str(request))))
 				for m in msgs:
 					fl.write('\t\t\t<li>{0}</li>\n'.format(html.escape(m.replace('\n', '<br/>\n'))))
 				fl.write('\t\t</ul>\n')
@@ -165,21 +172,8 @@ class HTML(ReportBase):
 				for m in msgs:
 					fl.write('\t\t<p>{0}</p>\n'.format(html.escape(m.replace('\n', '<br/>\n'))))
 
-	def run(self):
-		st = datetime.datetime.now()
-		self._output_queue.put_message('Started: {0:%Y-%m-%d %H:%M:%S}'.format(st))
-
-		while not self._terminate.isSet():
-			self._write_next()
-
-		et = datetime.datetime.now()
-		self._output_queue.put_message('Completed: {0:%Y-%m-%d %H:%M:%S}'.format(et))
-		self._output_queue.put_message(strfdelta(et - st, 'Duration: {days} days {hours}:{minutes:>02}:{seconds:>02}'))
-
-		while not self._output_queue.empty():
-			self._write_next()
-
-		ix = open('{0}{1}{2}index{3}'.format(self.root_path, self._session.output, os.sep, self.extension), mode='w')
+	def end(self):
+		ix = open('{0}{1}index{2}'.format(self.root_path, os.sep, self.extension), mode='w')
 		ix.write(self.header)
 		ix.write('\t\t<h1>Results</h1>\n\t\t<ul>\n')
 

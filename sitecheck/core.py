@@ -33,7 +33,7 @@ import pickle
 import html.entities
 import copy
 
-from sitecheck.reporting import OutputQueue, ReportData
+from sitecheck.reporting import ReportThread, OutputQueue, ReportData
 
 VERSION = '1.6'
 
@@ -114,9 +114,9 @@ class SiteCheck(object):
 		self._started = True
 
 		# Start output thread
-		self.session.report.initialise(self)
-		self.session.report.setDaemon(True)
-		self.session.report.start()
+		self.report_thread = ReportThread(self)
+		self.report_thread.setDaemon(True)
+		self.report_thread.start()
 
 		# Initialise modules
 		self.session.modules = [m for m in self.session.modules if self._initialise_module(m)]
@@ -173,8 +173,8 @@ class SiteCheck(object):
 			thread.join()
 
 		# Wait for log entries to be written
-		self.session.report.end()
-		self.session.report.join()
+		self.report_thread.end()
+		self.report_thread.join()
 
 	def suspend(self):
 		if self.session == None: raise SessionNotSetException()
