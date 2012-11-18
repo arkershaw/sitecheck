@@ -29,7 +29,6 @@ import queue
 import re
 import hashlib
 import uuid
-import pickle
 import html.entities
 import copy
 
@@ -46,7 +45,7 @@ class SiteCheck(object):
 		self.sleep_time = 5
 
 		if type(settings) == tuple:
-			self._resume_data = pickle.loads(settings)
+			self._resume_data = settings
 			self._set_session(self._resume_data[0])
 
 			if hasattr(self.session, '_cookie'):
@@ -181,7 +180,7 @@ class SiteCheck(object):
 
 		dat = self.request_queue.save()
 
-		return pickle.dumps((self.session, dat[0], dat[1]))
+		return (self.session, dat[0], dat[1])
 
 # From: http://code.activestate.com/recipes/52308/
 class Struct:

@@ -38,10 +38,10 @@ Return -> Abort''')
 		if char.strip().lower() == 's':
 			sf = _sitecheck.session.root_path + SUSPEND_FILE_NAME
 
-			#try:
-			sd = _sitecheck.suspend()
-			#except:
-				#sys.exit('An error occurred while suspending.')
+			try:
+				sd = pickle.dumps(_sitecheck.suspend())
+			except:
+				sys.exit('An error occurred while suspending.')
 
 			try:
 				f = open(sf, 'wb')
@@ -68,11 +68,12 @@ if __name__ == '__main__':
 	import datetime
 	import shutil
 	import imp
-	from io import StringIO
 	import json
 	import signal
 	import time
 	import math
+	import pickle
+	from io import StringIO
 
 	from sitecheck import *
 	from sitecheck.core import VERSION, ensure_dir, append, Authenticate, Request
@@ -96,11 +97,19 @@ This program comes with ABSOLUTELY NO WARRANTY
 	suspend_file = root_path + SUSPEND_FILE_NAME
 	config_file = root_path + CONFIG_FILE_NAME
 
+	# Import before unpickling
+	conf = None
+	if os.path.exists(config_file):
+		try:
+			conf = imp.load_source('sitecheck.config', config_file)
+		except:
+			sys.exit('Invalid config file found in directory.')
+
 	if os.path.exists(suspend_file):
 		print('Resuming session...')
 		try:
 			f = open(suspend_file, 'rb')
-			sd = f.read()
+			sd = pickle.loads(f.read())
 			f.close()
 
 			_sitecheck = SiteCheck(sd)
@@ -110,13 +119,6 @@ This program comes with ABSOLUTELY NO WARRANTY
 		# Set the path again in case the suspend data has been moved
 		_sitecheck.session.root_path = root_path
 	else:
-		conf = None
-		if os.path.exists(config_file):
-			try:
-				conf = imp.load_source('config', config_file)
-			except:
-				sys.exit('Invalid config file found in directory.')
-
 		if conf:
 			print('Loading config...')
 			session = conf.Session()
