@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2009-2012 Andrew Kershaw
+# Copyright 2009-2013 Andrew Kershaw
 
 # This file is part of sitecheck.
 
@@ -458,7 +458,7 @@ class Spelling(ModuleBase):
 		l = len(t)
 		if l > 0:
 			self.spell_checker.set_text(t)
-			import pdb; pdb.set_trace()
+			#import pdb; pdb.set_trace()
 			for err in self.spell_checker:
 				if len(err.word) > 1 and err.word[1].islower(): # Ignore abbreviations
 					w = err.word.lower()

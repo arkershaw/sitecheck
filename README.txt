@@ -1,7 +1,11 @@
-Copyright 2009-2012 Andrew Kershaw
+Copyright 2009-2013 Andrew Kershaw
 Licensed under the GNU Affero General Public License v3 (see "LICENSE.txt" file).
 
 Dependencies:
+
+	Python 3
+
+	*pyenchant does not currently work with Python 3.3 although Python 3.2 works fine.
 
 	HTML Tidy, pytidylib (validation, accessibility)
 	Enchant, pyenchant (spelling)
@@ -18,7 +22,7 @@ Installation:
 	Windows:
 
 		Download and install the following:
-		Python 3.X: http://www.python.org/download/
+		Python 3: http://www.python.org/download/
 
 		pyenchant (if spellcheck is required): http://www.rfk.id.au/software/pyenchant/download.html (the Windows installer includes the Enchant library)
 		pytidylib (if validation or accessibility are required): http://countergram.com/open-source/pytidylib

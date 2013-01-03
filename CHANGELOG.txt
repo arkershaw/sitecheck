@@ -1,5 +1,5 @@
 ------------------------
-Version 1.6 (20??-??-??)
+Version 1.6 (2013-??-??)
 ------------------------
 
 Added basic HTML reporting option
@@ -17,7 +17,7 @@ Added new module to execute a sequence of manually defined requests
 Added new module to flag when specific URLs are not found on the site
 Added version parameter
 Fixed issue with domain name formatting in domain check module
-Fixed issue with suspend
+Fixed suspend/resume functionality
 
 ------------------------
 Version 1.5 (2012-08-11)
