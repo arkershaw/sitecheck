@@ -73,39 +73,39 @@ While running:
 
 Modules:
 
-	Persister -> Saves downloaded html headers and responses to disk for further analysis. Disabled by default.
+	Persister -> Downloads site files to disk for further analysis. Disabled by default.
 
-	InboundLinks -> Checks URL's in the search result listings from the Google, Yahoo and Bing search engines.
+	InboundLinks -> Checks URLs in the search result listings from the Google and Bing search engines. Disabled by default.
 
 	RegexMatch -> Checks for regular expression match in headers and content. To search for headers which don't match a regular expression, prefix the name with ^ and to search for content which doesn't match, prefix with _
 
-	Validator -> Outputs validation errors.
+	Validator -> Lists validation errors. Disabled by default.
 
-	Accessibility -> Outputs selected accessibility warnings (those that can be automatically tested).
+	Accessibility -> Outputs selected accessibility warnings (those that can be automatically tested). Disabled by default.
 
 	MetaData -> Checks for missing/empty/duplicate meta title, description and keywords.
 
-	StatusLog -> Logs any 4xx and 5xx responses.
+	StatusLog -> Logs any 4xx and 5xx responses. Also checks outbound links.
 
-	Security -> Attempts basic SQL injection and XSS attacks on get and post parameters.
+	Security -> Attempts basic SQL injection and XSS attacks on get and post parameters. Disabled by default.
 
 	Comments -> Logs the content of any HTML comments found.
 
-	Spelling -> Spellcheck using Enchant. Custom dictionary words are in dict.txt.
+	Spelling -> Spellcheck using Enchant. Custom dictionary words are in the file "dict.txt". Disabled by default.
 
 	Spider -> If this module is disabled, only a single page will be analysed. Scans all files under the domain/path as well as testing targets of external links.
 
 	Readability -> Calculates the Flesch Reading Ease score and logs it if it is below the specified threshold.
 
-	DuplicateContent -> Checks for the same content on different URL's.
+	DuplicateContent -> Checks for the same response with different URLs.
 
-	DomainCheck -> Gets important domain information including expiry date, SSL certificate expiry date, reverse DNS etc.
+	DomainCheck -> Gets important domain information including expiry date, SSL certificate expiry date, reverse DNS etc. Uses a whois proxy with a limit of 50 hits per day. Disabled by default.
 
-	Authenticate -> Issues requests to authenticate with the target site before spidering beings. If specified, logout requests will be executed after spidering ends.
+	Authenticate -> Issues requests to authenticate with the target site before spidering beings. If specified, logout requests will be executed after spidering ends. Disabled by default.
 
-	RequestList -> Define a list of requests manually which are executed in sequence.
+	RequestList -> Define a list of requests manually which are executed in sequence. Disabled by default.
 
-	RequiredPages -> Creates a list of URLs which are logged if they are not found on the site.
+	RequiredPages -> Creates a list of required URLs which are logged if they are not found on the site. Disabled by default.
 
 	InsecureContent -> Logs insecure content referenced from secure pages.
 
