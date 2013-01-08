@@ -5,17 +5,15 @@ Dependencies:
 
 	Python 3
 
-	*pyenchant does not currently work with Python 3.3 although Python 3.2 works fine.
-
 	HTML Tidy, pytidylib (validation, accessibility)
 	Enchant, pyenchant (spelling)
-	dnspython3, pyOpenSSL (domain check)
+	OpenSSL, pyOpenSSL, dnspython3 (domain check)
 
-	*The version of pytidylib in PyPI is not yet updated for Python 3 so easy_install or pip will not install the required version. The source is available here:
+	WARNING:
+	*pyenchant does not currently work with Python 3.3 although it works fine with Python 3.2.
+	*The version of pytidylib in PyPI is not yet updated for Python 3 so easy_install or pip will not install the required version. The most recent version is available at: https://github.com/countergram/pytidylib/
 
-	https://github.com/countergram/pytidylib/
-
-	Using VirtualEnv is recommended due to the development status of these dependencies. Alternatively, on Linux they can be symlinked into the site-packages directory rather than installed.
+	Using VirtualEnv is recommended due to the development status pytidylib. Alternatively, on Linux they can be symlinked into the site-packages directory rather than installed.
 
 Installation:
 
@@ -25,21 +23,14 @@ Installation:
 		Python 3: http://www.python.org/download/
 
 		pyenchant (if spellcheck is required): http://www.rfk.id.au/software/pyenchant/download.html (the Windows installer includes the Enchant library)
+		pyopenssl (if domain check is required): http://pypi.python.org/pypi/pyOpenSSL/
 		pytidylib (if validation or accessibility are required): http://countergram.com/open-source/pytidylib
+		libtidy.dll (if validation or accessibility are required): http://tidy.sourceforge.net/#binaries (place libtidy.dll on your system path or in the same folder as runsitecheck.py e.g: C:\Python32\Scripts. Also see: http://countergram.com/open-source/pytidylib/docs/index.html)
+		dnspython3 (if domain check is required): http://www.dnspython.org/
 
-		The version of pyopenssl from PyPI should work fine - pip is the best way to install this. Altrenatively: http://pypi.python.org/pypi/pyOpenSSL/
-
-		To install pytidylib and sitecheck, download and extract each archive then open a command window in the same directory as the extracted files and type:
+		To install pytidylib, dnspython3 and sitecheck, extract each archive then open a command window in the same directory as the extracted files and type:
 
 		setup.py install
-
-		You will also need the HTML Tidy library. Instructions are available here:
-
-		http://countergram.com/open-source/pytidylib/docs/index.html
-
-		Alternatively, download a binary from here and place it somewhere on your path:
-
-		HTML Tidy: http://tidy.sourceforge.net/#binaries
 
 	Linux:
 

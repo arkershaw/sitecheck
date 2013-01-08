@@ -27,7 +27,7 @@ setup(name='sitecheck',
 	author_email='arkershaw@users.sourceforge.net',
 	url='http://sourceforge.net/projects/sitecheck/',
 	packages=['sitecheck'],
-	scripts=['runsitecheck.py'],
+	scripts=['runsitecheck.py', 'domaincheck.py'],
 	package_data={'sitecheck': ['dict.txt']},
 
 	long_description = 'Spiders a website and logs many common problems including missing resources (HTTP 400), server errors (HTTP 500), slow pages, looping redirects, missing meta tags, duplicate content and potential SQL injection/cross-site scripting (XSS) vulnerabilities. Various informational modules are also available including the logging of email addresses, IP addresses, comments in the HTML, spelling mistakes, W3C validation errors, accessibility issues, and low scores on the Flesch Reading Ease test.',

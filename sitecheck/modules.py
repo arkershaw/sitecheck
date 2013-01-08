@@ -756,7 +756,9 @@ class DomainCheck(ModuleBase):
 	@report
 	def begin(self, report):
 		global _domaincheck_available
-		if _domaincheck_available:
+		if not _domaincheck_available:
+			self.add_message(report, 'ERROR: domaincheck not available')
+		else:
 			today = datetime.date.today()
 
 			domain = urllib.parse.urlparse(self.sitecheck.session.domain).netloc

@@ -1,5 +1,5 @@
 ------------------------
-Version 1.6 (2013-??-??)
+Version 1.6 (2013-01-??)
 ------------------------
 
 Added basic HTML reporting option
@@ -16,8 +16,10 @@ Added new module to check for insecure content referenced from secure pages
 Added new module to execute a sequence of manually defined requests
 Added new module to flag when specific URLs are not found on the site
 Added version parameter
+Updated Windows installation instructions
 Fixed issue with domain name formatting in domain check module
 Fixed suspend/resume functionality
+Fixed missing DomainCheck module
 
 ------------------------
 Version 1.5 (2012-08-11)
