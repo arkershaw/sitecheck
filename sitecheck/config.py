@@ -18,7 +18,7 @@
 # along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
 
 import re
-from sitecheck.core import Struct
+from sitecheck.core import Struct, Request
 from sitecheck.modules import *
 from sitecheck.reporting import FlatFile, HTML
 
