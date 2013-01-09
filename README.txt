@@ -12,6 +12,7 @@ Dependencies:
 	WARNING:
 	*pyenchant does not currently work with Python 3.3 although it works fine with Python 3.2.
 	*The version of pytidylib in PyPI is not yet updated for Python 3 so easy_install or pip will not install the required version. The most recent version is available at: https://github.com/countergram/pytidylib/
+	*dnspython3 on Windows is currently affected by this bug, which prevents some functionality of domain check from working: https://github.com/rthalley/dnspython/pull/20
 
 	Using VirtualEnv is recommended due to the development status pytidylib. Alternatively, on Linux they can be symlinked into the site-packages directory rather than installed.
 
@@ -25,7 +26,7 @@ Installation:
 		pyenchant (if spellcheck is required): http://www.rfk.id.au/software/pyenchant/download.html (the Windows installer includes the Enchant library)
 		pyopenssl (if domain check is required): http://pypi.python.org/pypi/pyOpenSSL/
 		pytidylib (if validation or accessibility are required): http://countergram.com/open-source/pytidylib
-		libtidy.dll (if validation or accessibility are required): http://tidy.sourceforge.net/#binaries (place libtidy.dll on your system path or in the same folder as runsitecheck.py e.g: C:\Python32\Scripts. Also see: http://countergram.com/open-source/pytidylib/docs/index.html)
+		libtidy.dll (if validation or accessibility are required): http://tidy.sourceforge.net/#binaries (place libtidy.dll on your system path, also see: http://countergram.com/open-source/pytidylib/docs/index.html)
 		dnspython3 (if domain check is required): http://www.dnspython.org/
 
 		To install pytidylib, dnspython3 and sitecheck, extract each archive then open a command window in the same directory as the extracted files and type:

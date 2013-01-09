@@ -20,6 +20,9 @@ Updated Windows installation instructions
 Fixed issue with domain name formatting in domain check module
 Fixed suspend/resume functionality
 Fixed missing DomainCheck module
+Fix persister file name issue on Windows
+Fix error with authenticate logout setting in default config.py
+Fix error with missing referrer in StatusLog
 
 ------------------------
 Version 1.5 (2012-08-11)

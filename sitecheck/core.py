@@ -864,7 +864,7 @@ class Authenticate(ModuleBase):
 					req = self.login[request.sequence]
 					req.referrer = str(request)
 					req.sequence = request.sequence + 1
-					req.source =  self.name
+					req.source = self.name
 					req.meta[Authenticate.AUTH_META_KEY] = Authenticate.LOGIN
 					req.modules = [self]
 					self.sitecheck.request_queue.put(req)
@@ -876,7 +876,7 @@ class Authenticate(ModuleBase):
 					req = self.logout[request.sequence]
 					req.referrer = str(request)
 					req.sequence = request.sequence + 1
-					req.source =  self.name
+					req.source = self.name
 					req.meta[Authenticate.AUTH_META_KEY] = Authenticate.LOGOUT
 					self.sitecheck.request_queue.put(req)
 				else:

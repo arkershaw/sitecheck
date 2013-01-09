@@ -97,7 +97,7 @@ class StatusLog(ModuleBase):
 	def process(self, request, response, report):
 		if response.status >= 400:
 			self.add_message(report, 'Status: [{0} {1}]'.format(response.status, response.message))
-			if len(request.referrer) > 0:
+			if request.referrer and len(request.referrer) > 0:
 				self.add_message(report, 'Referrer: [{0}]'.format(request.referrer))
 
 class Accessibility(ModuleBase):
@@ -369,7 +369,7 @@ class Persister(ModuleBase):
 			ensure_dir(od)
 
 			if len(request.query) > 0: fl += '?' +  urllib.parse.unquote_plus(request.query)
-			fl = re.sub(r'([ \/])', '', fl)
+			fl = re.sub('[ /&?%*:;|"\'<>.()]', '', fl.replace('\\', ''))
 
 			pth = os.path.join(od, fl)
 			if response.is_html and not re.search('\.html?$', pth, re.IGNORECASE):
