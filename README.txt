@@ -1,6 +1,14 @@
 Copyright 2009-2013 Andrew Kershaw
 Licensed under the GNU Affero General Public License v3 (see "LICENSE.txt" file).
 
+WARNING
+
+	This program can generate a large number of requests. Only run sitecheck against sites you have permission to scan. Running it against production sites is done at your own risk and not recommended without a good understanding of the configuration options.
+
+	Do not give the authenticate module access to a CMS or site administration area. Doing so will result in unpredictable and probably catastrophic results.
+
+	The security module only tries to generate errors using simple attacks and does not attempt any exploits. It will significantly increase the number of requests however, and will also submit any forms it finds multiple times.
+
 Dependencies:
 
 	Python 3

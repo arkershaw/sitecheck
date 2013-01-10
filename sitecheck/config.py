@@ -22,7 +22,7 @@ from sitecheck.core import Struct, Request
 from sitecheck.modules import *
 from sitecheck.reporting import FlatFile, HTML
 
-media_files = set(['gif', 'jpg', 'jpeg', 'png', 'swf'])
+media_files = set(['gif', 'jpg', 'jpeg', 'png', 'swf', 'ico'])
 resource_files = set(['js', 'css', 'htc'])
 document_files = set(['zip', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv'])
 
@@ -49,8 +49,8 @@ class Session(object):
 		self.report = FlatFile() #HTML()
 		self.modules = [
 			#Authenticate(login=[Request('login.php'), Request('login.php', post_data=[('username', ''), ('password', '')])], logout=[Request('logout.php')]),
-			#RequestList(Request('page1.html'), Request('page2.html')),
-			#RequiredPages('page1.html', 'page2.html'),
+			#RequestList(Request('favicon.ico'), Request('robots.txt')),
+			#RequiredPages('privacy-policy.html', 'contact-us.html'),
 			DuplicateContent(),
 			InsecureContent(),
 			#DomainCheck(relay=False),
