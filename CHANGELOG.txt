@@ -1,5 +1,5 @@
 ------------------------
-Version 1.6 (2013-01-??)
+Version 1.6 (2013-01-10)
 ------------------------
 
 Added basic HTML reporting option
@@ -20,7 +20,7 @@ Updated Windows installation instructions
 Fixed issue with domain name formatting in domain check module
 Fixed suspend/resume functionality
 Fixed missing DomainCheck module
-Fix persister file name issue on Windows
+Fix persister file name invalid characters on Windows
 Fix error with authenticate logout setting in default config.py
 Fix error with missing referrer in StatusLog
 

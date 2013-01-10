@@ -49,7 +49,7 @@ class Session(object):
 		self.report = FlatFile() #HTML()
 		self.modules = [
 			#Authenticate(login=[Request('login.php'), Request('login.php', post_data=[('username', ''), ('password', '')])], logout=[Request('logout.php')]),
-			#RequestList(Request('index.html')),
+			#RequestList(Request('page1.html'), Request('page2.html')),
 			#RequiredPages('page1.html', 'page2.html'),
 			DuplicateContent(),
 			InsecureContent(),

@@ -41,7 +41,8 @@ class ReportData(object):
 			self.add_message(message, source=source)
 
 	def add_message(self, message, source=None):
-		if source == None or len(source) == 0: source = ReportData.DEFAULT_SOURCE
+		if source == None or len(source) == 0:
+			source = ReportData.DEFAULT_SOURCE
 
 		if not source in self.messages:
 			self.messages[source] = []
@@ -88,7 +89,8 @@ class ReportThread(threading.Thread):
 		st = datetime.datetime.now()
 		self._output_queue.put_message('Started: {0:%Y-%m-%d %H:%M:%S}'.format(st))
 
-		if hasattr(self._report, 'begin'): self._report.begin()
+		if hasattr(self._report, 'begin'):
+			self._report.begin()
 
 		while not self._terminate.isSet():
 			self._terminate.wait(self._session.wait_seconds)
@@ -107,7 +109,8 @@ class ReportThread(threading.Thread):
 			req, res, rep = self._output_queue.get(block=False)
 			self._report.write(req, res, rep)
 
-		if hasattr(self._report, 'end'): self._report.end()
+		if hasattr(self._report, 'end'):
+			self._report.end()
 
 class FlatFile(object):
 	def initialise(self, sitecheck):

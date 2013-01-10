@@ -104,7 +104,8 @@ class SocketHelper(object):
 				break
 			else:
 				res.append(r.decode('utf-8'))
-				if self.end and r.endswith(self.end.encode()): break
+				if self.end and r.endswith(self.end.encode()):
+					break
 
 		return ''.join(res)
 
@@ -131,9 +132,12 @@ class HostInfo(object):
 				# SSL not supported
 				pass
 			else:
-				if cert: self.sslv2 = True
-				if not cert: cert = self._get_cert(ssl.PROTOCOL_SSLv3)
-				if not cert: cert = self._get_cert(ssl.PROTOCOL_TLSv1)
+				if cert:
+					self.sslv2 = True
+				if not cert:
+					cert = self._get_cert(ssl.PROTOCOL_SSLv3)
+				if not cert:
+					cert = self._get_cert(ssl.PROTOCOL_TLSv1)
 				if cert and _ssl_available:
 					cert_data = load_certificate(FILETYPE_PEM, cert)
 					expiry = cert_data.get_notAfter().decode('ascii')
@@ -231,7 +235,8 @@ class DomainInfo(object):
 				break
 			else:
 				d = d[1:]
-				if len(d) == 1: break
+				if len(d) == 1:
+					break
 
 	def _whois_lookup(self, domain):
 		whois = None

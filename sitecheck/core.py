@@ -55,7 +55,8 @@ class SiteCheck(object):
 			self._set_session(settings)
 
 	def _set_session(self, session):
-		if self._started: raise SiteCheckStartedException()
+		if self._started:
+			raise SiteCheckStartedException()
 
 		self.session = session
 		self.request_queue = RequestQueue(session)
@@ -71,7 +72,8 @@ class SiteCheck(object):
 
 		self.session.output = append(self.session.output, os.sep)
 
-		if len(urllib.parse.urlparse(self.session.domain).netloc) == 0: raise Exception('Invalid domain')
+		if len(urllib.parse.urlparse(self.session.domain).netloc) == 0:
+			raise Exception('Invalid domain')
 
 		# Organise file type sets
 		self.session.include_ext = self.session.include_ext.difference(self.session.ignore_ext)
@@ -79,15 +81,19 @@ class SiteCheck(object):
 
 	def _initialise_module(self, module):
 		try:
-			if not hasattr(module, 'initialise'): raise Exception('Initialise method not defined')
-			if not hasattr(module, 'process'): raise Exception('Process method not defined')
+			if not hasattr(module, 'initialise'):
+				raise Exception('Initialise method not defined')
+			if not hasattr(module, 'process'):
+				raise Exception('Process method not defined')
 
 			module.initialise(self)
 
 			if not self._resume_data:
-				if hasattr(module, 'setup'): module.setup()
+				if hasattr(module, 'setup'):
+					module.setup()
 		except:
-			if self.session._debug: raise
+			if self.session._debug:
+				raise
 			self.output_queue.put_message('ERROR: {0}'.format(str(sys.exc_info()[1])), module.source)
 			return False
 		else:
@@ -95,7 +101,8 @@ class SiteCheck(object):
 
 	@property
 	def complete(self):
-		if self.session == None: raise SessionNotSetException()
+		if self.session == None:
+			raise SessionNotSetException()
 
 		cmpl = False
 		if self.request_queue.empty():
@@ -107,8 +114,10 @@ class SiteCheck(object):
 		return cmpl
 
 	def begin(self, background=False):
-		if self.session == None: raise SessionNotSetException()
-		if self._started: raise SiteCheckStartedException()
+		if self.session == None:
+			raise SessionNotSetException()
+		if self._started:
+			raise SiteCheckStartedException()
 
 		self._started = True
 
@@ -138,13 +147,15 @@ class SiteCheck(object):
 	def _begin(self):
 		if self._resume_data:
 			for module in self.session.modules:
-				if hasattr(module, 'resume'): module.resume()
+				if hasattr(module, 'resume'):
+					module.resume()
 			self.request_queue.load(self._resume_data[1], self._resume_data[2])
 			del self._resume_data
 		else:
 			self.request_queue.urls = set() # Clear authentication URLs
 			for module in self.session.modules:
-				if hasattr(module, 'begin'): module.begin()
+				if hasattr(module, 'begin'):
+					module.begin()
 			self.request_queue.put_url('', self.session.page, self.session.domain)
 
 	def _wait(self):
@@ -155,16 +166,19 @@ class SiteCheck(object):
 				time.sleep(self.sleep_time)
 
 	def end(self):
-		if self.session == None: raise SessionNotSetException()
+		if self.session == None:
+			raise SessionNotSetException()
 
 		if self.complete:
 			for mod in self.session.modules:
-				if hasattr(mod, 'end'): mod.end()
+				if hasattr(mod, 'end'):
+					mod.end()
 
 			self._wait()
 
 			for mod in self.session.modules:
-				if hasattr(mod, 'complete'): mod.complete()
+				if hasattr(mod, 'complete'):
+					mod.complete()
 
 		# Wait for worker threads to complete
 		Checker.terminate.set()
@@ -176,7 +190,8 @@ class SiteCheck(object):
 		self.report_thread.join()
 
 	def suspend(self):
-		if self.session == None: raise SessionNotSetException()
+		if self.session == None:
+			raise SessionNotSetException()
 
 		dat = self.request_queue.save()
 
@@ -184,7 +199,8 @@ class SiteCheck(object):
 
 # From: http://code.activestate.com/recipes/52308/
 class Struct:
-	def __init__(self, **kwargs): self.__dict__.update(kwargs)
+	def __init__(self, **kwargs):
+		self.__dict__.update(kwargs)
 
 def append(content, append):
 	if content == None and append == None:
@@ -292,24 +308,28 @@ class Checker(threading.Thread):
 	def get_cookie(self, response):
 		cookies = response.get_headers('set-cookie')
 		if len(cookies) > 0:
-			if not hasattr(self._session, '_cookie'): self._session._cookie = http.cookies.SimpleCookie()
+			if not hasattr(self._session, '_cookie'):
+				self._session._cookie = http.cookies.SimpleCookie()
 			for c in cookies:
 				self._session._cookie.load(c)
 
 	def process(self, request, response, report):
-		if len(request.modules) == 0: request.modules = self._session.modules
+		if len(request.modules) == 0:
+			request.modules = self._session.modules
 		for mod in request.modules:
 			try:
 				mod.process(request, response, report)
 			except:
-				if self._session._debug: raise
+				if self._session._debug:
+					raise
 				ex = sys.exc_info()
 				report.add_message('ERROR: Processing failed with module [{0}].'.format(mod.name), mod.source)
 				report.add_message(str(ex[1]), mod.source)
 
 	def fetch(self, request):
 		full_path = request.path
-		if len(request.query) > 0: full_path += '?' + request.query
+		if len(request.query) > 0:
+			full_path += '?' + request.query
 
 		if request.protocol == 'https':
 			c = http.client.HTTPSConnection(request.domain, timeout=self._session.request_timeout)
@@ -363,12 +383,16 @@ class Checker(threading.Thread):
 
 				if res:
 					dom = urllib.parse.urlparse(self._session.domain)
-					if req.domain == dom.netloc: self.get_cookie(res)
+					if req.domain == dom.netloc:
+						self.get_cookie(res)
 
 					report.add_message('Status: [{0}]'.format(str(res.status)), 'request')
-					if self._session.log.request_headers: report.add_message('Request Headers: {0}'.format(req.headers), 'request')
-					if self._session.log.post_data and len(req.post_data) > 0: report.add_message('Post Data: {0}'.format(req.post_data), 'request')
-					if self._session.log.response_headers: report.add_message('Response Headers: {0}'.format(res.headers), 'request')
+					if self._session.log.request_headers:
+						report.add_message('Request Headers: {0}'.format(req.headers), 'request')
+					if self._session.log.post_data and len(req.post_data) > 0:
+						report.add_message('Post Data: {0}'.format(req.post_data), 'request')
+					if self._session.log.response_headers:
+						report.add_message('Response Headers: {0}'.format(res.headers), 'request')
 
 					# Only warn about slow requests once
 					if not hasattr(self._session, '_slow'):
@@ -523,7 +547,8 @@ class Request(object):
 
 	def post_data_string(self):
 		if self.encoding == 'multipart/form-data':
-			if not self.boundary: self.boundary = uuid.uuid4().hex
+			if not self.boundary:
+				self.boundary = uuid.uuid4().hex
 
 			# Adapted from: http://code.activestate.com/recipes/146306-http-client-to-post-using-multipartform-data/
 			dat = []
@@ -544,8 +569,10 @@ class Request(object):
 			url = '{0}://{1}{2}'.format(self.protocol, self.domain, self.path)
 		else:
 			url = self.path
-		#if len(self.parameters) > 0: url += ';' + self.parameters
-		if len(self.query) > 0: url += '?' + self.query
+		#if len(self.parameters) > 0:
+			#url += ';' + self.parameters
+		if len(self.query) > 0:
+			url += '?' + self.query
 		return url
 
 	def hash(self):
@@ -555,10 +582,12 @@ class Request(object):
 		m.update(self.__str__().encode())
 
 		hdrs = dict_to_sorted_list(self.headers)
-		if len(hdrs) > 0: m.update(urllib.parse.urlencode(hdrs).encode())
+		if len(hdrs) > 0:
+			m.update(urllib.parse.urlencode(hdrs).encode())
 
 		pd = self.post_data_string()
-		if len(pd) > 0: m.update(pd.encode())
+		if len(pd) > 0:
+			m.update(pd.encode())
 
 		return m.hexdigest()
 
@@ -602,7 +631,8 @@ class RequestQueue(queue.Queue):
 		self.urls = set()
 
 	def validate(self, request):
-		if request == None: return False
+		if request == None:
+			return False
 
 		if request.protocol == None or len(request.protocol) == 0 or \
 			request.domain == None or len(request.domain) == 0:
@@ -619,13 +649,17 @@ class RequestQueue(queue.Queue):
 
 		for ignore in self.session.ignore_url:
 			#TODO: Should this be == rather than endswith?
-			if request.path.lower().endswith(ignore.lower()): return False
+			if request.path.lower().endswith(ignore.lower()):
+				return False
 
-		if request.extension in self.session.ignore_ext: return False
+		if request.extension in self.session.ignore_ext:
+			return False
 
 		#url = str(request)
-		#if len(url) == 0: return False
-		if request.path.startswith('#'): return False
+		#if len(url) == 0:
+			#return False
+		if request.path.startswith('#'):
+			return False
 
 		if re.match('^http', request.protocol, re.IGNORECASE):
 			return True
@@ -832,7 +866,8 @@ class Authenticate(ModuleBase):
 
 	def setup(self):
 		for req in self.logout:
-			if not str(req) in self.sitecheck.session.ignore_url: self.sitecheck.session.ignore_url.append(str(req))
+			if not str(req) in self.sitecheck.session.ignore_url:
+				self.sitecheck.session.ignore_url.append(str(req))
 
 		if len(self.login) > 0:
 			req = self.login[0]
@@ -843,7 +878,8 @@ class Authenticate(ModuleBase):
 			self.sitecheck.request_queue.put(req)
 
 	def _log(self, request, response, report, message=None):
-		if message: self.add_message(report, message)
+		if message:
+			self.add_message(report, message)
 		self.add_message(report, 'Method: [{0}]'.format(request.verb))
 		self.add_message(report, 'Status: [{0}]'.format(str(response.status)))
 		self.add_message(report, 'Request Headers: {0}'.format(request.headers))

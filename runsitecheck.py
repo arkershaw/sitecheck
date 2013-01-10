@@ -148,7 +148,8 @@ This program comes with ABSOLUTELY NO WARRANTY
 				session.domain = 'http://{0}'.format(args.domain)
 			op = urllib.parse.urlparse(session.domain).netloc + os.sep
 
-		if args.page: session.page = args.page
+		if args.page:
+			session.page = args.page
 
 		if len(session.domain) == 0:
 			sys.exit('Please supply either a domain, a config file or a suspended session.')

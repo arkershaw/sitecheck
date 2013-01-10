@@ -25,6 +25,7 @@ import urllib.parse
 import urllib.request
 from io import StringIO
 import json
+import base64
 from socket import gaierror
 
 try:
@@ -56,9 +57,12 @@ __all__ = ['Authenticate', 'RequestList', 'RequiredPages', 'DuplicateContent', '
 
 class Spider(ModuleBase):
 	def log_url(self, url):
-		if url == None: return False
-		if len(url) == 0: return False
-		if url.startswith('#'): return False
+		if url == None:
+			return False
+		if len(url) == 0:
+			return False
+		if url.startswith('#'):
+			return False
 
 		parts = urllib.parse.urlparse(url)
 		#if (parts.netloc == request.domain or len(parts.netloc) == 0) and parts.path == request.path:
@@ -81,7 +85,8 @@ class Spider(ModuleBase):
 			urls = set()
 			for href in doc.get_attribute('href'):
 				if href[0] == 'a':
-					if self.log_url(href[2]): urls.add(href[2])
+					if self.log_url(href[2]):
+						urls.add(href[2])
 				self.add_request(href[2], referrer)
 
 			out = list(urls)
@@ -135,7 +140,8 @@ class Accessibility(ModuleBase):
 						c += 1
 						self.add_message(report, '{0}'.format(re.sub('^line\\b', 'Line', e)))
 
-				if c > 0: self.add_message(report, 'Total: {0}'.format(c))
+				if c > 0:
+					self.add_message(report, 'Total: {0}'.format(c))
 
 	def _log(self, error):
 		mtch = self.accessibility.search(error)
@@ -144,7 +150,8 @@ class Accessibility(ModuleBase):
 			log = True
 			txt = ''
 			for grp in mtch.groups():
-				if len(txt) > 0: txt += '.'
+				if len(txt) > 0:
+					txt += '.'
 				txt += grp
 				if txt in self.ignore:
 					log = False
@@ -270,7 +277,8 @@ class Readability(ModuleBase):
 		s = 0
 		for se in self.sentence_end:
 			s += text.count(se)
-		if s == 0: s = 1
+		if s == 0:
+			s = 1
 		return s
 
 	def _syllables(self, text):
@@ -283,7 +291,8 @@ class Readability(ModuleBase):
 				w = re.sub('(?:es|ed|[^l]e)$', '', w)
 				s += len(re.findall('[aeiouy]{1,2}', w))
 				s += len(re.findall('eo|ia|ie|io|iu|ua|ui|uo', w))
-		if s == 0: s = 1
+		if s == 0:
+			s = 1
 		return s
 
 class Validator(ModuleBase):
@@ -355,12 +364,14 @@ class Persister(ModuleBase):
 			self.sitecheck.request_queue.put(req)
 		elif len(response.content) > 0 and response.status < 300:
 			od = self.sitecheck.session.root_path + self.sitecheck.session.output + os.sep
-			if len(self.directory) >  0: od += self.directory + os.sep
+			if len(self.directory) >  0:
+				od += self.directory + os.sep
 			od += request.domain
 
 			parts = request.path.split('/')
 			if len(parts) > 1:
-				if parts[-1] == '': parts[-1] = '__index'
+				if parts[-1] == '':
+					parts[-1] = '__index'
 				od += os.sep.join(parts[0:-1])
 				fl = parts[-1]
 			else:
@@ -368,12 +379,13 @@ class Persister(ModuleBase):
 
 			ensure_dir(od)
 
-			if len(request.query) > 0: fl += '?' +  urllib.parse.unquote_plus(request.query)
-			fl = re.sub('[ /&?%*:;|"\'<>.()]', '', fl.replace('\\', ''))
+			if len(request.query) > 0:
+				fl += '+' + base64.urlsafe_b64encode(('?' + request.query).encode()).decode('utf-8')
+
+			if response.is_html and not re.search('\.html?$', fl, re.IGNORECASE):
+				fl += '.html'
 
 			pth = os.path.join(od, fl)
-			if response.is_html and not re.search('\.html?$', pth, re.IGNORECASE):
-				pth += '.html'
 
 			if response.is_html:
 				open(pth, mode='w').write(response.content)
@@ -453,7 +465,8 @@ class Spelling(ModuleBase):
 					self.add_message(report, 'Word: [{0}] x {1} ({2})'.format(words[k][0], words[k][1], words[k][2]))
 
 	def _check(self, text, words):
-		if not text: return
+		if not text:
+			return
 		t = HtmlHelper.html_decode(text.strip())
 		l = len(t)
 		if l > 0:
@@ -513,7 +526,8 @@ class InboundLinks(ModuleBase):
 		dp = self.sitecheck.session.domain[self.sitecheck.session.domain.find(self.domain):]
 		self.link = re.compile('"(https?://{0}[^"]*)"'.format(re.escape(dp), re.IGNORECASE))
 
-		if not self.engines: self.engines = list(self.engine_parameters.keys())
+		if not self.engines:
+			self.engines = list(self.engine_parameters.keys())
 		for ei in range(len(self.engines)):
 			se = self.engines[ei]
 			if se in self.engine_parameters:
@@ -705,11 +719,13 @@ class Security(ModuleBase):
 		post = False
 
 		for a in form.get_attribute('action', 'form'):
-			if len(a[2]) > 0: url = a[2]
+			if len(a[2]) > 0:
+				url = a[2]
 			break
 
 		for m in form.get_attribute('method', 'form'):
-			if m[2].upper() == 'POST': post = True
+			if m[2].upper() == 'POST':
+				post = True
 			break
 
 		params = []
@@ -762,7 +778,8 @@ class DomainCheck(ModuleBase):
 			today = datetime.date.today()
 
 			domain = urllib.parse.urlparse(self.sitecheck.session.domain).netloc
-			if domain.startswith('www.'): domain = domain[4:]
+			if domain.startswith('www.'):
+				domain = domain[4:]
 			self.add_message(report, 'Checking: {0}'.format(domain))
 
 			try:
