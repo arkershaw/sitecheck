@@ -41,33 +41,45 @@ def ensure_dir(directory):
 
 def report(method):
 	def inner(self, *args, **kwargs):
-		r = ReportData()
+		rd = ReportData()
+		rd.default_source = self.source
 		try:
-			return method(self, r, *args, **kwargs)
+			return method(self, rd, *args, **kwargs)
 		finally:
-			self.sitecheck.output_queue.put_report(r)
+			self.sitecheck.output_queue.put_report(rd)
 
 	return inner
 
 class ReportData(object):
 	DEFAULT_SOURCE = 'sitecheck'
 
-	def __init__(self, message=None, source=None):
+	def __init__(self):
 		self.messages = {}
-		if message:
-			self.add_message(message, source=source)
+		self.default_source = ReportData.DEFAULT_SOURCE
+
+	def add_error(self, message, source=None):
+		self._add_message(message, 'ERROR', source)
 
 	def add_message(self, message, source=None):
+		self._add_message(message, '', source)
+
+	def add_warning(self, message, source=None):
+		self._add_message(message, 'WARNING', source)
+
+	def add_debug(self, message, source=None):
+		self._add_message(message, 'DEBUG', source)
+
+	def _add_message(self, message, level, source=None):
 		if source == None or len(source) == 0:
-			source = ReportData.DEFAULT_SOURCE
+			source = self.default_source
 
 		if not source in self.messages:
 			self.messages[source] = []
 
 		if isinstance(message, list):
-			self.messages[source].extend(str(m) for m in message)
+			self.messages[source].extend((level, str(m)) for m in message)
 		else:
-			self.messages[source].append(str(message))
+			self.messages[source].append((level, str(message)))
 
 	def __len__(self):
 		l = 0
@@ -82,7 +94,14 @@ class ReportData(object):
 
 class OutputQueue(queue.Queue):
 	def put_message(self, message, source=None, block=True, timeout=None):
-		queue.Queue.put(self, (None, None, ReportData(message, source)), block, timeout)
+		rd = ReportData()
+		rd.add_message(message, source)
+		queue.Queue.put(self, (None, None, rd), block, timeout)
+
+	def put_error(self, message, source=None, block=True, timeout=None):
+		rd = ReportData()
+		rd.add_error(message, source)
+		queue.Queue.put(self, (None, None, rd), block, timeout)
 
 	def put_report(self, report, block=True, timeout=None):
 		queue.Queue.put(self, (None, None, report), block, timeout)
@@ -136,6 +155,7 @@ class FlatFile(object):
 		self._outfiles = {}
 		self.default_log_file = 'sitecheck'
 		self.extension = '.log'
+		self._debug = sitecheck.session._debug
 
 	def __getstate__(self):
 		state = dict(self.__dict__)
@@ -155,18 +175,27 @@ class FlatFile(object):
 		except:
 			raise Exception('Unable to create output directory.')
 
+	def _write(self, source, messages, indent):
+		fl = self._outfiles[source]
+		for m in messages:
+			if len(m[0]) > 0:
+				if m[0] != 'DEBUG' or (self._debug):
+					fl.write('{0}{1}: {2}\n'.format(indent, m[0], m[1]))
+			else:
+				fl.write('{0}{1}\n'.format(indent, m[1]))
+
 	def write(self, request, response, report):
 		for src, msgs in report:
 			if not src in self._outfiles:
 				self._outfiles[src] = open('{0}{1}{2}{3}'.format(self.root_path, os.sep, src, self.extension), mode='a')
 
 			if request:
+				indent = '\t'
 				self._outfiles[src].write('URL: [{0}]\n'.format(str(request)))
-				for m in msgs:
-					self._outfiles[src].write('\t{0}\n'.format(m))
 			else:
-				for m in msgs:
-					self._outfiles[src].write('{0}\n'.format(m))
+				indent = ''
+
+			self._write(src, msgs, indent)
 
 	def end(self):
 		for fl in self._outfiles.items():
@@ -180,6 +209,7 @@ class HTML(object):
 		self.extension = '.html'
 		self.header = '<html>\n\t<body>\n'
 		self.footer = '\t</body>\n<html>\n'
+		self._debug = sitecheck.session._debug
 
 	def __getstate__(self):
 		state = self._clean_state(dict(self.__dict__))
@@ -199,6 +229,15 @@ class HTML(object):
 		except:
 			raise Exception('Unable to create output directory.')
 
+	def _write(self, source, messages, indent):
+		fl = self._outfiles[source]
+		for m in messages:
+			if len(m[0]) > 0:
+				if m[0] != 'DEBUG' or (self._debug):
+					fl.write('{0}<li>{1}: {2}</li>\n'.format(indent, m[0], html.escape(m[1].replace('\n', '<br/>\n'))))
+			else:
+				fl.write('{0}<li>{1}</li>\n'.format(indent, m[0], html.escape(m[1].replace('\n', '<br/>\n'))))
+
 	def write(self, request, response, report):
 		for src, msgs in report:
 			if src in self._outfiles:
@@ -212,12 +251,10 @@ class HTML(object):
 
 			if request:
 				fl.write('\t\t<p>URL: <a href="{0}">{0}</a></p>\n\t\t<ul>\n'.format(html.escape(str(request))))
-				for m in msgs:
-					fl.write('\t\t\t<li>{0}</li>\n'.format(html.escape(m.replace('\n', '<br/>\n'))))
+				self._write(src, msgs, '\t\t\t')
 				fl.write('\t\t</ul>\n')
 			else:
-				for m in msgs:
-					fl.write('\t\t<p>{0}</p>\n'.format(html.escape(m.replace('\n', '<br/>\n'))))
+				self._write(src, msgs, '\t\t')
 
 	def end(self):
 		ix = open('{0}{1}index{2}'.format(self.root_path, os.sep, self.extension), mode='w')

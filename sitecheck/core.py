@@ -94,7 +94,7 @@ class SiteCheck(object):
 		except:
 			if self.session._debug:
 				raise
-			self.output_queue.put_message('ERROR: {0}'.format(str(sys.exc_info()[1])), module.source)
+			self.output_queue.put_error(str(sys.exc_info()[1]), module.source)
 			return False
 		else:
 			return True
@@ -157,7 +157,7 @@ class SiteCheck(object):
 					except:
 						if self.session._debug:
 							raise
-						self.output_queue.put_message('ERROR: {0}'.format(str(sys.exc_info()[1])), module.source)
+						self.output_queue.put_error(str(sys.exc_info()[1]), module.source)
 						self.session.modules.remove(module)
 			self.request_queue.load(self._resume_data[1], self._resume_data[2], self._resume_data[3])
 			del self._resume_data
@@ -170,7 +170,7 @@ class SiteCheck(object):
 					except:
 						if self.session._debug:
 							raise
-						self.output_queue.put_message('ERROR: {0}'.format(str(sys.exc_info()[1])), module.source)
+						self.output_queue.put_error(str(sys.exc_info()[1]), module.source)
 						self.session.modules.remove(module)
 			self.request_queue.put_url('', self.session.page, self.session.domain)
 
@@ -194,7 +194,7 @@ class SiteCheck(object):
 						except:
 							if self.session._debug:
 								raise
-							self.output_queue.put_message('ERROR: {0}'.format(str(sys.exc_info()[1])), mod.source)
+							self.output_queue.put_error(str(sys.exc_info()[1]), mod.source)
 
 				self._wait()
 
@@ -205,7 +205,7 @@ class SiteCheck(object):
 						except:
 							if self.session._debug:
 								raise
-							self.output_queue.put_message('ERROR: {0}'.format(str(sys.exc_info()[1])), mod.source)
+							self.output_queue.put_error(str(sys.exc_info()[1]), mod.source)
 
 			# Wait for worker threads to complete
 			Checker.terminate.set()
@@ -342,14 +342,17 @@ class Checker(threading.Thread):
 		if len(request.modules) == 0:
 			request.modules = self._session.modules
 		for mod in request.modules:
+			report.default_source = mod.source
 			try:
 				mod.process(request, response, report)
 			except:
 				if self._session._debug:
 					raise
 				ex = sys.exc_info()
-				report.add_message('ERROR: Processing failed with module [{0}].'.format(mod.name), mod.source)
-				report.add_message(str(ex[1]), mod.source)
+				report.add_error('Processing failed with module [{0}].'.format(mod.name), mod.source)
+				report.add_debug(str(ex[1]), mod.source)
+			finally:
+				report.default_source = ReportData.DEFAULT_SOURCE
 
 	def fetch(self, request):
 		full_path = request.path
@@ -404,7 +407,8 @@ class Checker(threading.Thread):
 
 				res, err = self.fetch(req)
 
-				report = ReportData('Method: [{0}]'.format(req.verb), 'request')
+				report = ReportData()
+				report.add_message('Method: [{0}]'.format(req.verb), 'request')
 
 				if res:
 					dom = urllib.parse.urlparse(self._session.domain)
@@ -424,7 +428,7 @@ class Checker(threading.Thread):
 						self._session._slow = []
 
 					if res.time > self._session.slow_request and not str(req) in self._session._slow:
-						report.add_message('WARNING: Slow request ({0:.3f} seconds)'.format(res.time))
+						report.add_warning('Slow request ({0:.3f} seconds)'.format(res.time))
 						self._session._slow.append(str(req))
 
 					# Only process markup of error pages once
@@ -435,7 +439,7 @@ class Checker(threading.Thread):
 						locs = res.get_headers('location')
 						if len(locs) > 0:
 							if len(locs) > 1:
-								report.add_message('ERROR: Multiple redirect locations found')
+								report.add_error('Multiple redirect locations found')
 								for loc in locs:
 									report.add_message(loc)
 
@@ -443,9 +447,9 @@ class Checker(threading.Thread):
 
 							if not redir:
 								for msg in msgs:
-									report.add_message(msg)
+									report.add_error(msg)
 						else:
-							report.add_message('ERROR: Redirect with no location')
+							report.add_error('Redirect with no location')
 					elif res.status >= 400 and not res.status in self._session._processed and req.domain == dom.netloc and req.verb == 'HEAD':
 						# If first error page is on a HEAD request, get the resource again
 						req.verb = ''
@@ -460,10 +464,10 @@ class Checker(threading.Thread):
 						self.process(req, res, report)
 				else:
 					if err:
-						report.add_message('ERROR: {0}'.format(err))
+						report.add_error(err)
 
 					if not self._request_queue.retry(req):
-						report.add_message('ERROR: Exceeded max retries')
+						report.add_error('Exceeded max retries')
 
 				self._output_queue.put(req, res, report)
 
@@ -744,14 +748,14 @@ class RequestQueue(queue.Queue):
 
 	def redirect(self, request, url):
 		if request.redirects >= self.session.max_redirects:
-			return (False, ['ERROR: Max redirects exceeded', 'Original referrer: {0}'.format(request.referrer)])
+			return (False, ['Max redirects exceeded', 'Original referrer: {0}'.format(request.referrer)])
 		else:
 			req = copy.copy(request)
 			req.referrer = str(request)
 			req.url = url
 
 			if str(req) == str(request):
-				return (False, ['ERROR: Page redirects to itself'])
+				return (False, ['Page redirects to itself'])
 			else:
 				if req.redirects == 0:
 					req.post_data = [] # Reset to get on redirect
@@ -866,9 +870,6 @@ class ModuleBase(object):
 		self.sitecheck = sitecheck
 		self.sync_lock = threading.Lock()
 
-	def add_message(self, report, message):
-		report.add_message(message, source=self.source)
-
 	def add_request(self, url, referrer):
 		self.sitecheck.request_queue.put_url(self.name, url, referrer)
 
@@ -911,18 +912,18 @@ class Authenticate(ModuleBase):
 
 	def _log(self, request, response, report, message=None):
 		if message:
-			self.add_message(report, message)
-		self.add_message(report, 'Method: [{0}]'.format(request.verb))
-		self.add_message(report, 'Status: [{0}]'.format(str(response.status)))
-		self.add_message(report, 'Request Headers: {0}'.format(request.headers))
-		self.add_message(report, 'Response Headers: {0}\n'.format(response.headers))
+			report.add_message(message)
+		report.add_message('Method: [{0}]'.format(request.verb))
+		report.add_message('Status: [{0}]'.format(str(response.status)))
+		report.add_message('Request Headers: {0}'.format(request.headers))
+		report.add_message('Response Headers: {0}\n'.format(response.headers))
 
 		if response.status >= 400:
-			self.add_message(report, 'ERROR: Authentication Failed')
+			report.add_error('Authentication Failed')
 			if len(request.post_data) > 0:
-				self.add_message(report, 'Post Data: {0}'.format(request.post_data))
+				report.add_message('Post Data: {0}'.format(request.post_data))
 		elif self.sitecheck.session.log.post_data and len(request.post_data) > 0:
-			self.add_message(report, 'Post Data: {0}'.format(request.post_data))
+			report.add_message('Post Data: {0}'.format(request.post_data))
 
 	def process(self, request, response, report):
 		if request.source == self.name:

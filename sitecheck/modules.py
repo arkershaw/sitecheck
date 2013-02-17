@@ -95,16 +95,16 @@ class Spider(ModuleBase):
 				out.sort()
 				for url in out:
 					if url.count(' ') > 0:
-						self.add_message(report, '-> [{0}] *Unencoded'.format(url))
+						report.add_message('-> [{0}] *Unencoded'.format(url))
 					else:
-						self.add_message(report, '-> [{0}]'.format(url))
+						report.add_message('-> [{0}]'.format(url))
 
 class StatusLog(ModuleBase):
 	def process(self, request, response, report):
 		if response.status >= 400:
-			self.add_message(report, 'Status: [{0} {1}]'.format(response.status, response.message))
+			report.add_message('Status: [{0} {1}]'.format(response.status, response.message))
 			if request.referrer and len(request.referrer) > 0:
-				self.add_message(report, 'Referrer: [{0}]'.format(request.referrer))
+				report.add_message('Referrer: [{0}]'.format(request.referrer))
 
 class Accessibility(ModuleBase):
 	def __init__(self):
@@ -125,7 +125,7 @@ class Accessibility(ModuleBase):
 	def begin(self, report):
 		global _tidy_available
 		if not _tidy_available:
-			self.add_message(report, 'ERROR: tidylib not available')
+			report.add_error('tidylib not available')
 
 	def process(self, request, response, report):
 		global _tidy_available
@@ -133,16 +133,16 @@ class Accessibility(ModuleBase):
 			try:
 				doc, err = tidy_document(response.content, options=self.options)
 			except:
-				self.add_message(report, 'Error parsing: [{0}]'.format(str(request)))
+				report.add_message('Error parsing: [{0}]'.format(str(request)))
 			else:
 				c = 0
 				for e in err.splitlines():
 					if self._log(e):
 						c += 1
-						self.add_message(report, '{0}'.format(re.sub('^line\\b', 'Line', e)))
+						report.add_message('{0}'.format(re.sub('^line\\b', 'Line', e)))
 
 				if c > 0:
-					self.add_message(report, 'Total: {0}'.format(c))
+					report.add_message('Total: {0}'.format(c))
 
 	def _log(self, error):
 		mtch = self.accessibility.search(error)
@@ -169,7 +169,7 @@ class Comments(ModuleBase):
 					# Ignore IE conditional comments
 					pass
 				else:
-					self.add_message(report, 'Comment:\t{0}'.format(re.sub('\r?\n', '\n\t\t\t\t', c, re.MULTILINE)))
+					report.add_message('Comment:\t{0}'.format(re.sub('\r?\n', '\n\t\t\t\t', c, re.MULTILINE)))
 
 class MetaData(ModuleBase):
 	def process(self, request, response, report):
@@ -209,13 +209,13 @@ class MetaData(ModuleBase):
 					empty.append(m)
 
 			if len(missing) > 0:
-				self.add_message(report, 'Missing: {0}'.format(str(missing)))
+				report.add_message('Missing: {0}'.format(str(missing)))
 
 			if len(empty) > 0:
-				self.add_message(report, 'Empty: {0}'.format(str(empty)))
+				report.add_message('Empty: {0}'.format(str(empty)))
 
 			if len(multiple) > 0:
-				self.add_message(report, 'Multiple: {0}'.format(str(multiple)))
+				report.add_message('Multiple: {0}'.format(str(multiple)))
 
 class Readability(ModuleBase):
 	def __init__(self, threshold=45):
@@ -230,7 +230,7 @@ class Readability(ModuleBase):
 	@report
 	def complete(self, report):
 		if self.count > 0:
-			self.add_message(report, '\nSummary: Min {:.2f}, Max {:.2f}, Avg {:.2f}'.format(self.min, self.max, self.total / self.count))
+			report.add_message('\nSummary: Min {:.2f}, Max {:.2f}, Avg {:.2f}'.format(self.min, self.max, self.total / self.count))
 
 	def process(self, request, response, report):
 		if response.is_html:
@@ -269,7 +269,7 @@ class Readability(ModuleBase):
 						self.max = max(self.max, fkre)
 
 				if fkre < self.threshold:
-					self.add_message(report, 'Readability: [{1:.2f}]'.format(str(request), fkre))
+					report.add_message('Readability: [{1:.2f}]'.format(str(request), fkre))
 
 	def _words(self, text):
 		return len(text.split(' '))
@@ -305,7 +305,7 @@ class Validator(ModuleBase):
 	def begin(self, report):
 		global _tidy_available
 		if not _tidy_available:
-			self.add_message(report, 'ERROR: tidylib not available')
+			report.add_error('tidylib not available')
 
 	def process(self, request, response, report):
 		global _tidy_available
@@ -313,14 +313,14 @@ class Validator(ModuleBase):
 			try:
 				doc, err = tidy_document(response.content, options=self.options)
 			except:
-				self.add_message(report, 'ERROR: Unable to parse response')
+				report.add_error('Unable to parse response')
 			else:
 				l = err.splitlines()
 				if len(l) > 0:
 					for e in l:
-						self.add_message(report, '{0}'.format(re.sub('^line\\b', 'Line', e)))
+						report.add_message('{0}'.format(re.sub('^line\\b', 'Line', e)))
 
-					self.add_message(report, 'Total: {0}'.format(len(l)))
+					report.add_message('Total: {0}'.format(len(l)))
 
 class RegexMatch(ModuleBase):
 	def __init__(self, expressions={}):
@@ -337,20 +337,20 @@ class RegexMatch(ModuleBase):
 
 			if inv_h:
 				if not rx[1].search(str(response.headers)):
-					self.add_message(report, 'Filter: [{0}] not found in headers'.format(rx[0]))
+					report.add_message('Filter: [{0}] not found in headers'.format(rx[0]))
 			elif not inv_b:
 				mtchs = rx[1].finditer(str(response.headers))
 				for mtch in mtchs:
-					self.add_message(report, 'Filter: [{0}] found: [{1}] in headers'.format(rx[0], mtch.group()))
+					report.add_message('Filter: [{0}] found: [{1}] in headers'.format(rx[0], mtch.group()))
 
 			if response.is_html:
 				if inv_b:
 					if not rx[1].search(str(response.content)):
-						self.add_message(report, 'Filter: [{0}] not found'.format(rx[0]))
+						report.add_message('Filter: [{0}] not found'.format(rx[0]))
 				elif not inv_h:
 					mtchs = rx[1].finditer(response.content)
 					for mtch in mtchs:
-						self.add_message(report, 'Filter: [{0}] found: [{1}]'.format(rx[0], mtch.group()))
+						report.add_message('Filter: [{0}] found: [{1}]'.format(rx[0], mtch.group()))
 
 class Persister(ModuleBase):
 	def __init__(self, directory='output'):
@@ -429,11 +429,11 @@ class Spelling(ModuleBase):
 	@report
 	def begin(self, report):
 		if self.spell_checker:
-			self.add_message(report, 'Language: {0}'.format(self.language))
+			report.add_message('Language: {0}'.format(self.language))
 			if self.dictionary:
-				self.add_message(report, 'Using custom dictionary [{0}]'.format(self.dictionary))
+				report.add_message('Using custom dictionary [{0}]'.format(self.dictionary))
 		else:
-			self.add_message(report, 'ERROR: pyenchant not available')
+			report.add_error('pyenchant not available')
 
 	def process(self, request, response, report):
 		global _enchant_available
@@ -463,7 +463,7 @@ class Spelling(ModuleBase):
 				keys = list(words.keys())
 				keys.sort()
 				for k in keys:
-					self.add_message(report, 'Word: [{0}] x {1} ({2})'.format(words[k][0], words[k][1], words[k][2]))
+					report.add_message('Word: [{0}] x {1} ({2})'.format(words[k][0], words[k][1], words[k][2]))
 
 	def _check(self, text, words):
 		if not text:
@@ -515,7 +515,7 @@ class InboundLinks(ModuleBase):
 				ss = StringIO(settings)
 				sd = json.load(ss)
 			except:
-				self.add_message(report, 'WARNING: Update check failed - please notify: arkershaw@users.sourceforge.net')
+				report.add_warning('Update check failed - please notify: arkershaw@users.sourceforge.net')
 			else:
 				self.engine_parameters = sd
 
@@ -540,7 +540,7 @@ class InboundLinks(ModuleBase):
 				req.verb = 'GET' # Otherwise it will be set to HEAD as it is on another domain
 				self.sitecheck.request_queue.put(req)
 			else:
-				self.add_message(report, 'ERROR: Unknown search engine: [{0}]'.format(se))
+				report.add_error('Unknown search engine: [{0}]'.format(se))
 				self.engines.pop(ei)
 
 	def process(self, request, response, report):
@@ -570,10 +570,10 @@ class InboundLinks(ModuleBase):
 		if len(urls) > 0:
 			urls.sort()
 			for u in urls:
-				self.add_message(report, u)
-			self.add_message(report, 'Total: {0}'.format(len(self.inbound)))
+				report.add_message(u)
+			report.add_message('Total: {0}'.format(len(self.inbound)))
 		else:
-			self.add_message(report, 'No inbound links found')
+			report.add_message('No inbound links found')
 
 class Security(ModuleBase):
 	def __init__(self, email='', attacks=[], quick=True, post=True):
@@ -603,16 +603,16 @@ class Security(ModuleBase):
 			err = False
 			if response.status >= 500:
 				err = True
-				self.add_message(report, 'WARNING: Possible SQL injection')
+				report.add_warning('Possible SQL injection')
 			elif self.xss.search(response.content):
 				err = True
-				self.add_message(report, 'WARNING: Possible XSS')
+				report.add_warning('Possible XSS')
 
 			if 'vector' in request.meta and err:
 				if request.meta['vector'] == 'post_data':
-					self.add_message(report, 'Post data: {0}'.format(request.post_data))
+					report.add_message('Post data: {0}'.format(request.post_data))
 				elif request.meta['vector'] == 'headers':
-					self.add_message(report, 'Request headers: {0}'.format(request.headers))
+					report.add_message('Request headers: {0}'.format(request.headers))
 
 		elif response.is_html and response.status < 500:
 			# Don't attack error pages - can't tell if it worked without matching against known database error text
@@ -770,77 +770,77 @@ class DomainCheck(ModuleBase):
 	def begin(self, report):
 		global _domaincheck_available
 		if not _domaincheck_available:
-			self.add_message(report, 'ERROR: domaincheck not available')
+			report.add_error('domaincheck not available')
 		else:
 			today = datetime.date.today()
 
 			domain = urllib.parse.urlparse(self.sitecheck.session.domain).netloc
 			if domain.startswith('www.'):
 				domain = domain[4:]
-			self.add_message(report, 'Checking: {0}'.format(domain))
+			report.add_message('Checking: {0}'.format(domain))
 
 			try:
 				d = DomainInfo(domain)
 			except gaierror:
-				self.add_message(report, 'Domain not found: {0}'.format(domain))
+				report.add_message('Domain not found: {0}'.format(domain))
 				return
 
-			self.add_message(report, 'Nameservers:')
+			report.add_message('Nameservers:')
 			for ns in d.name_servers:
-				self.add_message(report, '\t{0}'.format(ns))
+				report.add_message('\t{0}'.format(ns))
 
 			if d.zone_transfer:
-				self.add_message(report, 'Zone Transfer Permitted')
+				report.add_message('Zone Transfer Permitted')
 
 			if type(d.domain_expiry) == datetime.date:
 				rem = (d.domain_expiry - today).days
 				if rem < 0:
-					self.add_message(report, 'Domain expired {0}'.format(d.domain_expiry))
+					report.add_message('Domain expired {0}'.format(d.domain_expiry))
 				else:
-					self.add_message(report, 'Domain expires in {0} days'.format(rem))
+					report.add_message('Domain expires in {0} days'.format(rem))
 			elif d.domain_expiry:
-				self.add_message(report, 'Domain expires on: {0}'.format(d.domain_expiry))
+				report.add_message('Domain expires on: {0}'.format(d.domain_expiry))
 			else:
-				self.add_message(report, 'Unable to determine domain expiry date')
+				report.add_message('Unable to determine domain expiry date')
 
 			if d.spf:
-				self.add_message(report, 'SPF: {0}'.format(d.spf))
+				report.add_message('SPF: {0}'.format(d.spf))
 			else:
-				self.add_message(report, 'No SPF record found')
+				report.add_message('No SPF record found')
 
-			self.add_message(report, 'Hosts:')
+			report.add_message('Hosts:')
 			for host in d.hosts:
 				h = d.hosts[host]
 
-				self.add_message(report, '\t{0}'.format(h.address))
+				report.add_message('\t{0}'.format(h.address))
 
 				if h.name:
-					self.add_message(report, '\t\tReverse DNS: {0}'.format(h.name))
+					report.add_message('\t\tReverse DNS: {0}'.format(h.name))
 				else:
-					self.add_message(report, '\t\t No reverse DNS')
+					report.add_message('\t\t No reverse DNS')
 
-				self.add_message(report, '\t\tRecords: {0}'.format(', '.join(h.records)))
+				report.add_message('\t\tRecords: {0}'.format(', '.join(h.records)))
 
 				if h.cert_expiry:
 					rem = (h.cert_expiry - today).days
 					if rem < 0:
-						self.add_message(report, '\t\tCertificate expired {0}'.format(h.cert_expiry))
+						report.add_message('\t\tCertificate expired {0}'.format(h.cert_expiry))
 					else:
-						self.add_message(report, '\t\tCertificate expires in {0} days'.format(rem))
+						report.add_message('\t\tCertificate expires in {0} days'.format(rem))
 
 				if h.sslv2:
-					self.add_message(report, '\t\tInsecure ciphers supported')
+					report.add_message('\t\tInsecure ciphers supported')
 
 				if self.relay:
 					relay, failed = test_relay(h.address, port=25)
 					if relay:
 						for f in failed:
-							self.add_message(report, '\t\tPossible open relay (port 25): {0} -> {1}'.format(f[0], f[1]))
+							report.add_message('\t\tPossible open relay (port 25): {0} -> {1}'.format(f[0], f[1]))
 
 					relay, failed = test_relay(h.address, port=587)
 					if relay:
 						for f in failed:
-							self.add_message(report, '\t\tPossible open relay (port 587): {0} -> {1}'.format(f[0], f[1]))
+							report.add_message('\t\tPossible open relay (port 587): {0} -> {1}'.format(f[0], f[1]))
 
 	def process(self, request, response, report):
 		pass
@@ -861,15 +861,17 @@ class DuplicateContent(ModuleBase):
 			m.update(response.content.encode())
 			h = m.hexdigest()
 
+			dup = False
 			if h in self.pages:
 				if str(request) != self.pages[h]:
-					self.add_message(report, 'Duplicate of: {0}'.format(self.pages[h]))
+					report.add_message('Duplicate of: {0}'.format(self.pages[h]))
+					dup = True
 			else:
 				self.pages[h] = str(request)
 			
-			if self.content:
+			if self.content and not dup:
 				doc = HtmlHelper(response.content)
-				text = [t for t in doc.get_text(['div', 'p']) if len(t) > self.content_length]
+				text = [t for t in doc.get_text(['div', 'p']) if len(t) >= self.content_length]
 				text.sort(key=lambda k: len(k), reverse=True)
 				for t in text:
 					m = hashlib.sha1()
@@ -878,7 +880,8 @@ class DuplicateContent(ModuleBase):
 
 					if h in self.paras:
 						if str(request) != self.paras[h]:
-							self.add_message(report, 'Duplicate of: {0}'.format(self.paras[h]))
+							report.add_message(t[0:self.content_length] + '...')
+							report.add_message('Duplicated from: {0}'.format(self.paras[h]))
 					else:
 						self.paras[h] = str(request)
 
@@ -889,11 +892,11 @@ class InsecureContent(ModuleBase):
 
 			for e, a, v in doc.get_attribute('src'): #img, script
 				if v.lower().startswith('http:'):
-					self.add_message(report, '{0}'.format(v))
+					report.add_message('{0}'.format(v))
 
 			for e, a, v in doc.get_attribute('href', 'link'):
 				if v.lower().startswith('http:'):
-					self.add_message(report, '{0}'.format(v))
+					report.add_message('{0}'.format(v))
 
 class RequestList(ModuleBase):
 	def __init__(self, *args):
@@ -935,6 +938,6 @@ class RequiredPages(ModuleBase):
 	@report
 	def complete(self, report):
 		if len(self.pages) > 0:
-			self.add_message(report, '{0}/{1} pages unmatched\n'.format(len(self.pages), self.total))
+			report.add_message('{0}/{1} pages unmatched\n'.format(len(self.pages), self.total))
 			for p in self.pages:
-				self.add_message(report, p)
+				report.add_message(p)
