@@ -22,6 +22,7 @@ import queue
 import threading
 import datetime
 import html
+import shutil
 
 __all__ = ['FlatFile', 'HTML']
 
@@ -31,6 +32,22 @@ def strfdelta(tdelta, fmt):
 	d["hours"], rem = divmod(tdelta.seconds, 3600)
 	d["minutes"], d["seconds"] = divmod(rem, 60)
 	return fmt.format(**d)
+
+_ensure_dir_lock = threading.Lock()
+def ensure_dir(directory):
+	with _ensure_dir_lock:
+		if not os.path.exists(directory):
+			os.makedirs(directory)
+
+def report(method):
+	def inner(self, *args, **kwargs):
+		r = ReportData()
+		try:
+			return method(self, r, *args, **kwargs)
+		finally:
+			self.sitecheck.output_queue.put_report(r)
+
+	return inner
 
 class ReportData(object):
 	DEFAULT_SOURCE = 'sitecheck'
@@ -81,6 +98,7 @@ class ReportThread(threading.Thread):
 		self._report.initialise(sitecheck)
 		self._session = sitecheck.session
 		self._output_queue = sitecheck.output_queue
+		self._resume = (sitecheck._resume_data != None)
 
 	def end(self):
 		self._terminate.set()
@@ -89,7 +107,7 @@ class ReportThread(threading.Thread):
 		st = datetime.datetime.now()
 		self._output_queue.put_message('Started: {0:%Y-%m-%d %H:%M:%S}'.format(st))
 
-		if hasattr(self._report, 'begin'):
+		if hasattr(self._report, 'begin') and not self._resume:
 			self._report.begin()
 
 		while not self._terminate.isSet():
@@ -110,7 +128,7 @@ class ReportThread(threading.Thread):
 			self._report.write(req, res, rep)
 
 		if hasattr(self._report, 'end'):
-			self._report.end()
+			self._report.end() # This should throw exception as it cannot be logged
 
 class FlatFile(object):
 	def initialise(self, sitecheck):
@@ -123,6 +141,19 @@ class FlatFile(object):
 		state = dict(self.__dict__)
 		del state['_outfiles']
 		return state
+	
+	def begin(self):
+		# Clear output directory
+		if os.path.exists(self.root_path):
+			try:
+				shutil.rmtree(self.root_path)
+			except:
+				raise Exception('Unable to clear output directory.')
+
+		try:
+			ensure_dir(self.root_path)
+		except:
+			raise Exception('Unable to create output directory.')
 
 	def write(self, request, response, report):
 		for src, msgs in report:
@@ -154,6 +185,19 @@ class HTML(object):
 		state = self._clean_state(dict(self.__dict__))
 		del state['_outfiles']
 		return state
+
+	def begin(self):
+		# Clear output directory
+		if os.path.exists(self.root_path):
+			try:
+				shutil.rmtree(self.root_path)
+			except:
+				raise Exception('Unable to clear output directory.')
+
+		try:
+			ensure_dir(self.root_path)
+		except:
+			raise Exception('Unable to create output directory.')
 
 	def write(self, request, response, report):
 		for src, msgs in report:

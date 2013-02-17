@@ -26,7 +26,7 @@ CONFIG_FILE_NAME = 'config.py'
 _sitecheck = None
 
 def signal_handler(signal, frame):
-	if _sitecheck:
+	if _sitecheck and _sitecheck.started:
 		print('\nStopping...')
 
 		_sitecheck.end()
@@ -66,7 +66,6 @@ if __name__ == '__main__':
 	import urllib.parse
 	import urllib.request
 	import datetime
-	import shutil
 	import imp
 	import json
 	import signal
@@ -76,7 +75,7 @@ if __name__ == '__main__':
 	from io import StringIO
 
 	from sitecheck import *
-	from sitecheck.core import VERSION, ensure_dir, append, Authenticate, Request
+	from sitecheck.core import VERSION, append, Authenticate, Request
 	from sitecheck.reporting import FlatFile
 
 	signal.signal(signal.SIGINT, signal_handler)
@@ -159,19 +158,6 @@ This program comes with ABSOLUTELY NO WARRANTY
 
 		session.output = op + session.output
 
-		# Clear output directory
-		od = root_path + session.output
-		if os.path.exists(od):
-			try:
-				shutil.rmtree(od)
-			except:
-				sys.exit('Unable to clear output directory.')
-
-		try:
-			ensure_dir(od)
-		except:
-			sys.exit('Unable to create output directory.')
-
 		if not hasattr(session, 'report'):
 			if hasattr(session, 'logger'):
 				#TODO: Remove this section on next major release
@@ -197,11 +183,15 @@ This program comes with ABSOLUTELY NO WARRANTY
 					logout.append(Request(session.authenticate.logout_url))
 
 				session.modules.append(Authenticate(login=login, logout=logout))
-
+		
 		_sitecheck = SiteCheck(session)
 
-	print('\nTarget: [{0}]'.format(_sitecheck.session.domain))
-	print('Output: [{0}]'.format(root_path + _sitecheck.session.output))
+	# TODO: Remove this section on next major release
+	if not hasattr(_sitecheck.session, 'max_requests'):
+		_sitecheck.session.max_requests = 0
+
+	print('Target: [{0}]'.format(_sitecheck.session.domain))
+	print('Output: [{0}]'.format(_sitecheck.session.root_path + _sitecheck.session.output))
 	print('Continue [Y/n]? ', end='')
 	char = input()
 	if char.strip().lower() == 'n':
@@ -217,17 +207,18 @@ This program comes with ABSOLUTELY NO WARRANTY
 		except:
 			print('WARNING: Unable to remove suspend data: {0}'.format(suspend_file))
 
-	print('Checking...')
+	print('\nChecking...')
 
 	while True:
 		if _sitecheck.complete:
 			break
 		else:
-			ttl = len(_sitecheck.request_queue.urls)
+			ttl = len(_sitecheck.request_queue.requests)
 			rem = _sitecheck.request_queue.qsize()
 			print('Remaining: {0} (Total: {1})'.format(rem, ttl))
 			time.sleep(10)
 
 	_sitecheck.end()
 
-	print('Completed')
+	print('Completed ({0} URLs)'.format(str(len(_sitecheck.request_queue.urls))))
+

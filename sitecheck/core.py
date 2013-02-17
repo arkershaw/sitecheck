@@ -34,7 +34,7 @@ import copy
 
 from sitecheck.reporting import ReportThread, OutputQueue, ReportData
 
-VERSION = '1.6'
+VERSION = '1.7'
 
 class SiteCheck(object):
 	def __init__(self, settings):
@@ -113,6 +113,10 @@ class SiteCheck(object):
 
 		return cmpl
 
+	@property
+	def started(self):
+		return self._started
+
 	def begin(self, background=False):
 		if self.session == None:
 			raise SessionNotSetException()
@@ -148,14 +152,26 @@ class SiteCheck(object):
 		if self._resume_data:
 			for module in self.session.modules:
 				if hasattr(module, 'resume'):
-					module.resume()
-			self.request_queue.load(self._resume_data[1], self._resume_data[2])
+					try:
+						module.resume()
+					except:
+						if self.session._debug:
+							raise
+						self.output_queue.put_message('ERROR: {0}'.format(str(sys.exc_info()[1])), module.source)
+						self.session.modules.remove(module)
+			self.request_queue.load(self._resume_data[1], self._resume_data[2], self._resume_data[3])
 			del self._resume_data
 		else:
-			self.request_queue.urls = set() # Clear authentication URLs
+			self.request_queue.requests = set() # Clear authentication requests
 			for module in self.session.modules:
 				if hasattr(module, 'begin'):
-					module.begin()
+					try:
+						module.begin()
+					except:
+						if self.session._debug:
+							raise
+						self.output_queue.put_message('ERROR: {0}'.format(str(sys.exc_info()[1])), module.source)
+						self.session.modules.remove(module)
 			self.request_queue.put_url('', self.session.page, self.session.domain)
 
 	def _wait(self):
@@ -166,28 +182,42 @@ class SiteCheck(object):
 				time.sleep(self.sleep_time)
 
 	def end(self):
-		if self.session == None:
-			raise SessionNotSetException()
+		if self._started:
+			if self.session == None:
+				raise SessionNotSetException()
 
-		if self.complete:
-			for mod in self.session.modules:
-				if hasattr(mod, 'end'):
-					mod.end()
+			if self.complete:
+				for mod in self.session.modules:
+					if hasattr(mod, 'end'):
+						try:
+							mod.end()
+						except:
+							if self.session._debug:
+								raise
+							self.output_queue.put_message('ERROR: {0}'.format(str(sys.exc_info()[1])), mod.source)
 
-			self._wait()
+				self._wait()
 
-			for mod in self.session.modules:
-				if hasattr(mod, 'complete'):
-					mod.complete()
+				for mod in self.session.modules:
+					if hasattr(mod, 'complete'):
+						try:
+							mod.complete()
+						except:
+							if self.session._debug:
+								raise
+							self.output_queue.put_message('ERROR: {0}'.format(str(sys.exc_info()[1])), mod.source)
 
-		# Wait for worker threads to complete
-		Checker.terminate.set()
-		for thread in self._threads:
-			thread.join()
+			# Wait for worker threads to complete
+			Checker.terminate.set()
+			for thread in self._threads:
+				thread.join()
 
-		# Wait for log entries to be written
-		self.report_thread.end()
-		self.report_thread.join()
+			if self.complete:
+				self.output_queue.put_message('Total URLs: {0}'.format(str(len(self.request_queue.urls))))
+
+			# Wait for log entries to be written
+			self.report_thread.end()
+			self.report_thread.join()
 
 	def suspend(self):
 		if self.session == None:
@@ -251,12 +281,6 @@ def get_class(name):
 	cls = get_module(name)
 	return cls()
 
-_ensure_dir_lock = threading.Lock()
-def ensure_dir(directory):
-	with _ensure_dir_lock:
-		if not os.path.exists(directory):
-			os.makedirs(directory)
-
 class SessionNotSetException(Exception):
 	pass
 
@@ -298,10 +322,11 @@ class Checker(threading.Thread):
 	def set_cookie(self, request):
 		if hasattr(self._session, '_cookie'):
 			c = self._session._cookie.output(['key', 'coded_value'], '', ';').strip()
-			if 'Cookie' in request.headers:
-				request.headers['Cookie'] += c
-			elif 'cookie' in request.headers:
-				request.headers['cookie'] += c
+			if 'Cookie' in request.headers or 'cookie' in request.headers:
+				#request.headers['Cookie'] += c
+			#elif 'cookie' in request.headers:
+				#request.headers['cookie'] += c
+				pass
 			else:
 				request.headers['Cookie'] = c
 
@@ -577,19 +602,18 @@ class Request(object):
 
 	def hash(self):
 		# Relies on query, post and headers being sorted
-		m = hashlib.sha1()
-		m.update(self._verb.encode())
-		m.update(self.__str__().encode())
+		h = [self._verb]
+		h.append(self.__str__())
 
 		hdrs = dict_to_sorted_list(self.headers)
 		if len(hdrs) > 0:
-			m.update(urllib.parse.urlencode(hdrs).encode())
+			h.append(urllib.parse.urlencode(hdrs))
 
 		pd = self.post_data_string()
 		if len(pd) > 0:
-			m.update(pd.encode())
+			h.append(pd)
 
-		return m.hexdigest()
+		return hashlib.sha1(''.join(h).encode()).hexdigest()
 
 class Response(object):
 	def __init__(self, response, start_time):
@@ -628,9 +652,10 @@ class RequestQueue(queue.Queue):
 		super(RequestQueue, self).__init__()
 		self.session = session
 		self._lock = threading.Lock()
+		self.requests = set()
 		self.urls = set()
 
-	def validate(self, request):
+	def _validate(self, request):
 		if request == None:
 			return False
 
@@ -666,15 +691,22 @@ class RequestQueue(queue.Queue):
 		else:
 			return False
 
+	def _put_request(self, request, block, timeout):
+		if self._validate(request):
+			hc = request.hash()
+			if (not hc in self.requests) and (len(self.urls) < self.session.max_requests or self.session.max_requests == 0):
+				self.requests.add(hc)
+				self.urls.add(str(request))
+				queue.Queue.put(self, request, block, timeout)
+			elif request.redirects > 0:
+				# Continue to test for looping redirects
+				request.verb = 'HEAD'
+				queue.Queue.put(self, request, block, timeout)
+
 	def _put_url(self, source, url, referrer, block, timeout):
 		req = Request(url, referrer=referrer)
 		req.source = source
-
-		if self.validate(req):
-			hc = req.hash()
-			if not hc in self.urls:
-				self.urls.add(hc)
-				queue.Queue.put(self, req, block, timeout)
+		self._put_request(req, block, timeout);
 
 	def put_url(self, source, url, referrer, block=True, timeout=None):
 		with self._lock:
@@ -685,28 +717,27 @@ class RequestQueue(queue.Queue):
 				self._put_url(source, str(url), referrer, block, timeout)
 
 	def put(self, request, block=True, timeout=None):
-		if self.validate(request):
-			with self._lock:
-				hc = request.hash()
-				if not hc in self.urls:
-					self.urls.add(hc)
-					queue.Queue.put(self, request, block, timeout)
+		with self._lock:
+			self._put_request(request, block, timeout)
 
-	def load(self, urls, requests, block=True, timeout=None):
-		self.urls = urls
-		for r in requests:
-			queue.Queue.put(self, r, block, timeout)
+	def load(self, requests, urls, pending, block=True, timeout=None):
+		with self._lock:
+			self.requests = requests
+			self.urls = urls
+			for r in pending:
+				queue.Queue.put(self, r, block, timeout)
 
 	def save(self, block=False):
-		rq = []
-		while not self.empty():
-			rq.append(self.get(block))
-		return (self.urls, rq)
+		with self._lock:
+			rq = []
+			while not self.empty():
+				rq.append(self.get(block))
+			return (self.requests, self.urls, rq)
 
 	def retry(self, request):
 		if request.timeouts >= self.session.max_retries:
 			return False
-		elif self.validate(request):
+		elif self._validate(request):
 			request.timeouts += 1
 			queue.Queue.put(self, request)
 			return True
@@ -721,13 +752,16 @@ class RequestQueue(queue.Queue):
 
 			if str(req) == str(request):
 				return (False, ['ERROR: Page redirects to itself'])
-			elif self.validate(req):
+			else:
 				if req.redirects == 0:
 					req.post_data = [] # Reset to get on redirect
 					req.verb = ''
 
 				req.redirects += 1
-				queue.Queue.put(self, req)
+
+				with self._lock:
+					self._put_request(req, True, None)
+
 				return (True, [])
 
 class HtmlHelper(object):
@@ -753,24 +787,30 @@ class HtmlHelper(object):
 
 	def __init__(self, document):
 		self.document = document
-		self.flags = re.IGNORECASE | re.DOTALL # | re.MULTILINE
+		self.flags = re.IGNORECASE | re.DOTALL
 
-	def get_element(self, element):
-		#rx = re.compile(r'<\s*%s\b.*?>' % element, self.flags)
-		rx = re.compile(r'<\s*{0}\b[^>]*(?:/\s*>)|(?:>.*?<\s*/\s*{1}\s*>)'.format(element, element), self.flags)
+	def _element_expression(self, elements):
+		if type(elements) is str:
+			return elements
+		elif type(elements) is list or type(elements) is tuple:
+			return '|'.join(elements)
+
+	def get_elements(self, elements):
+		e = self._element_expression(elements)
+		rx = re.compile(r'(?:<\s*(?P<element>{0})\b[^>/]*)(?:(?:/\s*>)|(?:>.*?<\s*/\s*(?P=element)\s*>))'.format(e), self.flags)
 		mtchs = rx.finditer(self.document)
 		for m in mtchs:
 			yield HtmlHelper(m.group(0))
 
-	def get_attribute(self, attribute, element=None):
+	def get_attribute(self, attribute, elements=None):
 		# Test strings:
 		# < form name = name action = test 1 method = get>
 		# < form name = "name" action = "test 1" method = "get">
 		# < form name = 'name' action = 'test 1' method = 'get'>
-
-		if element:
+		if elements:
+			e = self._element_expression(elements)
 			rx = re.compile(r'''<\s*(?P<element>{0})\s[^>]*?(?<=\s){1}\s*=\s*(?P<quoted>"|')?(?P<attr>.*?)(?(quoted)(?P=quoted)|[\s>])''' \
-				.format(element, attribute), self.flags)
+				.format(e, attribute), self.flags)
 		else:
 			rx = re.compile(r'''<\s*(?P<element>[^\s>]+)\s[^>]*?(?<=\s){0}\s*=\s*(?P<quoted>"|')?(?P<attr>.*?)(?(quoted)(?P=quoted)|[\s>])''' \
 				.format(attribute), self.flags)
@@ -779,24 +819,26 @@ class HtmlHelper(object):
 		for m in mtchs:
 			yield (m.group('element'), attribute, m.group('attr'))
 
-	def get_text(self, element=None):
-		if element:
-			rx = re.compile(r'<\s*{0}\b[^>]*?>(?P<text>[^<]*?\w[^<]*?)(?:<|$)'.format(element), self.flags)
+	def get_text(self, elements=None):
+		if elements:
+			#rx = re.compile(r'<\s*{0}\b[^>]*?>(?P<text>[^<]*?\w[^<]*?)(?:<|$)'.format(element), self.flags)
+			for e in self.get_elements(elements):
+				e.strip_elements()
+				yield e.document
 		else:
 			rx = re.compile(r'(?:^[^<]|>)(?P<text>[^<]*?\w[^<]*?)(?:<|$)', self.flags)
 
-		mtchs = rx.finditer(self.document)
-		for m in mtchs:
-			yield m.group('text')
+			mtchs = rx.finditer(self.document)
+			for m in mtchs:
+				yield m.group('text')
 
-	def strip_element(self, elements):
-		names = elements
-		if type(elements) is str:
-			names = (elements)
-
-		for e in names:
-			self.document = re.sub(r'<\s*{0}\b.*?>.*?<\s*/\s*{1}\s*>'.format(e, e), \
+	def strip_elements(self, elements=None):
+		if elements:
+			e = self._element_expression(elements)
+			self.document = re.sub(r'<\s*(?P<element>{0})\b.*?>.*?<\s*/\s*(?P=element)\s*>'.format(e), \
 				'', self.document, flags=self.flags)
+		else:
+			self.document = re.sub(r'<.*?>', '', self.document, flags=self.flags)
 
 	def strip_comments(self):
 		self.document = re.sub(r'<\s*!\s*-\s*-.*?-\s*-\s*>', '', self.document, flags=self.flags)
@@ -843,16 +885,6 @@ class ModuleBase(object):
 		del state['sync_lock']
 		del state['sitecheck']
 		return state
-
-def report(method):
-	def inner(self, *args, **kwargs):
-		r = ReportData()
-		try:
-			return method(self, r, *args, **kwargs)
-		finally:
-			self.sitecheck.output_queue.put_report(r)
-
-	return inner
 
 class Authenticate(ModuleBase):
 	AUTH_META_KEY = '__AUTHENTICATION'

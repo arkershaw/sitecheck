@@ -51,7 +51,8 @@ except:
 else:
 	_domaincheck_available = True
 
-from sitecheck.core import Authenticate, ModuleBase, HtmlHelper, report, ensure_dir
+from sitecheck.reporting import ensure_dir, report
+from sitecheck.core import Authenticate, ModuleBase, HtmlHelper
 
 __all__ = ['Authenticate', 'RequestList', 'RequiredPages', 'DuplicateContent', 'InsecureContent', 'DomainCheck', 'Persister', 'InboundLinks', 'RegexMatch', 'Validator', 'Accessibility', 'MetaData', 'StatusLog', 'Security', 'Comments', 'Spelling', 'Readability', 'Spider']
 
@@ -178,7 +179,7 @@ class MetaData(ModuleBase):
 			empty = []
 			multiple = []
 
-			title = [t for t in doc.get_element('title')]
+			title = [t for t in doc.get_elements('title')]
 			if len(title) == 0:
 				missing.append('title')
 			elif len(title) > 1:
@@ -189,7 +190,7 @@ class MetaData(ModuleBase):
 					empty.append('title')
 
 			meta = {'description': [0, ''], 'keywords': [0, '']}
-			for e in doc.get_element('meta'):
+			for e in doc.get_elements('meta'):
 				names = [n for n in e.get_attribute('name')]
 				if len(names) > 0:
 					name = names[0][2].lower()
@@ -235,7 +236,7 @@ class Readability(ModuleBase):
 		if response.is_html:
 			doc = HtmlHelper(response.content)
 			doc.strip_comments()
-			doc.strip_element(('script', 'style'))
+			doc.strip_elements(('script', 'style'))
 
 			all_text = ''
 			for txt in doc.get_text():
@@ -439,7 +440,7 @@ class Spelling(ModuleBase):
 		if response.is_html and _enchant_available:
 			doc = HtmlHelper(response.content)
 			doc.strip_comments()
-			doc.strip_element(('script', 'style'))
+			doc.strip_elements(('script', 'style'))
 
 			words = {}
 			with self.sync_lock:
@@ -449,7 +450,7 @@ class Spelling(ModuleBase):
 					self._check(txt[2], words)
 				for txt in doc.get_attribute('alt'):
 					self._check(txt[2], words)
-				for e in doc.get_element('meta'):
+				for e in doc.get_elements('meta'):
 					names = [n for n in e.get_attribute('name')]
 					if len(names) > 0:
 						name = names[0][2].lower()
@@ -644,7 +645,7 @@ class Security(ModuleBase):
 			self.sitecheck.request_queue.put(req)
 
 		if self.post:
-			for f in document.get_element('form'):
+			for f in document.get_elements('form'):
 				url, post, params = self._parse_form(f)
 				if url:
 					self.add_request(url, str(request))
@@ -691,7 +692,7 @@ class Security(ModuleBase):
 				qs[param] = temp
 
 		if self.post:
-			for f in document.get_element('form'):
+			for f in document.get_elements('form'):
 				url, post, params = self._parse_form(f)
 				if url:
 					self.add_request(url, str(request))
@@ -729,22 +730,16 @@ class Security(ModuleBase):
 			break
 
 		params = []
-		self._get_fields(form, 'input', params)
-		self._get_fields(form, 'textarea', params)
-		self._get_fields(form, 'select', params)
 
-		return url, post, params
-
-	def _get_fields(self, form, element, params):
-		for e in form.get_element(element):
+		for e in form.get_elements(['input', 'textarea', 'select']):
 			name = ''
-			for n in e.get_attribute('name', element):
+			for n in e.get_attribute('name'):
 				name = n[2]
 				break
 
 			if len(name) > 0:
 				val = ''
-				for v in e.get_attribute('value', element):
+				for v in e.get_attribute('value'):
 					val = v[2]
 					break
 
@@ -757,6 +752,8 @@ class Security(ModuleBase):
 						val = '1'
 
 				params.append((name, val))
+
+		return url, post, params
 
 	def _insert_param(self, item, name, value):
 		if item[0] == name:
@@ -849,8 +846,14 @@ class DomainCheck(ModuleBase):
 		pass
 
 class DuplicateContent(ModuleBase):
+	def __init__(self, content=True, content_length=25):
+		super(DuplicateContent, self).__init__()
+		self.content = content
+		self.content_length = content_length
+
 	def begin(self):
-		self.content = {}
+		self.pages = {}
+		self.paras = {}
 
 	def process(self, request, response, report):
 		if response.is_html and response.status < 300:
@@ -858,11 +861,26 @@ class DuplicateContent(ModuleBase):
 			m.update(response.content.encode())
 			h = m.hexdigest()
 
-			if h in self.content:
-				if str(request) != self.content[h]:
-					self.add_message(report, 'Duplicate of: {0}'.format(self.content[h]))
+			if h in self.pages:
+				if str(request) != self.pages[h]:
+					self.add_message(report, 'Duplicate of: {0}'.format(self.pages[h]))
 			else:
-				self.content[h] = str(request)
+				self.pages[h] = str(request)
+			
+			if self.content:
+				doc = HtmlHelper(response.content)
+				text = [t for t in doc.get_text(['div', 'p']) if len(t) > self.content_length]
+				text.sort(key=lambda k: len(k), reverse=True)
+				for t in text:
+					m = hashlib.sha1()
+					m.update(t.encode())
+					h = m.hexdigest()
+
+					if h in self.paras:
+						if str(request) != self.paras[h]:
+							self.add_message(report, 'Duplicate of: {0}'.format(self.paras[h]))
+					else:
+						self.paras[h] = str(request)
 
 class InsecureContent(ModuleBase):
 	def process(self, request, response, report):

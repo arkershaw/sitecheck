@@ -43,15 +43,16 @@ class Session(object):
 		self.request_timeout = 30.0
 		self.max_retries = 3 # On socket error, a request is returned to the queue
 		self.max_redirects = 5 # Trap looping redirects
+		self.max_requests = 0 # Maximum number of requests in a scan (0 is no limit)
 		self.slow_request = 5.0 # Requests taking longer than this are logged
 		self.log = Struct(request_headers=True, response_headers=True, post_data=False)
 		self.ignore_url = []
 		self.report = FlatFile() #HTML()
 		self.modules = [
 			#Authenticate(login=[Request('login.php'), Request('login.php', post_data=[('username', ''), ('password', '')])], logout=[Request('logout.php')]),
-			#RequestList(Request('favicon.ico'), Request('robots.txt')),
+			RequestList(Request('favicon.ico'), Request('robots.txt')),
 			#RequiredPages('privacy-policy.html', 'contact-us.html'),
-			DuplicateContent(),
+			DuplicateContent(content=True, content_length=25),
 			InsecureContent(),
 			#DomainCheck(relay=False),
 			#Persister(directory='output'),

@@ -1,4 +1,13 @@
 ------------------------
+Version 1.7 (2013-??-??)
+------------------------
+
+Report on number of URLs as well as requests
+Added max request configuration to limit a scan to a fixed number of URLs
+Check for duplicate content inside site copy
+Fix bug with cookies and redirects
+
+------------------------
 Version 1.6 (2013-01-10)
 ------------------------
 
