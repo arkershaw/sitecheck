@@ -70,8 +70,6 @@ class SiteCheck(object):
 		if not re.match('^http', self.session.domain, re.IGNORECASE):
 			self.session.domain = 'http://{0}'.format(self.session.domain)
 
-		self.session.output = append(self.session.output, os.sep)
-
 		if len(urllib.parse.urlparse(self.session.domain).netloc) == 0:
 			raise Exception('Invalid domain')
 
@@ -446,8 +444,10 @@ class Checker(threading.Thread):
 							redir, msgs = self._request_queue.redirect(req, locs[-1])
 
 							if not redir:
-								for msg in msgs:
-									report.add_error(msg)
+								report.add_error(msgs[0])
+								if len(msgs) > 1:
+									for msg in msgs[1:]:
+										report.add_message(msg)
 						else:
 							report.add_error('Redirect with no location')
 					elif res.status >= 400 and not res.status in self._session._processed and req.domain == dom.netloc and req.verb == 'HEAD':

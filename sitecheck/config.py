@@ -20,7 +20,7 @@
 import re
 from sitecheck.core import Struct, Request
 from sitecheck.modules import *
-from sitecheck.reporting import FlatFile, HTML
+from sitecheck.reporting import *
 
 media_files = set(['gif', 'jpg', 'jpeg', 'png', 'swf', 'ico'])
 resource_files = set(['js', 'css', 'htc'])
@@ -47,7 +47,7 @@ class Session(object):
 		self.slow_request = 5.0 # Requests taking longer than this are logged
 		self.log = Struct(request_headers=True, response_headers=True, post_data=False)
 		self.ignore_url = []
-		self.report = FlatFile() #HTML()
+		self.report = FlatFile(directory='txt') #HTML(directory='html')
 		self.modules = [
 			#Authenticate(login=[Request('login.php'), Request('login.php', post_data=[('username', ''), ('password', '')])], logout=[Request('logout.php')]),
 			RequestList(Request('favicon.ico'), Request('robots.txt')),

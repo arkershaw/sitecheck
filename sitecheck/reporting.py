@@ -113,8 +113,17 @@ class ReportThread(threading.Thread):
 	def __init__(self, sitecheck):
 		super(ReportThread, self).__init__()
 		self._terminate = threading.Event()
-		self._report = sitecheck.session.report
-		self._report.initialise(sitecheck)
+
+		self._reports = []
+		rep = sitecheck.session.report
+		if type(rep) == list or type(rep) == tuple:
+			for r in rep:
+				self._reports.append(r)
+				r.initialise(sitecheck)
+		else:
+			self._reports.append(rep)
+			rep.initialise(sitecheck)
+
 		self._session = sitecheck.session
 		self._output_queue = sitecheck.output_queue
 		self._resume = (sitecheck._resume_data != None)
@@ -126,8 +135,9 @@ class ReportThread(threading.Thread):
 		st = datetime.datetime.now()
 		self._output_queue.put_message('Started: {0:%Y-%m-%d %H:%M:%S}'.format(st))
 
-		if hasattr(self._report, 'begin') and not self._resume:
-			self._report.begin()
+		for r in self._reports:
+			if hasattr(r, 'begin') and not self._resume:
+				r.begin()
 
 		while not self._terminate.isSet():
 			self._terminate.wait(self._session.wait_seconds)
@@ -136,7 +146,8 @@ class ReportThread(threading.Thread):
 			except queue.Empty:
 				pass
 			else:
-				self._report.write(req, res, rep)
+				for r in self._reports:
+					r.write(req, res, rep)
 
 		et = datetime.datetime.now()
 		self._output_queue.put_message('Completed: {0:%Y-%m-%d %H:%M:%S}'.format(et))
@@ -144,14 +155,27 @@ class ReportThread(threading.Thread):
 
 		while not self._output_queue.empty():
 			req, res, rep = self._output_queue.get(block=False)
-			self._report.write(req, res, rep)
+			for r in self._reports:
+				r.write(req, res, rep)
 
-		if hasattr(self._report, 'end'):
-			self._report.end() # This should throw exception as it cannot be logged
+		for r in self._reports:
+			if hasattr(r, 'end'):
+				r.end() # This should throw exception as it cannot be logged
 
 class FlatFile(object):
+	def __init__(self, directory='txt'):
+		self.directory = directory
+
 	def initialise(self, sitecheck):
 		self.root_path = sitecheck.session.root_path + sitecheck.session.output
+		if self.directory == None or len(self.directory) == 0:
+			pass
+		else:
+			self.root_path = self.root_path + os.sep + self.directory
+
+		if not self.root_path.endswith(os.sep):
+			self.root_path = self.root_path + os.sep
+
 		self._outfiles = {}
 		self.default_log_file = 'sitecheck'
 		self.extension = '.log'
@@ -187,7 +211,7 @@ class FlatFile(object):
 	def write(self, request, response, report):
 		for src, msgs in report:
 			if not src in self._outfiles:
-				self._outfiles[src] = open('{0}{1}{2}{3}'.format(self.root_path, os.sep, src, self.extension), mode='a')
+				self._outfiles[src] = open('{0}{1}{2}'.format(self.root_path, src, self.extension), mode='a')
 
 			if request:
 				indent = '\t'
@@ -202,8 +226,19 @@ class FlatFile(object):
 			fl[1].close()
 
 class HTML(object):
+	def __init__(self, directory='html'):
+		self.directory = directory
+
 	def initialise(self, sitecheck):
 		self.root_path = sitecheck.session.root_path + sitecheck.session.output
+		if self.directory == None or len(self.directory) == 0:
+			pass
+		else:
+			self.root_path = self.root_path + os.sep + self.directory
+
+		if not self.root_path.endswith(os.sep):
+			self.root_path = self.root_path + os.sep
+
 		self._outfiles = {}
 		self.default_log_file = 'sitecheck'
 		self.extension = '.html'
@@ -243,7 +278,7 @@ class HTML(object):
 			if src in self._outfiles:
 				fl = self._outfiles[src]
 			else:
-				fl = open('{0}{1}{2}{3}'.format(self.root_path, os.sep, src, self.extension), mode='a')
+				fl = open('{0}{1}{2}'.format(self.root_path, src, self.extension), mode='a')
 				self._outfiles[src] = fl
 				fl.write(self.header)
 				fl.write('\t\t<h1>{0}</h1>\n'.format(html.escape(src.title())))
@@ -257,7 +292,7 @@ class HTML(object):
 				self._write(src, msgs, '\t\t')
 
 	def end(self):
-		ix = open('{0}{1}index{2}'.format(self.root_path, os.sep, self.extension), mode='w')
+		ix = open('{0}index{1}'.format(self.root_path, self.extension), mode='w')
 		ix.write(self.header)
 		ix.write('\t\t<h1>Results</h1>\n\t\t<ul>\n')
 
