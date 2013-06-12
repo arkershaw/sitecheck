@@ -5,10 +5,14 @@ Version 1.7 (2013-??-??)
 Report on number of distinct URLs as well as total number of requests
 Added max request configuration to limit a scan to a fixed number of URLs
 Check for duplicate content inside site copy
-Fix bug with cookies and redirects
+Fixed bug with cookies and redirects
 Added support for multiple reporting destinations
 	To update existing config files:
 	On line 50 of example config.py change "self.report = FlatFile()" to "self.report = [FlatFile(directory='txt'), HTML(directory='html')]"
+Updated user agent
+Fixed threading issue with DuplicateContent, RequestList and RequiredPages modules
+Added support for alternate domains to DomainCheck module
+Re-authenticate on resume
 
 ------------------------
 Version 1.6 (2013-01-10)
@@ -32,9 +36,9 @@ Updated Windows installation instructions
 Fixed issue with domain name formatting in domain check module
 Fixed suspend/resume functionality
 Fixed missing DomainCheck module
-Fix persister file name invalid characters on Windows
-Fix error with authenticate logout setting in default config.py
-Fix error with missing referrer in StatusLog
+Fixed persister file name invalid characters on Windows
+Fixed error with authenticate logout setting in default config.py
+Fixed error with missing referrer in StatusLog
 
 ------------------------
 Version 1.5 (2012-08-11)

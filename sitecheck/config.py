@@ -35,7 +35,7 @@ class Session(object):
 		# Page is populated by the -p parameter
 		self.page = '' # Start with this page
 		self.thread_pool = 10 # Number of spider threads to spawn. An extra thread is used for output.
-		self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; rv:12.0) Gecko/20120405 Firefox/14.0.1 Sitecheck'} # Emulate Firefox 14 running on Windows 7
+		self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; rv:21.0) Gecko/20130401 Firefox/21.0 Sitecheck'} # Emulate Firefox 21 running on Windows 7
 		self.ignore_ext = set([]) # These file types are ignored
 		self.test_ext = set.union(media_files, resource_files, document_files) # Only headers are downloaded for these file types
 		self.include_ext = set([]) # Allows the inclusion of resources (images, styles etc.) in parent folder of path (if specified)
@@ -54,7 +54,8 @@ class Session(object):
 			#RequiredPages('privacy-policy.html', 'contact-us.html'),
 			DuplicateContent(content=True, content_length=25),
 			InsecureContent(),
-			#DomainCheck(relay=False),
+			# Scan domain is checked automatically
+			#DomainCheck(relay=False, domains=['alternate-domain-1.com', 'alternate-domain-2.com'])
 			#Persister(directory='output'),
 			#InboundLinks(engines=['Google', 'Bing']),
 			RegexMatch(expressions={

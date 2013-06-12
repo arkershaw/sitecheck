@@ -85,10 +85,6 @@ class SiteCheck(object):
 				raise Exception('Process method not defined')
 
 			module.initialise(self)
-
-			if not self._resume_data:
-				if hasattr(module, 'setup'):
-					module.setup()
 		except:
 			if self.session._debug:
 				raise
@@ -101,6 +97,9 @@ class SiteCheck(object):
 	def complete(self):
 		if self.session == None:
 			raise SessionNotSetException()
+
+		if not self._started:
+			return False
 
 		cmpl = False
 		if self.request_queue.empty():
@@ -758,7 +757,8 @@ class RequestQueue(queue.Queue):
 				return (False, ['Page redirects to itself'])
 			else:
 				if req.redirects == 0:
-					req.post_data = [] # Reset to get on redirect
+					# Reset to get on redirect
+					req.post_data = []
 					req.verb = ''
 
 				req.redirects += 1
@@ -855,7 +855,6 @@ class HtmlHelper(object):
 			yield m.group('comment')
 
 #module.initialise is called every time module is created
-#module.setup is called the first time module is created (not on resume)
 #module.begin is called the first time module is started (not on resume)
 #module.resume is called when the module is resumed
 #module.end is called when end is requested
@@ -897,7 +896,9 @@ class Authenticate(ModuleBase):
 		self.login = login
 		self.logout = logout
 
-	def setup(self):
+	def initialise(self, sitecheck):
+		super(Authenticate, self).initialise(sitecheck)
+
 		for req in self.logout:
 			if not str(req) in self.sitecheck.session.ignore_url:
 				self.sitecheck.session.ignore_url.append(str(req))

@@ -19,8 +19,8 @@ Dependencies:
 
 	WARNING:
 	*pyenchant does not currently work with Python 3.3 although it works fine with Python 3.2.
-	*The version of pytidylib in PyPI is not yet updated for Python 3 so easy_install or pip will not install the required version. The most recent version is available at: https://github.com/countergram/pytidylib/
-	*dnspython3 on Windows is currently affected by this bug, which prevents some functionality of domain check from working: https://github.com/rthalley/dnspython/pull/20
+	*The version of pytidylib in PyPI (0.2.1) is not yet updated for Python 3 so easy_install or pip will not install the required version. The most recent version is available at: https://github.com/countergram/pytidylib/
+	*dnspython3 on Windows (version 1.10.0) is currently affected by this bug, which prevents some functionality of domain check from working: https://github.com/rthalley/dnspython/pull/20
 
 	Using VirtualEnv is recommended due to the development status pytidylib. Alternatively, on Linux they can be symlinked into the site-packages directory rather than installed.
 

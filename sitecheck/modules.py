@@ -762,27 +762,68 @@ class Security(ModuleBase):
 			return item
 
 class DomainCheck(ModuleBase):
-	def __init__(self, relay=False):
+	def __init__(self, domains=[], relay=False):
 		super(DomainCheck, self).__init__()
 		self.relay = relay
+		self.domains = domains
+
+	def get_domain(self, domain, root=False):
+		url = domain
+		if not re.match('^https?://', domain, re.IGNORECASE):
+			url = 'http://{0}'.format(domain)
+
+		d = urllib.parse.urlparse(url).netloc
+
+		if root and d.startswith('www.'):
+			d = d[4:]
+
+		return d
 
 	@report
 	def begin(self, report):
 		global _domaincheck_available
 		if not _domaincheck_available:
-			report.add_error('domaincheck not available')
+			report.add_error('Module domaincheck not available')
 		else:
-			today = datetime.date.today()
+			self.main_domain = self.get_domain(self.sitecheck.session.domain)
 
-			domain = urllib.parse.urlparse(self.sitecheck.session.domain).netloc
-			if domain.startswith('www.'):
-				domain = domain[4:]
-			report.add_message('Checking: {0}'.format(domain))
+			self.domains.append(self.main_domain)
+			check_domains = set()
+
+			for domain in self.domains:
+				d = self.get_domain(domain, True)
+
+				check_domains.add(d)
+
+				if d != self.main_domain:
+					url = 'http://{0}'.format(d)
+					req = self.create_request(url, url)
+					req.modules = [self]
+					self.sitecheck.request_queue.put(req)
+
+			self.domains = list(check_domains)
+
+	def process(self, request, response, report):
+		check = False
+		with self.sync_lock:
+			if request.domain in self.domains:
+				self.domains.remove(request.domain)
+				check = True
+
+		if check:
+			if not request.domain == self.main_domain:
+				url = 'http://www.{0}/'.format(request.domain)
+				req = self.create_request(url, str(request))
+				req.modules = [self]
+				self.sitecheck.request_queue.put(req)
+
+			today = datetime.date.today()
+			domain = request.domain
 
 			try:
 				d = DomainInfo(domain)
 			except gaierror:
-				report.add_message('Domain not found: {0}'.format(domain))
+				report.add_warning('Domain not found: {0}'.format(domain))
 				return
 
 			report.add_message('Nameservers:')
@@ -801,12 +842,12 @@ class DomainCheck(ModuleBase):
 			elif d.domain_expiry:
 				report.add_message('Domain expires on: {0}'.format(d.domain_expiry))
 			else:
-				report.add_message('Unable to determine domain expiry date')
+				report.add_warning('Unable to determine domain expiry date')
 
 			if d.spf:
 				report.add_message('SPF: {0}'.format(d.spf))
 			else:
-				report.add_message('No SPF record found')
+				report.add_warning('No SPF record found')
 
 			report.add_message('Hosts:')
 			for host in d.hosts:
@@ -817,7 +858,7 @@ class DomainCheck(ModuleBase):
 				if h.name:
 					report.add_message('\t\tReverse DNS: {0}'.format(h.name))
 				else:
-					report.add_message('\t\t No reverse DNS')
+					report.add_warning('\t\t No reverse DNS')
 
 				report.add_message('\t\tRecords: {0}'.format(', '.join(h.records)))
 
@@ -829,21 +870,21 @@ class DomainCheck(ModuleBase):
 						report.add_message('\t\tCertificate expires in {0} days'.format(rem))
 
 				if h.sslv2:
-					report.add_message('\t\tInsecure ciphers supported')
+					report.add_warning('\t\tInsecure ciphers supported')
 
 				if self.relay:
 					relay, failed = test_relay(h.address, port=25)
 					if relay:
 						for f in failed:
-							report.add_message('\t\tPossible open relay (port 25): {0} -> {1}'.format(f[0], f[1]))
+							report.add_warning('\t\tPossible open relay (port 25): {0} -> {1}'.format(f[0], f[1]))
 
 					relay, failed = test_relay(h.address, port=587)
 					if relay:
 						for f in failed:
-							report.add_message('\t\tPossible open relay (port 587): {0} -> {1}'.format(f[0], f[1]))
+							report.add_warning('\t\tPossible open relay (port 587): {0} -> {1}'.format(f[0], f[1]))
 
-	def process(self, request, response, report):
-		pass
+		if request.source == self.name and not request.domain == self.main_domain:
+			report.add_warning('Not redirecting to main domain')
 
 class DuplicateContent(ModuleBase):
 	def __init__(self, content=True, content_length=25):
@@ -862,28 +903,29 @@ class DuplicateContent(ModuleBase):
 			h = m.hexdigest()
 
 			dup = False
-			if h in self.pages:
-				if str(request) != self.pages[h]:
-					report.add_message('Duplicate of: {0}'.format(self.pages[h]))
-					dup = True
-			else:
-				self.pages[h] = str(request)
+			with self.sync_lock:
+				if h in self.pages:
+					if str(request) != self.pages[h]:
+						report.add_message('Duplicate of: {0}'.format(self.pages[h]))
+						dup = True
+				else:
+					self.pages[h] = str(request)
 			
-			if self.content and not dup:
-				doc = HtmlHelper(response.content)
-				text = [t for t in doc.get_text(['div', 'p']) if len(t) >= self.content_length]
-				text.sort(key=lambda k: len(k), reverse=True)
-				for t in text:
-					m = hashlib.sha1()
-					m.update(t.encode())
-					h = m.hexdigest()
+				if self.content and not dup:
+					doc = HtmlHelper(response.content)
+					text = [t for t in doc.get_text(['div', 'p']) if len(t) >= self.content_length]
+					text.sort(key=lambda k: len(k), reverse=True)
+					for t in text:
+						m = hashlib.sha1()
+						m.update(t.encode())
+						h = m.hexdigest()
 
-					if h in self.paras:
-						if str(request) != self.paras[h]:
-							report.add_message(t[0:self.content_length] + '...')
-							report.add_message('Duplicated from: {0}'.format(self.paras[h]))
-					else:
-						self.paras[h] = str(request)
+						if h in self.paras:
+							if str(request) != self.paras[h]:
+								report.add_message(t[0:self.content_length] + '...')
+								report.add_message('Duplicated from: {0}'.format(self.paras[h]))
+						else:
+							self.paras[h] = str(request)
 
 class InsecureContent(ModuleBase):
 	def process(self, request, response, report):
@@ -911,13 +953,14 @@ class RequestList(ModuleBase):
 			self.sitecheck.request_queue.put(req)
 
 	def process(self, request, response, report):
-		if request.source == self.name:
-			if request.sequence < len(self.requests):
-				req = self.requests[request.sequence]
-				req.referrer = str(request)
-				req.sequence = request.sequence + 1
-				req.source = self.name
-				self.sitecheck.request_queue.put(req)
+		with self.sync_lock:
+			if request.source == self.name:
+				if request.sequence < len(self.requests):
+					req = self.requests[request.sequence]
+					req.referrer = str(request)
+					req.sequence = request.sequence + 1
+					req.source = self.name
+					self.sitecheck.request_queue.put(req)
 
 class RequiredPages(ModuleBase):
 	def __init__(self, *args):
@@ -930,10 +973,11 @@ class RequiredPages(ModuleBase):
 		self.root_path_length = len(self.root_path)
 
 	def process(self, request, response, report):
-		self.pages.discard(str(request))
-		rp = urllib.parse.urlparse(str(request)).path
-		if rp.startswith(self.root_path):
-			self.pages.discard(rp[self.root_path_length:])
+		with self.sync_lock:
+			self.pages.discard(str(request))
+			rp = urllib.parse.urlparse(str(request)).path
+			if rp.startswith(self.root_path):
+				self.pages.discard(rp[self.root_path_length:])
 
 	@report
 	def complete(self, report):
