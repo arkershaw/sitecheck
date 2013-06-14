@@ -13,16 +13,15 @@ Dependencies:
 
 	Python 3
 
-	HTML Tidy, pytidylib (validation, accessibility)
+	HTML Tidy (validation, accessibility)
 	Enchant, pyenchant (spelling)
 	OpenSSL, pyOpenSSL, dnspython3 (domain check)
 
 	WARNING:
-	*pyenchant does not currently work with Python 3.3 although it works fine with Python 3.2.
-	*The version of pytidylib in PyPI (0.2.1) is not yet updated for Python 3 so easy_install or pip will not install the required version. The most recent version is available at: https://github.com/countergram/pytidylib/
+	*pyenchant filters do not currently work with Python 3.3 (Python 3.2 seems fine). A patched version of pyenchant is available at: https://github.com/arkershaw/pyenchant/
 	*dnspython3 on Windows (version 1.10.0) is currently affected by this bug, which prevents some functionality of domain check from working: https://github.com/rthalley/dnspython/pull/20
 
-	Using VirtualEnv is recommended due to the development status pytidylib. Alternatively, on Linux they can be symlinked into the site-packages directory rather than installed.
+	Using VirtualEnv is recommended due to the development status of some dependencies.
 
 Installation:
 
@@ -33,19 +32,18 @@ Installation:
 
 		pyenchant (if spellcheck is required): http://www.rfk.id.au/software/pyenchant/download.html (the Windows installer includes the Enchant library)
 		pyopenssl (if domain check is required): http://pypi.python.org/pypi/pyOpenSSL/
-		pytidylib (if validation or accessibility are required): http://countergram.com/open-source/pytidylib
 		libtidy.dll (if validation or accessibility are required): http://tidy.sourceforge.net/#binaries (place libtidy.dll on your system path, also see: http://countergram.com/open-source/pytidylib/docs/index.html)
 		dnspython3 (if domain check is required): http://www.dnspython.org/
 
-		To install pytidylib, dnspython3 and sitecheck, extract each archive then open a command window in the same directory as the extracted files and type:
+		To install dnspython3 and sitecheck, extract each archive then open a command window in the same directory as the extracted files and type:
 
-		setup.py install
+		python setup.py install
 
 	Linux:
 
 		Packages for dependencies should be available from your distribution's package manager or installable via pip or the links above. Install all dependencies and then extract the archive and run:
 
-		./setup.py install
+		python setup.py install
 
 Usage:
 
@@ -61,7 +59,7 @@ Usage:
 
 		runsitecheck.py -d http://www.domain-goes-here -p home.html /path/to/output
 
-	See "configuration" below for running repeated tests against the same domain.
+	See "Configuration" below for running repeated tests against the same domain.
 
 While running:
 

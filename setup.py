@@ -20,13 +20,15 @@
 
 from distutils.core import setup
 
+from sitecheck.core import VERSION
+
 setup(name='sitecheck',
-	version='1.7',
+	version=VERSION,
 	description='Modular web site spider for web developers',
 	author='Andrew Kershaw',
 	author_email='arkershaw@users.sourceforge.net',
 	url='http://sourceforge.net/projects/sitecheck/',
-	packages=['sitecheck'],
+	packages=['sitecheck', 'sitecheck.tidylib'],
 	scripts=['runsitecheck.py', 'domaincheck.py'],
 	package_data={'sitecheck': ['dict.txt']},
 

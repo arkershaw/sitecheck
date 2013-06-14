@@ -13,6 +13,9 @@ Updated user agent
 Fixed threading issue with DuplicateContent, RequestList and RequiredPages modules
 Added support for alternate domains to DomainCheck module
 Re-authenticate on resume
+Embedded pytidylib source
+	Last update on GitHub (https://github.com/countergram/pytidylib/) was Nov 11, 2010
+	Package in PyPI (0.2.1) has not been updated and does not work with Python 3
 
 ------------------------
 Version 1.6 (2013-01-10)

@@ -29,14 +29,14 @@ import base64
 from socket import gaierror
 
 try:
-	from tidylib import tidy_document
+	from sitecheck.tidylib import tidy_document
 except:
 	_tidy_available = False
 else:
 	_tidy_available = True
 
 try:
-	import enchant
+	from enchant import Dict, DictWithPWL
 	from enchant.checker import SpellChecker
 	from enchant.tokenize import EmailFilter, URLFilter
 except:
@@ -417,12 +417,12 @@ class Spelling(ModuleBase):
 
 			if os.path.exists(cdp):
 				self.dictionary = cdp
-				d = enchant.DictWithPWL(self.language, cdp)
+				d = DictWithPWL(self.language, cdp)
 			elif os.path.exists(ddp):
 				self.dictionary = ddp
-				d = enchant.DictWithPWL(self.language, ddp)
+				d = DictWithPWL(self.language, ddp)
 			else:
-				d = enchant.Dict(self.language)
+				d = Dict(self.language)
 
 			self.spell_checker = SpellChecker(d, filters=[EmailFilter, URLFilter])
 
