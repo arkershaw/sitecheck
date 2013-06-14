@@ -811,80 +811,88 @@ class DomainCheck(ModuleBase):
 				check = True
 
 		if check:
-			if not request.domain == self.main_domain:
-				url = 'http://www.{0}/'.format(request.domain)
-				req = self.create_request(url, str(request))
-				req.modules = [self]
-				self.sitecheck.request_queue.put(req)
-
-			today = datetime.date.today()
-			domain = request.domain
-
-			try:
-				d = DomainInfo(domain)
-			except gaierror:
-				report.add_warning('Domain not found: {0}'.format(domain))
-				return
-
-			report.add_message('Nameservers:')
-			for ns in d.name_servers:
-				report.add_message('\t{0}'.format(ns))
-
-			if d.zone_transfer:
-				report.add_message('Zone Transfer Permitted')
-
-			if type(d.domain_expiry) == datetime.date:
-				rem = (d.domain_expiry - today).days
-				if rem < 0:
-					report.add_message('Domain expired {0}'.format(d.domain_expiry))
-				else:
-					report.add_message('Domain expires in {0} days'.format(rem))
-			elif d.domain_expiry:
-				report.add_message('Domain expires on: {0}'.format(d.domain_expiry))
-			else:
-				report.add_warning('Unable to determine domain expiry date')
-
-			if d.spf:
-				report.add_message('SPF: {0}'.format(d.spf))
-			else:
-				report.add_warning('No SPF record found')
-
-			report.add_message('Hosts:')
-			for host in d.hosts:
-				h = d.hosts[host]
-
-				report.add_message('\t{0}'.format(h.address))
-
-				if h.name:
-					report.add_message('\t\tReverse DNS: {0}'.format(h.name))
-				else:
-					report.add_warning('\t\t No reverse DNS')
-
-				report.add_message('\t\tRecords: {0}'.format(', '.join(h.records)))
-
-				if h.cert_expiry:
-					rem = (h.cert_expiry - today).days
-					if rem < 0:
-						report.add_message('\t\tCertificate expired {0}'.format(h.cert_expiry))
-					else:
-						report.add_message('\t\tCertificate expires in {0} days'.format(rem))
-
-				if h.sslv2:
-					report.add_warning('\t\tInsecure ciphers supported')
-
-				if self.relay:
-					relay, failed = test_relay(h.address, port=25)
-					if relay:
-						for f in failed:
-							report.add_warning('\t\tPossible open relay (port 25): {0} -> {1}'.format(f[0], f[1]))
-
-					relay, failed = test_relay(h.address, port=587)
-					if relay:
-						for f in failed:
-							report.add_warning('\t\tPossible open relay (port 587): {0} -> {1}'.format(f[0], f[1]))
+			self._check(request.domain, report)
 
 		if request.source == self.name and not request.domain == self.main_domain:
 			report.add_warning('Not redirecting to main domain')
+
+	@report
+	def end(self, report):
+		with self.sync_lock:
+			for d in self.domains:
+				self._check(d, report)
+
+	def _check(self, domain, report):
+		today = datetime.date.today()
+
+		try:
+			d = DomainInfo(domain)
+		except gaierror:
+			report.add_warning('Domain not found: {0}'.format(domain))
+			return
+
+		if not domain == self.main_domain:
+			url = 'http://www.{0}/'.format(domain)
+			req = self.create_request(url, url)
+			req.modules = [self]
+			self.sitecheck.request_queue.put(req)
+
+		report.add_message('Nameservers:')
+		for ns in d.name_servers:
+			report.add_message('\t{0}'.format(ns))
+
+		if d.zone_transfer:
+			report.add_message('Zone Transfer Permitted')
+
+		if type(d.domain_expiry) == datetime.date:
+			rem = (d.domain_expiry - today).days
+			if rem < 0:
+				report.add_message('Domain expired {0}'.format(d.domain_expiry))
+			else:
+				report.add_message('Domain expires in {0} days'.format(rem))
+		elif d.domain_expiry:
+			report.add_message('Domain expires on: {0}'.format(d.domain_expiry))
+		else:
+			report.add_warning('Unable to determine domain expiry date')
+
+		if d.spf:
+			report.add_message('SPF: {0}'.format(d.spf))
+		else:
+			report.add_warning('No SPF record found')
+
+		report.add_message('Hosts:')
+		for host in d.hosts:
+			h = d.hosts[host]
+
+			report.add_message('\t{0}'.format(h.address))
+
+			if h.name:
+				report.add_message('\t\tReverse DNS: {0}'.format(h.name))
+			else:
+				report.add_warning('\t\t No reverse DNS')
+
+			report.add_message('\t\tRecords: {0}'.format(', '.join(h.records)))
+
+			if h.cert_expiry:
+				rem = (h.cert_expiry - today).days
+				if rem < 0:
+					report.add_message('\t\tCertificate expired {0}'.format(h.cert_expiry))
+				else:
+					report.add_message('\t\tCertificate expires in {0} days'.format(rem))
+
+			if h.sslv2:
+				report.add_warning('\t\tInsecure ciphers supported')
+
+			if self.relay:
+				relay, failed = test_relay(h.address, port=25)
+				if relay:
+					for f in failed:
+						report.add_warning('\t\tPossible open relay (port 25): {0} -> {1}'.format(f[0], f[1]))
+
+				relay, failed = test_relay(h.address, port=587)
+				if relay:
+					for f in failed:
+						report.add_warning('\t\tPossible open relay (port 587): {0} -> {1}'.format(f[0], f[1]))
 
 class DuplicateContent(ModuleBase):
 	def __init__(self, content=True, content_length=25):

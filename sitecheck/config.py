@@ -55,7 +55,7 @@ class Session(object):
 			DuplicateContent(content=True, content_length=25),
 			InsecureContent(),
 			# Scan domain is checked automatically
-			#DomainCheck(relay=False, domains=['alternate-domain-1.com', 'alternate-domain-2.com'])
+			#DomainCheck(relay=False, domains=['alternate-domain-1.com', 'alternate-domain-2.com']),
 			#Persister(directory='output'),
 			#InboundLinks(engines=['Google', 'Bing']),
 			RegexMatch(expressions={

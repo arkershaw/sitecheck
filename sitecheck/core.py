@@ -361,7 +361,7 @@ class Checker(threading.Thread):
 		elif request.protocol == 'http':
 			c = http.client.HTTPConnection(request.domain, timeout=self._session.request_timeout)
 		else:
-			raise Exception('Unrecognised protocol: {0}'.format(request.protocol))
+			return None, 'Unrecognised protocol: {0}'.format(request.protocol)
 
 		res = err = None
 		try:
