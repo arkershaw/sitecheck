@@ -1,3 +1,5 @@
 sitemap
 javascript
 mailto
+blog
+online

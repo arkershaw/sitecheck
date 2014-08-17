@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright 2009-2013 Andrew Kershaw
+# Copyright 2009-2014 Andrew Kershaw
 
 # This file is part of sitecheck.
 
@@ -25,9 +25,6 @@ import ssl
 import datetime
 
 try:
-	#git clone https://github.com/rthalley/dnspython.git
-	#git checkout -b python3 origin/python3
-	#ln -s /opt/dnspython/dns /usr/lib/python3.2/site-packages/dns
 	from dns.resolver import query, NoAnswer, NoMetaqueries
 except:
 	_dns_available = False
@@ -379,3 +376,4 @@ if __name__ == '__main__':
 			if relay:
 				for f in failed:
 					print('\t\tPossible open relay (port 587): {0} -> {1}'.format(f[0], f[1]))
+

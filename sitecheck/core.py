@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2009-2013 Andrew Kershaw
+# Copyright 2009-2014 Andrew Kershaw
 
 # This file is part of sitecheck.
 
@@ -34,7 +34,7 @@ import copy
 
 from sitecheck.reporting import ReportThread, OutputQueue, ReportData
 
-VERSION = '1.7'
+VERSION = '1.8'
 
 class SiteCheck(object):
 	def __init__(self, settings):
@@ -853,6 +853,76 @@ class HtmlHelper(object):
 		mtchs = rx.finditer(self.document)
 		for m in mtchs:
 			yield m.group('comment')
+
+class TextHelper(object):
+	SENTENCE_END = '!?.'
+
+	def __init__(self, document=''):
+		self.items = []
+		self.text = None
+		if (document and len(document) > 0):
+			self.append(document)
+		
+	def append(self, text):
+		self.text = None
+		if len(text.strip()) > 0:
+			temp = text.strip().lower()
+			if temp[-1] in TextHelper.SENTENCE_END:
+				temp += ' '
+			else:
+				temp += '. '
+
+			self.items.append(temp)
+
+	def sentence_count(self):
+		s = 0
+		for se in TextHelper.SENTENCE_END:
+			s += self._to_s().count(se)
+
+		if s == 0:
+			s = 1
+
+		return s
+
+	def word_count(self):
+		return len(self._to_s().split(' '))
+
+	def syllable_count(self):
+		s = 0
+		for word in self._to_s().split(' '):
+			w = re.sub('\W', '', word)
+			if len(w) <= 3:
+				s += 1
+			else:
+				w = re.sub('(?:es|ed|[^l]e)$', '', w, re.IGNORECASE)
+				s += len(re.findall('[aeiouy]{1,2}', w, re.IGNORECASE))
+				s += len(re.findall('eo|ia|ie|io|iu|ua|ui|uo', w, re.IGNORECASE))
+
+		if s == 0:
+			s = 1
+
+		return s
+
+	def get_sentences(self):
+		for s in re.split('[{0}]'.format(TextHelper.SENTENCE_END), self._to_s(), re.IGNORECASE | re.DOTALL):
+			if len(s) > 0:
+				yield s
+
+	def get_words(self):
+		for w in self._to_s().split(' '):
+			yield w
+
+	def _to_s(self):
+		if not self.text:
+			self.text = ''.join(self.items)
+
+		return self.text
+
+	def __str__(self):
+		return self._to_s()
+
+	def __len__(self):
+		return len(self._to_s())
 
 #module.initialise is called every time module is created
 #module.begin is called the first time module is started (not on resume)

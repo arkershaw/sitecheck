@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2009-2013 Andrew Kershaw
+# Copyright 2009-2014 Andrew Kershaw
 
 # This file is part of sitecheck.
 
@@ -52,7 +52,7 @@ else:
 	_domaincheck_available = True
 
 from sitecheck.reporting import ensure_dir, report
-from sitecheck.core import Authenticate, ModuleBase, HtmlHelper
+from sitecheck.core import Authenticate, ModuleBase, HtmlHelper, TextHelper
 
 __all__ = ['Authenticate', 'RequestList', 'RequiredPages', 'DuplicateContent', 'InsecureContent', 'DomainCheck', 'Persister', 'InboundLinks', 'RegexMatch', 'Validator', 'Accessibility', 'MetaData', 'StatusLog', 'Security', 'Comments', 'Spelling', 'Readability', 'Spider']
 
@@ -129,6 +129,7 @@ class Accessibility(ModuleBase):
 
 	def process(self, request, response, report):
 		global _tidy_available
+		#TODO: Hash errors and don't log duplicate error sets (just a reference)
 		if response.is_html and _tidy_available:
 			try:
 				doc, err = tidy_document(response.content, options=self.options)
@@ -221,7 +222,6 @@ class Readability(ModuleBase):
 	def __init__(self, threshold=45):
 		super(Readability, self).__init__()
 		self.threshold = threshold
-		self.sentence_end = '!?.'
 		self.min = None
 		self.max = None
 		self.count = 0
@@ -238,20 +238,14 @@ class Readability(ModuleBase):
 			doc.strip_comments()
 			doc.strip_elements(('script', 'style'))
 
-			all_text = ''
+			th = TextHelper()
 			for txt in doc.get_text():
-				if len(txt.strip()) > 0:
-					all_text += txt.strip().lower()
-					if all_text[-1] in self.sentence_end:
-						all_text += ' '
-					else:
-						all_text += '. '
+				th.append(txt)
 
-			all_text = all_text.strip()
-			if len(all_text) > 0:
-				twrd = float(self._words(all_text))
-				tsnt = float(self._sentences(all_text))
-				tsyl = float(self._syllables(all_text))
+			if len(th) > 0:
+				twrd = float(th.word_count())
+				tsnt = float(th.sentence_count())
+				tsyl = float(th.syllable_count())
 
 				fkre = 206.835 - 1.015 * (twrd / tsnt) - 84.6 * (tsyl / twrd)
 
@@ -271,31 +265,6 @@ class Readability(ModuleBase):
 				if fkre < self.threshold:
 					report.add_message('Readability: [{1:.2f}]'.format(str(request), fkre))
 
-	def _words(self, text):
-		return len(text.split(' '))
-
-	def _sentences(self, text):
-		s = 0
-		for se in self.sentence_end:
-			s += text.count(se)
-		if s == 0:
-			s = 1
-		return s
-
-	def _syllables(self, text):
-		s = 0
-		for word in text.split(' '):
-			w = re.sub('\W', '', word)
-			if len(w) <= 3:
-				s += 1
-			else:
-				w = re.sub('(?:es|ed|[^l]e)$', '', w)
-				s += len(re.findall('[aeiouy]{1,2}', w))
-				s += len(re.findall('eo|ia|ie|io|iu|ua|ui|uo', w))
-		if s == 0:
-			s = 1
-		return s
-
 class Validator(ModuleBase):
 	def __init__(self):
 		super(Validator, self).__init__()
@@ -309,6 +278,7 @@ class Validator(ModuleBase):
 
 	def process(self, request, response, report):
 		global _tidy_available
+		#TODO: Hash errors and don't log duplicate error sets (just a reference)
 		if response.is_html and _tidy_available:
 			try:
 				doc, err = tidy_document(response.content, options=self.options)
@@ -473,6 +443,8 @@ class Spelling(ModuleBase):
 		if l > 0:
 			self.spell_checker.set_text(t)
 			#import pdb; pdb.set_trace()
+			#TODO: Strip apostrophes from words
+			#TODO: Ignore plurals of dictionary words ending in s
 			for err in self.spell_checker:
 				if len(err.word) > 1 and err.word[1].islower(): # Ignore abbreviations
 					w = err.word.lower()
