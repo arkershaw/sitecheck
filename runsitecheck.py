@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 # -*- coding: utf-8 -*-
 
 # Copyright 2009-2014 Andrew Kershaw
@@ -207,7 +208,7 @@ This program comes with ABSOLUTELY NO WARRANTY
 		except:
 			print('WARNING: Unable to remove suspend data: {0}'.format(suspend_file))
 
-	print('\nChecking...')
+	print('\nChecking (stop with Ctrl+c)...')
 
 	while True:
 		if _sitecheck.complete:

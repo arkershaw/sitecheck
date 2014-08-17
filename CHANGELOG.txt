@@ -1,5 +1,13 @@
 ------------------------
-Version 1.7 (2013-??-??)
+Version 1.8 (2014-??-??)
+------------------------
+
+Added some words to default dictionary
+Remove embedded pytidylib as project has been updated
+Remove notices about issues with dnspython3 and pyenchant from README
+
+------------------------
+Version 1.7 (2013-06-14)
 ------------------------
 
 Report on number of distinct URLs as well as total number of requests

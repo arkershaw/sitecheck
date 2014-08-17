@@ -29,7 +29,7 @@ import base64
 from socket import gaierror
 
 try:
-	from sitecheck.tidylib import tidy_document
+	from tidylib import tidy_document
 except:
 	_tidy_available = False
 else:
@@ -965,3 +965,4 @@ class RequiredPages(ModuleBase):
 			report.add_message('{0}/{1} pages unmatched\n'.format(len(self.pages), self.total))
 			for p in self.pages:
 				report.add_message(p)
+

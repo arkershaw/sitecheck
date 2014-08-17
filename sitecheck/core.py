@@ -78,17 +78,28 @@ class SiteCheck(object):
 		self.session.test_ext = self.session.test_ext.difference(self.session.ignore_ext.union(self.session.include_ext))
 
 	def _initialise_module(self, module):
-		try:
-			if not hasattr(module, 'initialise'):
-				raise Exception('Initialise method not defined')
-			if not hasattr(module, 'process'):
-				raise Exception('Process method not defined')
+		if not hasattr(module, 'source'):
+			self.output_queue.put_error('Module {0} has no source'.format(module.__class__.__name__))
+			return False
 
+		if not hasattr(module, 'name'):
+			self.output_queue.put_error('Module {0} has no name'.format(module.__class__.__name__), module.source)
+			return False
+
+		if not hasattr(module, 'initialise'):
+			self.output_queue.put_error('Initialise method not defined in module {0}'.format(module.name), module.source)
+			return False
+
+		if not hasattr(module, 'process'):
+			self.output_queue.put_error('Process method not defined in module {0}'.format(module.name), module.source)
+			return False
+
+		try:
 			module.initialise(self)
 		except:
 			if self.session._debug:
 				raise
-			self.output_queue.put_error(str(sys.exc_info()[1]), module.source)
+			self.output_queue.put_error('{0} in module {1}'.format(str(sys.exc_info()[1]), module.name), module.source)
 			return False
 		else:
 			return True
@@ -154,7 +165,7 @@ class SiteCheck(object):
 					except:
 						if self.session._debug:
 							raise
-						self.output_queue.put_error(str(sys.exc_info()[1]), module.source)
+						self.output_queue.put_error('{0} in module {1}'.format(str(sys.exc_info()[1]), module.name), module.source)
 						self.session.modules.remove(module)
 			self.request_queue.load(self._resume_data[1], self._resume_data[2], self._resume_data[3])
 			del self._resume_data
@@ -167,7 +178,7 @@ class SiteCheck(object):
 					except:
 						if self.session._debug:
 							raise
-						self.output_queue.put_error(str(sys.exc_info()[1]), module.source)
+						self.output_queue.put_error('{0} in module {1}'.format(str(sys.exc_info()[1]), module.name), module.source)
 						self.session.modules.remove(module)
 			self.request_queue.put_url('', self.session.page, self.session.domain)
 
@@ -191,7 +202,7 @@ class SiteCheck(object):
 						except:
 							if self.session._debug:
 								raise
-							self.output_queue.put_error(str(sys.exc_info()[1]), mod.source)
+							self.output_queue.put_error('{0} in module {1}'.format(str(sys.exc_info()[1]), mod.name), mod.source)
 
 				self._wait()
 
@@ -202,7 +213,7 @@ class SiteCheck(object):
 						except:
 							if self.session._debug:
 								raise
-							self.output_queue.put_error(str(sys.exc_info()[1]), mod.source)
+							self.output_queue.put_error('{0} in module {1}'.format(str(sys.exc_info()[1]), mod.name), mod.source)
 
 			# Wait for worker threads to complete
 			Checker.terminate.set()
@@ -1035,3 +1046,4 @@ class Authenticate(ModuleBase):
 			req.source = self.name
 			req.meta[Authenticate.AUTH_META_KEY] = Authenticate.LOGOUT
 			self.sitecheck.request_queue.put(req)
+

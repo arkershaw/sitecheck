@@ -28,7 +28,7 @@ setup(name='sitecheck',
 	author='Andrew Kershaw',
 	author_email='arkershaw@users.sourceforge.net',
 	url='http://sourceforge.net/projects/sitecheck/',
-	packages=['sitecheck', 'sitecheck.tidylib'],
+	packages=['sitecheck'],
 	scripts=['runsitecheck.py', 'domaincheck.py'],
 	package_data={'sitecheck': ['dict.txt']},
 
