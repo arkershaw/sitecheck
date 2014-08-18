@@ -23,6 +23,7 @@ import datetime
 import hashlib
 import urllib.parse
 import urllib.request
+import subprocess
 from io import StringIO
 import json
 import base64
@@ -965,4 +966,18 @@ class RequiredPages(ModuleBase):
 			report.add_message('{0}/{1} pages unmatched\n'.format(len(self.pages), self.total))
 			for p in self.pages:
 				report.add_message(p)
+
+class JavascriptSpider(ModuleBase):
+	def __init__(self, *args):
+		super(JavascriptSpider, self).__init__()
+
+	def process(self, request, response, report):
+		try:
+			res = subprocess.check_output(['phantomjs', 'scrape.js', str(request)])
+		except subprocess.CalledProcessError as ex:
+			print(ex.output.decode('utf-8').strip())
+		else:
+			urls = res.decode('utf-8').strip()
+			for url in set(urls.splitlines()):
+				print(url)
 
