@@ -23,11 +23,11 @@ import datetime
 import hashlib
 import urllib.parse
 import urllib.request
-import subprocess
 from io import StringIO
 import json
 import base64
 from socket import gaierror
+from subprocess import Popen, TimeoutExpired, PIPE
 
 try:
 	from tidylib import tidy_document
@@ -58,7 +58,7 @@ from sitecheck.core import Authenticate, ModuleBase, HtmlHelper, TextHelper
 __all__ = ['Authenticate', 'RequestList', 'RequiredPages', 'DuplicateContent', 'InsecureContent', 'DomainCheck', 'Persister', 'InboundLinks', 'RegexMatch', 'Validator', 'Accessibility', 'MetaData', 'StatusLog', 'Security', 'Comments', 'Spelling', 'Readability', 'Spider']
 
 class Spider(ModuleBase):
-	def log_url(self, url):
+	def _log_url(self, url):
 		if url == None:
 			return False
 		if len(url) == 0:
@@ -75,30 +75,33 @@ class Spider(ModuleBase):
 		else:
 			return False
 
+	def _report(self, report, urls):
+		out = list(urls)
+		if len(out) > 0:
+			out.sort()
+			for url in out:
+				if url.count(' ') > 0:
+					report.add_message('-> [{0}] *Unencoded'.format(url))
+				else:
+					report.add_message('-> [{0}]'.format(url))
+
 	def process(self, request, response, report):
 		if response.is_html:
 			doc = HtmlHelper(response.content)
 
 			referrer = str(request)
 
-			self.add_request([e[2] for e in doc.get_attribute('src')], referrer)
-			self.add_request([e[2] for e in doc.get_attribute('action', 'form')], referrer)
+			self._add_request([e[2] for e in doc.get_attribute('src')], referrer)
+			self._add_request([e[2] for e in doc.get_attribute('action', 'form')], referrer)
 
 			urls = set()
 			for href in doc.get_attribute('href'):
 				if href[0] == 'a':
-					if self.log_url(href[2]):
+					if self._log_url(href[2]):
 						urls.add(href[2])
-				self.add_request(href[2], referrer)
+				self._add_request(href[2], referrer)
 
-			out = list(urls)
-			if len(out) > 0:
-				out.sort()
-				for url in out:
-					if url.count(' ') > 0:
-						report.add_message('-> [{0}] *Unencoded'.format(url))
-					else:
-						report.add_message('-> [{0}]'.format(url))
+			self._report(report, urls)
 
 class StatusLog(ModuleBase):
 	def process(self, request, response, report):
@@ -330,7 +333,7 @@ class Persister(ModuleBase):
 
 	def process(self, request, response, report):
 		if request.verb == 'HEAD' and response.status < 300 and request.domain == urllib.parse.urlparse(self.sitecheck.session.domain).netloc:
-			req = self.create_request(str(request), request.referrer)
+			req = self._create_request(str(request), request.referrer)
 			req.verb = 'GET'
 			req.modules = [self]
 			self.sitecheck.request_queue.put(req)
@@ -508,7 +511,7 @@ class InboundLinks(ModuleBase):
 				e = self.engine_parameters[se]
 				e.extend([0, e[3]]) # Total results, current result offset
 				url = e[0].format(domain=self.domain, index=e[3])
-				req = self.create_request(url, se)
+				req = self._create_request(url, se)
 				req.modules = [self]
 				req.verb = 'GET' # Otherwise it will be set to HEAD as it is on another domain
 				self.sitecheck.request_queue.put(req)
@@ -527,12 +530,12 @@ class InboundLinks(ModuleBase):
 					for m in self.link.finditer(response.content):
 						url = m.groups()[0]
 						self.inbound.add(url)
-						self.add_request(url, str(request))
+						self._add_request(url, str(request))
 
 					e[5] += e[2]
 					if e[5] < e[4]:
 						url = e[0].format(domain=self.domain, index=e[5])
-						req = self.create_request(url, request.referrer)
+						req = self._create_request(url, request.referrer)
 						req.modules = [self]
 						req.verb = 'GET' # Otherwise it will be set to HEAD as it is on another domain
 						self.sitecheck.request_queue.put(req)
@@ -600,7 +603,7 @@ class Security(ModuleBase):
 		hdrs = request.headers.copy()
 		for h in hdrs:
 			hdrs[h] = value
-		req = self.create_request(str(request), str(request))
+		req = self._create_request(str(request), str(request))
 		req.headers = hdrs
 		req.modules = [self]
 		req.meta['vector'] = 'headers'
@@ -611,7 +614,7 @@ class Security(ModuleBase):
 			for param in qs.keys():
 				qs[param] = value
 
-			req = self.create_request(str(request), str(request))
+			req = self._create_request(str(request), str(request))
 			req.query = self._build_query(qs)
 			req.modules = [self]
 			req.meta['vector'] = 'querystring'
@@ -621,13 +624,13 @@ class Security(ModuleBase):
 			for f in document.get_elements('form'):
 				url, post, params = self._parse_form(f)
 				if url:
-					self.add_request(url, str(request))
+					self._add_request(url, str(request))
 				else:
 					url = str(request)
 
 				rp = [(p[0], value) for p in params]
 
-				req = self.create_request(url, str(request))
+				req = self._create_request(url, str(request))
 				if post:
 					req.post_data = rp
 					req.meta['vector'] = 'post_data'
@@ -645,7 +648,7 @@ class Security(ModuleBase):
 		for h in hdrs:
 			temp = hdrs[h]
 			hdrs[h] = value
-			req = self.create_request(str(request), str(request))
+			req = self._create_request(str(request), str(request))
 			req.headers = hdrs
 			req.modules = [self]
 			req.meta['vector'] = 'headers'
@@ -657,7 +660,7 @@ class Security(ModuleBase):
 			for param in qs.keys():
 				temp = qs[param]
 				qs[param] = value
-				req = self.create_request(str(request), str(request))
+				req = self._create_request(str(request), str(request))
 				req.query = self._build_query(qs)
 				req.modules = [self]
 				req.meta['vector'] = 'querystring'
@@ -668,14 +671,14 @@ class Security(ModuleBase):
 			for f in document.get_elements('form'):
 				url, post, params = self._parse_form(f)
 				if url:
-					self.add_request(url, str(request))
+					self._add_request(url, str(request))
 				else:
 					url = str(request)
 
 				for cp in params:
 					rp = [self._insert_param(p, cp[0], value) for p in params] # Construct new list
 
-					req = self.create_request(url, str(request))
+					req = self._create_request(url, str(request))
 					if post:
 						req.post_data = rp
 						req.meta['vector'] = 'post_data'
@@ -770,7 +773,7 @@ class DomainCheck(ModuleBase):
 
 				if d != self.main_domain:
 					url = 'http://{0}'.format(d)
-					req = self.create_request(url, url)
+					req = self._create_request(url, url)
 					req.modules = [self]
 					self.sitecheck.request_queue.put(req)
 
@@ -806,7 +809,7 @@ class DomainCheck(ModuleBase):
 
 		if not domain == self.main_domain:
 			url = 'http://www.{0}/'.format(domain)
-			req = self.create_request(url, url)
+			req = self._create_request(url, url)
 			req.modules = [self]
 			self.sitecheck.request_queue.put(req)
 
@@ -967,17 +970,40 @@ class RequiredPages(ModuleBase):
 			for p in self.pages:
 				report.add_message(p)
 
-class JavascriptSpider(ModuleBase):
-	def __init__(self, *args):
+class JavascriptSpider(Spider):
+	def __init__(self, phantomJsPath='phantomjs'):
 		super(JavascriptSpider, self).__init__()
+		self.phantomJsPath = phantomJsPath
 
 	def process(self, request, response, report):
-		try:
-			res = subprocess.check_output(['phantomjs', 'scrape.js', str(request)])
-		except subprocess.CalledProcessError as ex:
-			print(ex.output.decode('utf-8').strip())
-		else:
-			urls = res.decode('utf-8').strip()
-			for url in set(urls.splitlines()):
-				print(url)
+		if response.is_html:
+			referrer = str(request)
+
+			proc = Popen([phantomJsPath, 'scrape.js', referrer], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+
+			try:
+				out, err = proc.communicate(response.content.encode(), timeout=10)
+				rc = proc.returncode
+			except TimeoutExpired:
+				proc.kill()
+				out, err = proc.communicate()
+				if len(err) > 0:
+					report.add_error(err.decode('utf-8'))
+				else:
+					report.add_error(out.decode('utf-8'))
+			else:
+				if rc == 0:
+					result = out.decode('utf-8').strip()
+					urls = set()
+					for url in set(result.splitlines()):
+						if self._log_url(url):
+							urls.add(url)
+						self._add_request(url, referrer)
+
+					self._report(report, urls)
+				else:
+					if len(err) > 0:
+						report.add_error(err.decode('utf-8'))
+					else:
+						report.add_error(out.decode('utf-8'))
 

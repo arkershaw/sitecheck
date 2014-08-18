@@ -950,10 +950,10 @@ class ModuleBase(object):
 		self.sitecheck = sitecheck
 		self.sync_lock = threading.Lock()
 
-	def add_request(self, url, referrer):
+	def _add_request(self, url, referrer):
 		self.sitecheck.request_queue.put_url(self.name, url, referrer)
 
-	def create_request(self, url, referrer):
+	def _create_request(self, url, referrer):
 		req = Request(url, referrer=referrer)
 		req.source = self.name
 		return req
