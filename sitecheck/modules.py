@@ -55,7 +55,7 @@ else:
 from sitecheck.reporting import ensure_dir, report
 from sitecheck.core import Authenticate, ModuleBase, HtmlHelper, TextHelper
 
-__all__ = ['Authenticate', 'RequestList', 'RequiredPages', 'DuplicateContent', 'InsecureContent', 'DomainCheck', 'Persister', 'InboundLinks', 'RegexMatch', 'Validator', 'Accessibility', 'MetaData', 'StatusLog', 'Security', 'Comments', 'Spelling', 'Readability', 'Spider']
+__all__ = ['Authenticate', 'RequestList', 'RequiredPages', 'DuplicateContent', 'InsecureContent', 'DomainCheck', 'Persister', 'InboundLinks', 'RegexMatch', 'Validator', 'Accessibility', 'MetaData', 'StatusLog', 'Security', 'Comments', 'Spelling', 'Readability', 'Spider', 'JavascriptSpider']
 
 class Spider(ModuleBase):
 	def _log_url(self, url):
@@ -979,7 +979,8 @@ class JavascriptSpider(Spider):
 		if response.is_html:
 			referrer = str(request)
 
-			proc = Popen([phantomJsPath, 'scrape.js', referrer], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+			pth = os.path.dirname(os.path.realpath(__file__))
+			proc = Popen([self.phantomJsPath, '{0}{1}scrape.js'.format(pth, os.sep), referrer], stdin=PIPE, stdout=PIPE, stderr=PIPE)
 
 			try:
 				out, err = proc.communicate(response.content.encode(), timeout=10)

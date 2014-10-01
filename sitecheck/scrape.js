@@ -8,6 +8,7 @@ if (system.args.length === 1) {
 var url = system.args[1];
 var content = system.stdin.read();
 var page = require('webpage').create();
+var results = {};
 
 page.onConsoleMessage = function (msg) {
 	console.log(msg);
@@ -21,7 +22,12 @@ page.onResourceRequested = function(request) {
 
 page.onNavigationRequested = function(url, type, willNavigate, main) {
 	if (url !== system.args[1])
-		console.log(url);
+	{
+		if (results[url])
+			results[url]++;
+		else
+			results[url] = 1;
+	}
 };
 
 page.onLoadFinished = function(status) {
@@ -37,7 +43,10 @@ page.onLoadFinished = function(status) {
 		page.sendEvent('click', e[i].offsetLeft, e[i].offsetTop);
 	}
 
-	//phantom.exit();
+	for (k in results)
+		console.log(k);
+
+	phantom.exit();
 };
 
 page.setContent(content, url);
