@@ -10,6 +10,11 @@ var content = system.stdin.read();
 var page = require('webpage').create();
 var results = {};
 
+page.viewportSize = {
+  width: 1280,
+  height: 1024
+};
+
 page.onConsoleMessage = function (msg) {
 	console.log(msg);
 };
@@ -21,8 +26,7 @@ page.onResourceRequested = function(request) {
 */
 
 page.onNavigationRequested = function(url, type, willNavigate, main) {
-	if (url !== system.args[1])
-	{
+	if (url !== system.args[1]) {
 		if (results[url])
 			results[url]++;
 		else
@@ -38,13 +42,29 @@ page.onLoadFinished = function(status) {
 	});
 
 	var l = e.length;
-
 	for (var i = l; i--;) {
+		if (
+			e[i].offsetTop < page.scrollPosition.top ||
+			e[i].offsetTop > page.scrollPosition.top + page.viewportSize.height ||
+			e[i].offsetLeft < page.scrollPosition.left ||
+			e[i].offsetLeft > page.scrollPosition.left + page.viewportSize.width
+			) {
+			page.scrollPosition = {
+			  top: e[i].offsetTop - 10,
+			  left: e[i].offsetLeft - 10
+			};
+		}
+
 		page.sendEvent('click', e[i].offsetLeft, e[i].offsetTop);
 	}
 
-	for (k in results)
+	count = 0;
+	for (k in results) {
+		count++;
 		console.log(k);
+	}
+
+	console.log(count);
 
 	phantom.exit();
 };
