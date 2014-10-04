@@ -41,30 +41,28 @@ page.onLoadFinished = function(status) {
 		return [].map.call(document.getElementsByTagName("*"), function(e) { return { tagName: e.tagName, offsetLeft: e.offsetLeft, offsetTop: e.offsetTop }});
 	});
 
+	var d = page.evaluate(function() {
+		var html = document.getElementsByTagName('html')[0];
+		var body = document.getElementsByTagName('body')[0];
+		var w = Math.max(body.scrollWidth, body.offsetWidth, html.clientWidth, html.scrollWidth, html.offsetWidth);
+		var h = Math.max(body.scrollHeight, body.offsetHeight, html.clientHeight, html.scrollHeight, html.offsetHeight);
+		return { width: w, height: h };
+	});
+
+	//sendEvent('click') will not currently work if point is outside viewport
+	//https://github.com/ariya/phantomjs/issues/10302
+	page.viewportSize = {
+		width: d.width,
+		height: d.height
+	};
+
 	var l = e.length;
 	for (var i = l; i--;) {
-		if (
-			e[i].offsetTop < page.scrollPosition.top ||
-			e[i].offsetTop > page.scrollPosition.top + page.viewportSize.height ||
-			e[i].offsetLeft < page.scrollPosition.left ||
-			e[i].offsetLeft > page.scrollPosition.left + page.viewportSize.width
-			) {
-			page.scrollPosition = {
-			  top: e[i].offsetTop - 10,
-			  left: e[i].offsetLeft - 10
-			};
-		}
-
 		page.sendEvent('click', e[i].offsetLeft, e[i].offsetTop);
 	}
 
-	count = 0;
-	for (k in results) {
-		count++;
+	for (k in results)
 		console.log(k);
-	}
-
-	console.log(count);
 
 	phantom.exit();
 };
