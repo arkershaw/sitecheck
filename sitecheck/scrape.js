@@ -38,7 +38,29 @@ page.onLoadFinished = function(status) {
 	page.navigationLocked = true;
 
 	var e = page.evaluate(function() {
-		return [].map.call(document.getElementsByTagName("*"), function(e) { return { tagName: e.tagName, offsetLeft: e.offsetLeft, offsetTop: e.offsetTop }});
+		return [].map.call(document.getElementsByTagName("*"), function(e) {
+			var rect = e.getBoundingClientRect();
+
+			var left = rect.left;
+			var top = rect.top;
+
+			//Get position like jQuery
+			//https://github.com/jquery/jquery/blob/master/src/offset.js
+			if (rect.width || rect.height) {
+				var doc = e.ownerDocument;
+				var win = doc === doc.window ? doc : doc.defaultView;
+				var docElem = doc.documentElement;
+
+				top = rect.top + win.pageYOffset - docElem.clientTop;
+				left = rect.left + win.pageXOffset - docElem.clientLeft;
+			}
+
+			return {
+				tagName: e.tagName,
+				offsetLeft: left,
+				offsetTop: top 
+			}
+		});
 	});
 
 	var d = page.evaluate(function() {
