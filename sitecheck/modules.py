@@ -487,11 +487,11 @@ class InboundLinks(ModuleBase):
 	def begin(self, report):
 		if hasattr(self.sitecheck.session, 'check_for_updates') and self.sitecheck.session.check_for_updates:
 			try:
-				settings = urllib.request.urlopen('http://sitecheck.sourceforge.net/search-engines.js').read().decode('utf-8')
+				settings = urllib.request.urlopen('http://www.site-check.co.uk/search-engines.js').read().decode('utf-8')
 				ss = StringIO(settings)
 				sd = json.load(ss)
 			except:
-				report.add_warning('Update check failed - please notify: arkershaw@users.sourceforge.net')
+				report.add_warning('Update check failed - please notify: andy@site-check.co.uk')
 			else:
 				self.engine_parameters = sd
 
