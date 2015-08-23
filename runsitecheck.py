@@ -19,8 +19,8 @@
 # You should have received a copy of the GNU General Public License
 # along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
 
-CONTACT_EMAIL = 'arkershaw@users.sourceforge.net'
-UPDATE_URL = 'http://sitecheck.sourceforge.net/settings.js'
+CONTACT_EMAIL = 'andy@site-check.co.uk'
+UPDATE_URL = 'http://www.site-check.co.uk/settings.js'
 SUSPEND_FILE_NAME = 'suspend.pkl'
 CONFIG_FILE_NAME = 'config.py'
 
