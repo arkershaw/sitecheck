@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2009-2014 Andrew Kershaw
+# Copyright 2009-2015 Andrew Kershaw
 
 # This file is part of sitecheck.
 
@@ -894,7 +894,7 @@ class DuplicateContent(ModuleBase):
 						dup = True
 				else:
 					self.pages[h] = str(request)
-			
+
 				if self.content and not dup:
 					doc = HtmlHelper(response.content)
 					text = [t for t in doc.get_text(['div', 'p']) if len(t) >= self.content_length]

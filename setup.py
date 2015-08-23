@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Copyright 2009-2014 Andrew Kershaw
+# Copyright 2009-2015 Andrew Kershaw
 
 # This file is part of sitecheck.
 

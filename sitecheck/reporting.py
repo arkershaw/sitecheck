@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2009-2014 Andrew Kershaw
+# Copyright 2009-2015 Andrew Kershaw
 
 # This file is part of sitecheck.
 
@@ -185,7 +185,7 @@ class FlatFile(object):
 		state = dict(self.__dict__)
 		del state['_outfiles']
 		return state
-	
+
 	def begin(self):
 		# Clear output directory
 		if os.path.exists(self.root_path):

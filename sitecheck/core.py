@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2009-2014 Andrew Kershaw
+# Copyright 2009-2015 Andrew Kershaw
 
 # This file is part of sitecheck.
 
@@ -873,7 +873,7 @@ class TextHelper(object):
 		self.text = None
 		if (document and len(document) > 0):
 			self.append(document)
-		
+
 	def append(self, text):
 		self.text = None
 		if len(text.strip()) > 0:

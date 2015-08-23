@@ -2,7 +2,7 @@
 
 # -*- coding: utf-8 -*-
 
-# Copyright 2009-2014 Andrew Kershaw
+# Copyright 2009-2015 Andrew Kershaw
 
 # This file is part of sitecheck.
 
@@ -88,7 +88,7 @@ if __name__ == '__main__':
 	parser.add_argument('directory', help='The directory containing the configuration and output.')
 	args = parser.parse_args()
 
-	print('''Sitecheck {0} Copyright (C) 2009-2014 Andrew Kershaw
+	print('''Sitecheck {0} Copyright (C) 2009-2015 Andrew Kershaw
 ({1})
 This program comes with ABSOLUTELY NO WARRANTY
 '''.format(VERSION, CONTACT_EMAIL))
@@ -184,7 +184,7 @@ This program comes with ABSOLUTELY NO WARRANTY
 					logout.append(Request(session.authenticate.logout_url))
 
 				session.modules.append(Authenticate(login=login, logout=logout))
-		
+
 		_sitecheck = SiteCheck(session)
 
 	# TODO: Remove this section on next major release

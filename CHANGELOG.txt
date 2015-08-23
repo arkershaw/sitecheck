@@ -1,5 +1,5 @@
 ------------------------
-Version 1.8 (2014-??-??)
+Version 1.8 (2015-??-??)
 ------------------------
 
 Added some words to default dictionary
@@ -16,14 +16,19 @@ Check for duplicate content inside site copy
 Fixed bug with cookies and redirects
 Added support for multiple reporting destinations
 	To update existing config files:
-	On line 50 of example config.py change "self.report = FlatFile()" to "self.report = [FlatFile(directory='txt'), HTML(directory='html')]"
+	On line 50 of example config.py change "self.report = FlatFile()"
+	to "self.report = [FlatFile(directory='txt'),
+	HTML(directory='html')]"
 Updated user agent
-Fixed threading issue with DuplicateContent, RequestList and RequiredPages modules
+Fixed threading issue with DuplicateContent, RequestList and
+RequiredPages modules
 Added support for alternate domains to DomainCheck module
 Re-authenticate on resume
 Embedded pytidylib source
-	Last update on GitHub (https://github.com/countergram/pytidylib/) was Nov 11, 2010
-	Package in PyPI (0.2.1) has not been updated and does not work with Python 3
+	Last update on GitHub (https://github.com/countergram/pytidylib/)
+	was Nov 11, 2010
+	Package in PyPI (0.2.1) has not been updated and does not work with
+	Python 3
 
 ------------------------
 Version 1.6 (2013-01-10)
@@ -31,13 +36,19 @@ Version 1.6 (2013-01-10)
 
 Added basic HTML reporting option
 	To update existing config files:
-	On line 23 of example config.py change "from sitecheck.reporting import FlatFile" to "from sitecheck.reporting import FlatFile, HTML"
-	On line 49 of example config.py change "self.report = FlatFile()" to "self.report = HTML()"
+	On line 23 of example config.py change "from sitecheck.reporting
+	import FlatFile" to "from sitecheck.reporting import FlatFile, HTML"
+	On line 49 of example config.py change "self.report = FlatFile()"
+	to "self.report = HTML()"
 Moved authentication to a module
 	To update existing config files:
-	On line 21 of example config.py, from "sitecheck.core import Struct" becomes "from sitecheck.core import Struct, Request"
+	On line 21 of example config.py, from "sitecheck.core import
+	Struct" becomes "from sitecheck.core import Struct, Request"
 	Remove the "authenticate" attribute (line 48 of example config.py)
-	Add the new module to the modules list, e.g: "Authenticate(login=[Request('login.php'), Request('login.php', post_data=[('username', ''), ('password', '')])], logout=Request('logout.php')),"
+	Add the new module to the modules list, e.g:
+	"Authenticate(login=[Request('login.php'), Request('login.php',
+	post_data=[('username', ''), ('password', '')])],
+	logout=Request('logout.php')),"
 Login and logout URLs are now scanned once all other scanning is complete
 Added new module to check for insecure content referenced from secure pages
 Added new module to execute a sequence of manually defined requests
@@ -65,8 +76,10 @@ Modules with dependencies default to disabled
 Only log slow requests once per URL
 Renamed logging module to reporting and FileLogger to FlatFile
 	To update existing config files:
-	On line 23 of example config.py "from sitecheck.logging import FileLogger" becomes "from sitecheck.reporting import FlatFile"
-	On line 51 of example config.py "self.logger = FileLogger()" becomes "self.report = FlatFile()"
+	On line 23 of example config.py "from sitecheck.logging import
+	FileLogger" becomes "from sitecheck.reporting import FlatFile"
+	On line 51 of example config.py "self.logger = FileLogger()"
+	becomes "self.report = FlatFile()"
 
 ------------------------
 Version 1.4 (2012-03-09)
@@ -76,9 +89,11 @@ Fixed error with security module and forms with GET method
 Fixed error with referrers in security module causing scan to go off-site
 Moved Struct class from sitecheck.utils to sitecheck.core
 	IMPORTANT: This will break existing config files
-	On line 21 of example config.py "from sitecheck.utils import Struct" becomes "from sitecheck.core import Struct"
+	On line 21 of example config.py "from sitecheck.utils import
+	Struct" becomes "from sitecheck.core import Struct"
 User interaction redesigned due to lack of responsiveness
-	To cancel or suspend, use the standard console interrupt (usually Ctrl+c)
+	To cancel or suspend, use the standard console interrupt (usually
+	Ctrl+c)
 
 ------------------------
 Version 1.3 (2012-01-07)
