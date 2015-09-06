@@ -271,7 +271,7 @@ class HTML(object):
 				if m[0] != 'DEBUG' or (self._debug):
 					fl.write('{0}<li>{1}: {2}</li>\n'.format(indent, m[0], html.escape(m[1].replace('\n', '<br/>\n'))))
 			else:
-				fl.write('{0}<li>{1}</li>\n'.format(indent, m[0], html.escape(m[1].replace('\n', '<br/>\n'))))
+				fl.write('{0}<li>{1}</li>\n'.format(indent, html.escape(m[1].replace('\n', '<br/>\n'))))
 
 	def write(self, request, response, report):
 		for src, msgs in report:
