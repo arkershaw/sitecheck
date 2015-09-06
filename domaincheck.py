@@ -38,6 +38,13 @@ except:
 else:
 	_ssl_available = True
 
+try:
+	ssl.PROTOCOL_SSLv2
+except:
+	sslv2_available = False
+else:
+	sslv2_available = True
+
 _relay_tests = [
 	('<{user}@{domain}>', '<{user}@{domain}>'),
 	('<{user}>', '<{user}@{domain}>'),
@@ -123,18 +130,24 @@ class HostInfo(object):
 		self.sslv2 = False
 
 		if self.address:
+			cert = None
+
 			try:
-				cert = self._get_cert(ssl.PROTOCOL_SSLv2)
+				if sslv2_available:
+					cert = self._get_cert(ssl.PROTOCOL_SSLv2)
+
+				if cert:
+					self.sslv2 = True
+
+				if not cert:
+					cert = self._get_cert(ssl.PROTOCOL_SSLv3)
+
+				if not cert:
+					cert = self._get_cert(ssl.PROTOCOL_TLSv1)
 			except socket.error:
 				# SSL not supported
 				pass
 			else:
-				if cert:
-					self.sslv2 = True
-				if not cert:
-					cert = self._get_cert(ssl.PROTOCOL_SSLv3)
-				if not cert:
-					cert = self._get_cert(ssl.PROTOCOL_TLSv1)
 				if cert and _ssl_available:
 					cert_data = load_certificate(FILETYPE_PEM, cert)
 					expiry = cert_data.get_notAfter().decode('ascii')
@@ -238,17 +251,17 @@ class DomainInfo(object):
 	def _whois_lookup(self, domain):
 		whois = None
 
-		try:
-			sock = socket.create_connection(('whois-servers.net', 43))
-		except:
-			raise
-		else:
-			s = SocketHelper(sock)
-			whois = s.sendandreceive(domain)
-			sock.close()
+		#try:
+			#sock = socket.create_connection(('whois-servers.net', 43))
+		#except:
+			#raise
+		#else:
+			#s = SocketHelper(sock)
+			#whois = s.sendandreceive(domain)
+			#sock.close()
 
-		if whois and not re.search(domain, whois, re.IGNORECASE):
-			return None
+		#if whois and not re.search(domain, whois, re.IGNORECASE):
+			#return None
 
 		return whois
 

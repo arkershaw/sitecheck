@@ -608,8 +608,6 @@ class Request(object):
 			url = '{0}://{1}{2}'.format(self.protocol, self.domain, self.path)
 		else:
 			url = self.path
-		#if len(self.parameters) > 0:
-			#url += ';' + self.parameters
 		if len(self.query) > 0:
 			url += '?' + self.query
 		return url

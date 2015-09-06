@@ -46,7 +46,7 @@ else:
 	_enchant_available = True
 
 try:
-	from domaincheck import DomainInfo, test_relay
+	from domaincheck import DomainInfo, test_relay, sslv2_available
 except:
 	_domaincheck_available = False
 else:
@@ -761,6 +761,9 @@ class DomainCheck(ModuleBase):
 		if not _domaincheck_available:
 			report.add_error('Module domaincheck not available')
 		else:
+			if not sslv2_available:
+				report.add_warning('Unable to test for SSLv2 (most likely due to OpenSSL compiled without SSLv2 support)')
+
 			self.main_domain = self.get_domain(self.sitecheck.session.domain)
 
 			self.domains.append(self.main_domain)
