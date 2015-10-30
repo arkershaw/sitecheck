@@ -135,7 +135,7 @@ This program comes with ABSOLUTELY NO WARRANTY
 				ss = StringIO(settings)
 				so = json.load(ss)
 			except:
-				print('Update check failed - please notify: {0}'.format(contact_email))
+				print('Update check failed - please notify: {0}'.format(CONTACT_EMAIL))
 			else:
 				if VERSION != so['Version']:
 					print('A new version ({0}) is available at: {1} '.format(so['Version'], so['DownloadURL']))
