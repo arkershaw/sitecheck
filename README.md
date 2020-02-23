@@ -3,7 +3,7 @@ Copyright 2009-2020 Andrew Kershaw
 Licensed under the GNU Affero General Public License v3 (see
 "LICENSE.txt" file).
 
-#WARNING
+# WARNING
 
 This program can generate a large number of requests. Only run
 sitecheck against sites you have permission to scan. Running it against
@@ -19,7 +19,7 @@ and does not attempt any exploits. It will significantly increase the
 number of requests however, and will also submit any forms it finds
 multiple times.
 
-#Dependencies
+# Dependencies
 
 - Python 3
 - HTML Tidy (validation, accessibility)
@@ -29,9 +29,9 @@ multiple times.
 Using VirtualEnv is recommended due to the development status of some
 dependencies.
 
-#Installation
+# Installation
 
-##Windows
+## Windows
 
 Download and install the following:
 
@@ -55,7 +55,7 @@ command window in the same directory as the extracted files and type:
 
 `python setup.py install`
 
-##Linux
+## Linux
 
 Packages for dependencies should be available from your distribution's
 package manager or installable via pip or the links above. Install all
@@ -63,14 +63,14 @@ dependencies and then extract the archive and run:
 
 `python setup.py install`
 
-#Usage
+# Usage
 
-##Windows
+## Windows
 
 `C:\Python32\Scripts\runsitecheck.py -d http://www.domain-goes-here
 C:\path\to\output`
 
-#Linux
+# Linux
 
 `runsitecheck.py -d http://www.domain-goes-here /path/to/output`
 
@@ -89,7 +89,7 @@ the script with the path to an existing output directory:
 
 `runsitecheck.py /path/to/output`
 
-#Modules
+# Modules
 
 - **Persister** Downloads site files to disk for further analysis,
 **disabled by default**.
@@ -145,7 +145,7 @@ they are not found on the site, **disabled by default**.
 
 - **InsecureContent** Logs insecure content referenced from secure pages.
 
-#Configuration
+# Configuration
 
 Configuration for the spider and individual modules can be found in
 "config.py".
