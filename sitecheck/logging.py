@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2009-2015 Andrew Kershaw
+# Copyright 2009-2020 Andrew Kershaw
 
 # This file is part of sitecheck.
 
@@ -19,13 +19,14 @@
 
 from sitecheck.reporting import FlatFile
 
-#Wrapper class for compatibility
-#TODO: Remove this file on next major release
-class FileLogger(object):
-	def __init__(self):
-		print('\nWARNING: Using deprecated logging class - please update your config file.')
-		print('See CHANGELOG.txt for more details.\n')
-		self._report = FlatFile()
 
-	def __getattr__(self, attr):
-		return getattr(self._report, attr)
+# Wrapper class for compatibility
+# TODO: Remove this file on next major release
+class FileLogger(object):
+    def __init__(self):
+        print('\nWARNING: Using deprecated logging class - please update your config file.')
+        print('See CHANGELOG.txt for more details.\n')
+        self._report = FlatFile()
+
+    def __getattr__(self, attr):
+        return getattr(self._report, attr)

@@ -2,7 +2,7 @@
 
 # -*- coding: utf-8 -*-
 
-# Copyright 2009-2015 Andrew Kershaw
+# Copyright 2009-2020 Andrew Kershaw
 
 # This file is part of sitecheck.
 
@@ -19,207 +19,208 @@
 # You should have received a copy of the GNU General Public License
 # along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
 
-CONTACT_EMAIL = 'andy@site-check.co.uk'
+
 UPDATE_URL = 'http://www.site-check.co.uk/settings.js'
 SUSPEND_FILE_NAME = 'suspend.pkl'
 CONFIG_FILE_NAME = 'config.py'
-
 _sitecheck = None
 
+
 def signal_handler(signal, frame):
-	if _sitecheck and _sitecheck.started:
-		print('\nStopping...')
+    if _sitecheck and _sitecheck.started:
+        print('\nStopping...')
 
-		_sitecheck.end()
+        _sitecheck.end()
 
-		print('''\ns -> Suspend
+        print('''\ns -> Suspend
 Return -> Abort''')
 
-		char = input()
-		if char.strip().lower() == 's':
-			sf = _sitecheck.session.root_path + SUSPEND_FILE_NAME
+        char = input()
+        if char.strip().lower() == 's':
+            sf = _sitecheck.session.root_path + SUSPEND_FILE_NAME
 
-			try:
-				sd = pickle.dumps(_sitecheck.suspend())
-			except:
-				sys.exit('An error occurred while suspending.')
+            try:
+                sd = pickle.dumps(_sitecheck.suspend())
+            except:
+                sys.exit('An error occurred while suspending.')
 
-			try:
-				f = open(sf, 'wb')
-				f.write(sd)
-				f.close()
-			except:
-				sys.exit('Unable to write suspend data to file: {0}'.format(sf))
-			else:
-				print('Suspended')
-		else:
-			print('Aborted')
-	else:
-		print('Cancelled')
+            try:
+                f = open(sf, 'wb')
+                f.write(sd)
+                f.close()
+            except:
+                sys.exit('Unable to write suspend data to file: {0}'.format(sf))
+            else:
+                print('Suspended')
+        else:
+            print('Aborted')
+    else:
+        print('Cancelled')
 
-	sys.exit(0)
+    sys.exit(0)
+
 
 if __name__ == '__main__':
-	from argparse import ArgumentParser
-	import os
-	import sys
-	import re
-	import urllib.parse
-	import urllib.request
-	import datetime
-	import imp
-	import json
-	import signal
-	import time
-	import math
-	import pickle
-	from io import StringIO
+    from argparse import ArgumentParser
+    import os
+    import sys
+    import re
+    import urllib.parse
+    import urllib.request
+    import datetime
+    import json
+    import signal
+    import time
+    import pickle
+    from io import StringIO
+    from importlib.machinery import SourceFileLoader
 
-	from sitecheck import *
-	from sitecheck.core import VERSION, append, Authenticate, Request
-	from sitecheck.reporting import FlatFile
+    from sitecheck import *
+    from sitecheck.core import VERSION, CONTACT_EMAIL, append, Authenticate, Request
+    from sitecheck.reporting import FlatFile
 
-	signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
 
-	parser = ArgumentParser()
-	parser.add_argument('-d', '--domain', dest='domain', default=None, help='The domain to spider. This can also be set in the config file.')
-	parser.add_argument('-p', '--page', dest='page', default=None, help='The first page to request. This can also be set in the config file.')
-	parser.add_argument('--version', action='version', version='Sitecheck {0}'.format(VERSION))
-	parser.add_argument('directory', help='The directory containing the configuration and output.')
-	args = parser.parse_args()
+    parser = ArgumentParser()
+    parser.add_argument('-d', '--domain', dest='domain', default=None, help='''The domain to spider. This can also be
+    set in the config file.''')
+    parser.add_argument('-p', '--page', dest='page', default=None, help='''The first page to request. This can also be
+    set in the config file.''')
+    parser.add_argument('--version', action='version', version='Sitecheck {0}'.format(VERSION))
+    parser.add_argument('directory', help='The directory containing the configuration and output.')
+    args = parser.parse_args()
 
-	print('''Sitecheck {0} Copyright (C) 2009-2015 Andrew Kershaw
+    print('''Sitecheck {0} Copyright (C) 2009-2020 Andrew Kershaw
 ({1})
 This program comes with ABSOLUTELY NO WARRANTY
 '''.format(VERSION, CONTACT_EMAIL))
 
-	root_path = append(args.directory, os.sep)
-	suspend_file = root_path + SUSPEND_FILE_NAME
-	config_file = root_path + CONFIG_FILE_NAME
+    root_path = append(args.directory, os.sep)
+    suspend_file = root_path + SUSPEND_FILE_NAME
+    config_file = root_path + CONFIG_FILE_NAME
 
-	# Import before unpickling
-	conf = None
-	if os.path.exists(config_file):
-		try:
-			conf = imp.load_source('sitecheck.config', config_file)
-		except:
-			sys.exit('Invalid config file found in directory.')
+    # Import before unpickling
+    conf = None
+    if os.path.exists(config_file):
+        try:
+            conf = SourceFileLoader('sitecheck.config', config_file).load_module()
+        except:
+            sys.exit('Invalid config file found in directory.')
 
-	if os.path.exists(suspend_file):
-		print('Resuming session...')
-		try:
-			f = open(suspend_file, 'rb')
-			sd = pickle.loads(f.read())
-			f.close()
+    if os.path.exists(suspend_file):
+        print('Resuming session...')
+        try:
+            f = open(suspend_file, 'rb')
+            sd = pickle.loads(f.read())
+            f.close()
 
-			_sitecheck = SiteCheck(sd)
-		except:
-			sys.exit('Unable to load suspend data.')
+            _sitecheck = SiteCheck(sd)
+        except:
+            sys.exit('Unable to load suspend data.')
 
-		# Set the path again in case the suspend data has been moved
-		_sitecheck.session.root_path = root_path
-	else:
-		if conf:
-			print('Loading config...')
-			session = conf.Session()
-		else:
-			print('Using default config...')
-			session = Session()
+        # Set the path again in case the suspend data has been moved
+        _sitecheck.session.root_path = root_path
+    else:
+        if conf:
+            print('Loading config...')
+            session = conf.Session()
+        else:
+            print('Using default config...')
+            session = Session()
 
-		session.root_path = root_path
+        session.root_path = root_path
 
-		if hasattr(session, 'check_for_updates') and session.check_for_updates:
-			print('Checking for updates...')
-			try:
-				settings = urllib.request.urlopen(UPDATE_URL).read().decode('utf-8')
-				ss = StringIO(settings)
-				so = json.load(ss)
-			except:
-				print('Update check failed - please notify: {0}'.format(CONTACT_EMAIL))
-			else:
-				if VERSION != so['Version']:
-					print('A new version ({0}) is available at: {1} '.format(so['Version'], so['DownloadURL']))
+        if hasattr(session, 'check_for_updates') and session.check_for_updates:
+            print('Checking for updates...')
+            try:
+                settings = urllib.request.urlopen(UPDATE_URL).read().decode('utf-8')
+                ss = StringIO(settings)
+                so = json.load(ss)
+            except:
+                print('Update check failed - please notify: {0}'.format(CONTACT_EMAIL))
+            else:
+                if VERSION != so['Version']:
+                    print('A new version ({0}) is available at: {1} '.format(so['Version'], so['DownloadURL']))
 
-		op = ''
-		if args.domain:
-			if re.match('^https?://', args.domain, re.IGNORECASE):
-				session.domain = args.domain
-			else:
-				session.domain = 'http://{0}'.format(args.domain)
-			op = urllib.parse.urlparse(session.domain).netloc + os.sep
+        op = ''
+        if args.domain:
+            if re.match('^https?://', args.domain, re.IGNORECASE):
+                session.domain = args.domain
+            else:
+                session.domain = 'http://{0}'.format(args.domain)
+            op = urllib.parse.urlparse(session.domain).netloc + os.sep
 
-		if args.page:
-			session.page = args.page
+        if args.page:
+            session.page = args.page
 
-		if len(session.domain) == 0:
-			sys.exit('Please supply either a domain, a config file or a suspended session.')
+        if len(session.domain) == 0:
+            sys.exit('Please supply either a domain, a config file or a suspended session.')
 
-		if session.output == None or len(session.output) == 0:
-			op += datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S') + os.sep
+        if session.output is None or len(session.output) == 0:
+            op += datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S') + os.sep
 
-		session.output = op + session.output
+        session.output = op + session.output
 
-		if not hasattr(session, 'report'):
-			if hasattr(session, 'logger'):
-				#TODO: Remove this section on next major release
-				print('\nWARNING: Using deprecated logger attribute - please update your config file.')
-				print('See CHANGELOG.txt for more details.\n')
-				session.report = session.logger
-			else:
-				session.report = FlatFile()
+        if not hasattr(session, 'report'):
+            if hasattr(session, 'logger'):
+                # TODO: Remove this section on next major release
+                print('\nWARNING: Using deprecated logger attribute - please update your config file.')
+                print('See CHANGELOG.txt for more details.\n')
+                session.report = session.logger
+            else:
+                session.report = FlatFile()
 
-		if hasattr(session, 'authenticate'):
-			#TODO: Remove this section on next major release
-			print('\nWARNING: Using deprecated authentication attribute - please update your config file.')
-			print('See CHANGELOG.txt for more details.\n')
-			if not [m for m in session.modules if m.name == 'Authenticate']:
-				login = []
-				if len(session.authenticate.login_url) > 0:
-					login.append(Request(session.authenticate.login_url))
-					if len(session.authenticate.params) > 0:
-						login.append(Request(session.authenticate.login_url, post_data=session.authenticate.params))
+        if hasattr(session, 'authenticate'):
+            # TODO: Remove this section on next major release
+            print('\nWARNING: Using deprecated authentication attribute - please update your config file.')
+            print('See CHANGELOG.txt for more details.\n')
+            if not [m for m in session.modules if m.name == 'Authenticate']:
+                login = []
+                if len(session.authenticate.login_url) > 0:
+                    login.append(Request(session.authenticate.login_url))
+                    if len(session.authenticate.params) > 0:
+                        login.append(Request(session.authenticate.login_url, post_data=session.authenticate.params))
 
-				logout = []
-				if len(session.authenticate.logout_url) > 0:
-					logout.append(Request(session.authenticate.logout_url))
+                logout = []
+                if len(session.authenticate.logout_url) > 0:
+                    logout.append(Request(session.authenticate.logout_url))
 
-				session.modules.append(Authenticate(login=login, logout=logout))
+                session.modules.append(Authenticate(login=login, logout=logout))
 
-		_sitecheck = SiteCheck(session)
+        _sitecheck = SiteCheck(session)
 
-	# TODO: Remove this section on next major release
-	if not hasattr(_sitecheck.session, 'max_requests'):
-		_sitecheck.session.max_requests = 0
+    # TODO: Remove this section on next major release
+    if not hasattr(_sitecheck.session, 'max_requests'):
+        _sitecheck.session.max_requests = 0
 
-	print('Target: [{0}]'.format(_sitecheck.session.domain))
-	print('Output: [{0}]'.format(_sitecheck.session.root_path + _sitecheck.session.output))
-	print('Continue [Y/n]? ', end='')
-	char = input()
-	if char.strip().lower() == 'n':
-		print('Cancelled')
-		sys.exit(0)
+    print('Target: [{0}]'.format(_sitecheck.session.domain))
+    print('Output: [{0}]'.format(_sitecheck.session.root_path + _sitecheck.session.output))
+    print('Continue [Y/n]? ', end='')
+    char = input()
+    if char.strip().lower() == 'n':
+        print('Cancelled')
+        sys.exit(0)
 
-	_sitecheck.begin(background=True)
+    _sitecheck.begin(background=True)
 
-	# If sitecheck starts successfully then remove suspend data
-	if os.path.exists(suspend_file):
-		try:
-			os.remove(suspend_file)
-		except:
-			print('WARNING: Unable to remove suspend data: {0}'.format(suspend_file))
+    # If sitecheck starts successfully then remove suspend data
+    if os.path.exists(suspend_file):
+        try:
+            os.remove(suspend_file)
+        except:
+            print('WARNING: Unable to remove suspend data: {0}'.format(suspend_file))
 
-	print('\nChecking (stop with Ctrl+c)...')
+    print('\nChecking (stop with Ctrl+c)...')
 
-	while True:
-		if _sitecheck.complete:
-			break
-		else:
-			ttl = len(_sitecheck.request_queue.requests)
-			rem = _sitecheck.request_queue.qsize()
-			print('Remaining: {0} (Total: {1})'.format(rem, ttl))
-			time.sleep(10)
+    while True:
+        if _sitecheck.complete:
+            break
+        else:
+            ttl = len(_sitecheck.request_queue.requests)
+            rem = _sitecheck.request_queue.qsize()
+            print('Remaining: {0} (Total: {1})'.format(rem, ttl))
+            time.sleep(10)
 
-	_sitecheck.end()
+    _sitecheck.end()
 
-	print('Completed ({0} URLs)'.format(str(len(_sitecheck.request_queue.urls))))
-
+    print('Completed ({0} URLs)'.format(str(len(_sitecheck.request_queue.urls))))

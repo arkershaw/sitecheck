@@ -1,4 +1,4 @@
-Copyright 2009-2015 Andrew Kershaw
+Copyright 2009-2020 Andrew Kershaw
 
 Licensed under the GNU Affero General Public License v3 (see
 "LICENSE.txt" file).
@@ -61,7 +61,7 @@ Packages for dependencies should be available from your distribution's
 package manager or installable via pip or the links above. Install all
 dependencies and then extract the archive and run:
 
-`python setup.py install
+`python setup.py install`
 
 #Usage
 
