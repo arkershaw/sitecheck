@@ -24,7 +24,10 @@ multiple times.
 - Python 3
 - HTML Tidy (validation, accessibility)
 - Enchant, pyenchant (spelling)
-- OpenSSL, pyOpenSSL, dnspython3 (domain check)
+- OpenSSL, dnspython (domain check)
+
+To check for insecure SSL protocols, OpenSSL must be compiled with
+support for SSL version and/or 3.
 
 Using VirtualEnv is recommended due to the development status of some
 dependencies.
@@ -41,17 +44,13 @@ Download and install the following:
 spellcheck is required, the Windows installer includes the Enchant
 library.
 
-- [pyopenssl](http://pypi.python.org/pypi/pyOpenSSL/) (if domain check
-is required).
-
 - [libtidy.dll](http://tidy.sourceforge.net/#binaries) if validation or
 accessibility are required, place libtidy.dll on your system path, also
 [see here](http://countergram.com/open-source/pytidylib/docs/index.html).
 
-- [dnspython3](http://www.dnspython.org/) if domain check is required.
 
-To install dnspython3 and sitecheck, extract each archive then open a
-command window in the same directory as the extracted files and type:
+To install sitecheck, extract the archive then open a command window
+in the same directory as the extracted files and type:
 
 `python setup.py install`
 

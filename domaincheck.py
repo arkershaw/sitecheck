@@ -23,6 +23,7 @@ import sys
 import re
 import ssl
 import datetime
+import ipaddress
 
 try:
     from dns.resolver import query, NoAnswer, NoMetaqueries
@@ -32,27 +33,20 @@ else:
     _dns_available = True
 
 try:
-    from OpenSSL.crypto import load_certificate, FILETYPE_PEM
-except:
-    _ssl_available = False
-else:
-    _ssl_available = True
-
-try:
     ssl.PROTOCOL_SSLv2
-except:
-    sslv2_available = False
+except AttributeError:
+    _SSL_V2_AVAILABLE = False
 else:
-    sslv2_available = True
+    _SSL_V2_AVAILABLE = True
 
 try:
     ssl.PROTOCOL_SSLv3
-except:
-    sslv3_available = False
+except AttributeError:
+    _SSL_V3_AVAILABLE = False
 else:
-    sslv3_available = True
+    _SSL_V3_AVAILABLE = True
 
-_relay_tests = [
+_RELAY_TESTS = [
     ('<{user}@{domain}>', '<{user}@{domain}>'),
     ('<{user}>', '<{user}@{domain}>'),
     ('<>', '<{user}@{domain}>'),
@@ -72,7 +66,7 @@ _relay_tests = [
     ('<{user}@{domain}>', '<{domain}!{user}@[{address}]>')
 ]
 
-_common_names = [
+_COMMON_NAMES = [
     'www',
     'ftp',
     'mail',
@@ -81,11 +75,17 @@ _common_names = [
     'smtp'
 ]
 
-_ipre = re.compile('(?:\d{1,3}\.){3}\d{1,3}')
+_INSECURE_CERT_VERSIONS = [
+    'SSLv2', 'SSLv3'
+]
 
 
 def is_ip_address(address):
-    return _ipre.match(address)
+    try:
+        ipaddress.ip_address(address)
+        return True
+    except ValueError:
+        return False
 
 
 def name_and_address(host):
@@ -110,7 +110,7 @@ class SocketHelper:
         self.socket = socket
         self.end = end
 
-    def receiveall(self):
+    def receive_all(self):
         res = []
 
         while True:
@@ -124,68 +124,57 @@ class SocketHelper:
 
         return ''.join(res)
 
-    def sendall(self, data):
-        self.socket.sendall((data + '\r\n').encode('ascii'))
+    def send_all(self, data):
+        self.socket.send_all((data + '\r\n').encode('ascii'))
 
-    def sendandreceive(self, data):
-        self.sendall(data)
-        return self.receiveall()
+    def send_and_receive(self, data):
+        self.send_all(data)
+        return self.receive_all()
 
 
 class HostInfo:
     def __init__(self, host, record='A'):
         self.name, self.address = name_and_address(host)
-
-        self.records = set()
-        self.records.add(record)
+        self.records = {record}
         self.cert_expiry = None
-        self.sslv2 = False
-        self.sslv3 = False
-
-        if self.address:
-            cert = None
-
-            try:
-                if sslv2_available:
-                    cert = self._get_cert(ssl.PROTOCOL_SSLv2)
-
-                if cert:
-                    self.sslv2 = True
-
-                if not cert and sslv3_available:
-                    cert = self._get_cert(ssl.PROTOCOL_SSLv3)
-
-                if cert:
-                    self.sslv3 = True
-
-                if not cert:
-                    cert = self._get_cert(ssl.PROTOCOL_TLSv1)
-            except socket.error:
-                # SSL not supported
-                pass
-            else:
-                if cert and _ssl_available:
-                    cert_data = load_certificate(FILETYPE_PEM, cert)
-                    expiry = cert_data.get_notAfter().decode('ascii')
-                    self.cert_expiry = datetime.datetime.strptime(expiry[:8], '%Y%m%d').date()
-
-    def _get_cert(self, version):
-        try:
-            cert = ssl.get_server_certificate((self.address, 443), ssl_version=version)
-        except ssl.SSLError:
-            return None
+        self.cert_version = None
+        if _SSL_V2_AVAILABLE:
+            self._get_cert(ssl.PROTOCOL_SSLv2)
+        elif _SSL_V3_AVAILABLE:
+            self._get_cert(ssl.PROTOCOL_SSLv3)
         else:
-            return cert
+            self._get_cert()
+
+    def _get_cert(self, protocol=None):
+        if protocol:
+            context = ssl.SSLContext(protocol)
+        else:
+            context = ssl.create_default_context()
+
+        try:
+            with socket.create_connection((self.name, 443)) as sock:
+                with context.wrap_socket(sock, server_hostname=self.name) as ssl_sock:
+                    cert = ssl_sock.getpeercert()
+                    self.cert_version = ssl_sock.version()
+                    if 'notAfter' in cert:
+                        self.cert_expiry = datetime.datetime.strptime(cert['notAfter'], '%b %d %X %Y %Z')
+        except socket.gaierror:
+            pass
+        except ConnectionRefusedError:
+            pass
 
 
 class DomainInfo:
     def __init__(self, domain):
         self.domain = domain
         # self._tld = domain.split('.')[-1]
+        try:
+            addresses = socket.getaddrinfo(domain, None)
+            self.hosts = dict([(a[4][0], HostInfo(a[4][0])) for a in addresses])
+        except socket.gaierror:
+            self.hosts = dict()
 
-        self.hosts = dict([(a[4][0], HostInfo(a[4][0])) for a in socket.getaddrinfo(domain, None)])
-
-        for n in _common_names:
+        for n in _COMMON_NAMES:
             r = '{0}.{1}'.format(n, domain)
             try:
                 addrs = socket.getaddrinfo(r, None)
@@ -259,7 +248,7 @@ class DomainInfo:
                 # Registrar Registration Expiration Date: 2023-02-28T05:00:00Z
                 # Expiry date:  04-Apr-2021
 
-                ed = re.search('(?:renew|expir).*?(?:(?P<alpha>\d{2}-\w{3}-\d{4})|(?P<numer>\d{4}-\d{2}-\d{2}))', whois, re.IGNORECASE)
+                ed = re.search(r'(?:renew|expir).*?(?:(?P<alpha>\d{2}-\w{3}-\d{4})|(?P<numer>\d{4}-\d{2}-\d{2}))', whois, re.IGNORECASE)
                 if ed:
                     if ed.group('numer'):
                         self.domain_expiry = datetime.datetime.strptime(ed.group('numer'), '%Y-%m-%d').date()
@@ -312,30 +301,30 @@ def test_relay(host, port=25, mail_from='from@example.com', rcpt_to='to@example.
         return False, []
     else:
         s = SocketHelper(sock, end='\r\n')
-        s.receiveall()
-        s.sendandreceive('HELO {0}'.format(fr[1]))
+        s.receive_all()
+        s.send_and_receive('HELO {0}'.format(fr[1]))
 
         relay = False
         failed = []
-        for tst in _relay_tests:
+        for tst in _RELAY_TESTS:
             mf = tst[0].format(user=fr[0], domain=fr[1], hostname=name, address=addr)
             rt = tst[1].format(user=to[0], domain=to[1], hostname=name, address=addr)
 
             # print('{0} -> {1}'.format(mf, rt))
 
-            s.sendandreceive('RSET')
-            s.sendandreceive('MAIL FROM:{0}'.format(mf))
-            res = s.sendandreceive('RCPT TO:{0}'.format(rt))
+            s.send_and_receive('RSET')
+            s.send_and_receive('MAIL FROM:{0}'.format(mf))
+            res = s.send_and_receive('RCPT TO:{0}'.format(rt))
 
             if int(res[:3]) == 250:
                 relay = True
                 failed.append((mf, rt))
 
             if send:
-                s.sendandreceive('DATA')
-                s.sendandreceive('.')
+                s.send_and_receive('DATA')
+                s.send_and_receive('.')
 
-        s.sendandreceive('QUIT')
+        s.send_and_receive('QUIT')
         sock.close()
         return relay, failed
 
@@ -403,7 +392,7 @@ if __name__ == '__main__':
             else:
                 print('\t\tCertificate expires in {0} days'.format(rem))
 
-        if h.sslv2 or h.sslv3:
+        if h.cert_version in _INSECURE_CERT_VERSIONS:
             print('\t\tInsecure ciphers supported')
 
         if args.relay:
