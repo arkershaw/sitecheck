@@ -24,6 +24,7 @@ import re
 import ssl
 import datetime
 import ipaddress
+import subprocess
 
 try:
     from dns.resolver import query, NoAnswer, NoMetaqueries
@@ -31,20 +32,6 @@ except:
     _dns_available = False
 else:
     _dns_available = True
-
-try:
-    ssl.PROTOCOL_SSLv2
-except AttributeError:
-    _SSL_V2_AVAILABLE = False
-else:
-    _SSL_V2_AVAILABLE = True
-
-try:
-    ssl.PROTOCOL_SSLv3
-except AttributeError:
-    _SSL_V3_AVAILABLE = False
-else:
-    _SSL_V3_AVAILABLE = True
 
 _RELAY_TESTS = [
     ('<{user}@{domain}>', '<{user}@{domain}>'),
@@ -77,6 +64,14 @@ _COMMON_NAMES = [
 
 _INSECURE_CERT_VERSIONS = [
     'SSLv2', 'SSLv3'
+]
+
+_PROTOCOLS = [
+    ssl.TLSVersion.SSLv3,
+    ssl.TLSVersion.TLSv1,
+    ssl.TLSVersion.TLSv1_1,
+    ssl.TLSVersion.TLSv1_2,
+    ssl.TLSVersion.TLSv1_3,
 ]
 
 
@@ -132,42 +127,58 @@ class SocketHelper:
         return self.receive_all()
 
 
+def get_certificate_details(host):
+    def get_cert(protocol):
+        context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+        context.load_default_certs()
+        context.verify_mode = ssl.CERT_REQUIRED
+        context.check_hostname = True
+        context.options &= ~ssl.OP_NO_SSLv3
+        context.minimum_version = protocol
+        context.maximum_version = protocol
+        try:
+            with socket.create_connection((host, 443)) as sock:
+                with context.wrap_socket(sock, server_hostname=host) as ssl_sock:
+                    cert = ssl_sock.getpeercert()
+                    cert_version = ssl_sock.version()
+                    cert_expiry = None
+                    if 'notAfter' in cert:
+                        cert_expiry = datetime.datetime.strptime(cert['notAfter'], '%b %d %X %Y %Z')
+                    return cert_version, cert_expiry
+
+        except (ConnectionRefusedError, ssl.SSLError):
+            return None, None
+
+    cert_version = None
+    cert_expiry = None
+    for p in _PROTOCOLS:
+        try:
+            v, e = get_cert(p)
+            if e and not cert_expiry:
+                cert_expiry = e
+            if v and not cert_version:
+                cert_version = v
+            if cert_expiry and cert_version:
+                break
+        except (TimeoutError, socket.gaierror):
+            break
+    return cert_version, cert_expiry
+
+
 class HostInfo:
     def __init__(self, host, record='A'):
         self.name, self.address = name_and_address(host)
         self.records = {record}
-        self.cert_expiry = None
-        self.cert_version = None
-        if _SSL_V2_AVAILABLE:
-            self._get_cert(ssl.PROTOCOL_SSLv2)
-        elif _SSL_V3_AVAILABLE:
-            self._get_cert(ssl.PROTOCOL_SSLv3)
-        else:
-            self._get_cert()
-
-    def _get_cert(self, protocol=None):
-        if protocol:
-            context = ssl.SSLContext(protocol)
-        else:
-            context = ssl.create_default_context()
-
-        try:
-            with socket.create_connection((self.name, 443)) as sock:
-                with context.wrap_socket(sock, server_hostname=self.name) as ssl_sock:
-                    cert = ssl_sock.getpeercert()
-                    self.cert_version = ssl_sock.version()
-                    if 'notAfter' in cert:
-                        self.cert_expiry = datetime.datetime.strptime(cert['notAfter'], '%b %d %X %Y %Z')
-        except socket.gaierror:
-            pass
-        except ConnectionRefusedError:
-            pass
+        v, e = get_certificate_details(host)
+        if not v and not e:
+            v, e = get_certificate_details(self.name)
+        self.cert_version = v
+        self.cert_expiry = e
 
 
 class DomainInfo:
     def __init__(self, domain):
         self.domain = domain
-        # self._tld = domain.split('.')[-1]
         try:
             addresses = socket.getaddrinfo(domain, None)
             self.hosts = dict([(a[4][0], HostInfo(a[4][0])) for a in addresses])
@@ -248,7 +259,8 @@ class DomainInfo:
                 # Registrar Registration Expiration Date: 2023-02-28T05:00:00Z
                 # Expiry date:  04-Apr-2021
 
-                ed = re.search(r'(?:renew|expir).*?(?:(?P<alpha>\d{2}-\w{3}-\d{4})|(?P<numer>\d{4}-\d{2}-\d{2}))', whois, re.IGNORECASE)
+                ed = re.search(r'(?:renew|expir).*?(?:(?P<alpha>\d{2}-\w{3}-\d{4})|(?P<numer>\d{4}-\d{2}-\d{2}))',
+                               whois.decode('ascii'), re.IGNORECASE)
                 if ed:
                     if ed.group('numer'):
                         self.domain_expiry = datetime.datetime.strptime(ed.group('numer'), '%Y-%m-%d').date()
@@ -263,21 +275,11 @@ class DomainInfo:
                     break
 
     def _whois_lookup(self, domain):
-        whois = None
-
-        # try:
-        #     sock = socket.create_connection(('whois-servers.net', 43))
-        # except:
-        #     raise
-        # else:
-        #     s = SocketHelper(sock)
-        #     whois = s.sendandreceive(domain)
-        #     sock.close()
-        #
-        # if whois and not re.search(domain, whois, re.IGNORECASE):
-        #     return None
-
-        return whois
+        try:
+            result = subprocess.run(["whois", domain], capture_output=True)
+            return result.stdout
+        except FileNotFoundError:
+            return None
 
 
 # SMTP can be 25 or 587

@@ -24,10 +24,10 @@ multiple times.
 - Python 3
 - HTML Tidy (validation, accessibility)
 - Enchant, pyenchant (spelling)
-- OpenSSL, dnspython (domain check)
+- dnspython, whois (domain check)
 
 To check for insecure SSL protocols, OpenSSL must be compiled with
-support for SSL version and/or 3.
+support for SSL version 2 and/or 3.
 
 Using VirtualEnv is recommended due to the development status of some
 dependencies.
@@ -48,6 +48,8 @@ library.
 accessibility are required, place libtidy.dll on your system path, also
 [see here](http://countergram.com/open-source/pytidylib/docs/index.html).
 
+- [whois](https://docs.microsoft.com/en-us/sysinternals/downloads/whois)
+if domaincheck is required.
 
 To install sitecheck, extract the archive then open a command window
 in the same directory as the extracted files and type:
@@ -129,8 +131,7 @@ it is below the specified threshold.
 - **DuplicateContent** Checks for the same response with different URLs.
 
 - **DomainCheck** Gets important domain information including expiry date,
-SSL certificate expiry date, reverse DNS etc. Uses a whois proxy with a
-limit of 50 hits per day, **disabled by default**.
+SSL certificate expiry date, reverse DNS etc. **disabled by default**.
 
 - **Authenticate** Issues requests to authenticate with the target site
 before spidering beings. If specified, logout requests will be executed
