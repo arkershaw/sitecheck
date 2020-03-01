@@ -46,7 +46,7 @@ else:
     _enchant_available = True
 
 try:
-    from domaincheck import DomainInfo, test_relay, sslv2_available
+    from domaincheck import DomainInfo, test_relay
 except:
     _domaincheck_available = False
 else:

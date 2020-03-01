@@ -173,7 +173,7 @@ class SiteCheck(object):
             self.request_queue.load(self._resume_data[1], self._resume_data[2], self._resume_data[3])
             del self._resume_data
         else:
-            self.request_queue.requests = set() # Clear authentication requests
+            self.request_queue.requests = set()  # Clear authentication requests
             for module in self.session.modules:
                 if hasattr(module, 'begin'):
                     try:
@@ -685,7 +685,7 @@ class RequestQueue(queue.Queue):
             return False
 
         if request.protocol is None or len(request.protocol) == 0 or \
-            request.domain is None or len(request.domain) == 0:
+                request.domain is None or len(request.domain) == 0:
 
             parts = urllib.parse.urlparse(self.session.domain)
 
