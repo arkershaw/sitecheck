@@ -175,12 +175,13 @@ class Certificate:
 
 
 class Domain:
-    def __init__(self, domain, zone_transfer_allowed, has_spf, expiry_date, certificate_details):
+    def __init__(self, domain, zone_transfer_allowed, has_spf, expiry_date, certificate_details, has_reverse_dns):
         self.domain = domain
         self.zone_transfer_allowed = zone_transfer_allowed
         self.has_spf = has_spf
         self.expiry_date = expiry_date
         self.certificate = certificate_details
+        self.has_reverse_dns = has_reverse_dns
 
 
 def whois(domain):
@@ -350,26 +351,59 @@ def reverse_dns(host):
         return reverse_dns(address)
 
 
-def check_reverse_dns(domain):
-    missing_records = []
-    if not reverse_dns(domain):
-        missing_records.append(domain)
-    mail_servers = get_mail_servers(domain)
-    for host in mail_servers:
-        if not reverse_dns(host):
-            missing_records.append(host)
-    return missing_records
-
-
-def check_domain(domain):
+def check_domain(domain, relay=False, message=None, warning=None):
     cd = get_certificate_details(domain)
+    rdns = reverse_dns(domain)
     d = get_soa(domain)
     if not cd:
         cd = get_certificate_details(d)
     zt = zone_transfer_allowed(d)
     spf = spf_exists(d)
     ed = get_expiry_date(d)
-    return Domain(d, zt, spf, ed, cd)
+    result = Domain(d, zt, spf, ed, cd, rdns)
+
+    if message or warning:
+        today = datetime.date.today()
+
+        if domain != result.domain:
+            message('Using: {0}'.format(result.domain))
+
+        if result.zone_transfer_allowed:
+            warning('Zone transfer permitted.')
+
+        if type(result.expiry_date) == datetime.date:
+            days_remaining = (result.expiry_date - today).days
+            if days_remaining < 0:
+                warning('Domain expired on {0}.'.format(result.expiry_date))
+            else:
+                message('Domain expires in {0} days.'.format(days_remaining))
+        elif result.expiry_date:
+            message('Domain expires on: {0}.'.format(result.expiry_date))
+        else:
+            warning('Unable to determine domain expiry date.')
+
+        if not result.has_spf:
+            warning('No SPF record found.')
+
+        if result.certificate:
+            if result.certificate.expiry:
+                days_remaining = (result.certificate.expiry - today).days
+                if days_remaining < 0:
+                    warning('Certificate expired on {0}.'.format(result.certificate.expiry))
+                else:
+                    message('Certificate expires in {0} days.'.format(days_remaining))
+
+            if result.certificate.version in _INSECURE_CERT_VERSIONS:
+                warning('Insecure certificate: {0}'.format(result.certificate.version))
+        else:
+            mesage('No certifcate found.')
+
+        if relay:
+            open_relays = has_open_relays(result.domain)
+            for r in open_relays:
+                warning('Possible open relay in host {0}:{1} -> {2}'.format(r.host, r.port, r.failed_tests[0]))
+
+    return result
 
 
 if __name__ == '__main__':
@@ -379,47 +413,11 @@ if __name__ == '__main__':
     parser.add_argument('domain')
     args = parser.parse_args()
 
-    today = datetime.date.today()
-
     if is_ip_address(args.domain):
         # IP address supplied instead of domain
         sys.exit('Please supply a domain')
 
     print('Checking: {0}'.format(args.domain))
 
-    result = check_domain(args.domain)
+    check_domain(args.domain, args.relay, print, print)
 
-    if args.domain != result.domain:
-        print('Using: {0}'.format(result.domain))
-
-    if result.zone_transfer_allowed:
-        print('Zone transfer permitted.')
-
-    if type(result.expiry_date) == datetime.date:
-        days_remaining = (result.expiry_date - today).days
-        if days_remaining < 0:
-            print('Domain expired on {0}.'.format(result.expiry_date))
-        else:
-            print('Domain expires in {0} days.'.format(days_remaining))
-    elif result.expiry_date:
-        print('Domain expires on: {0}.'.format(result.expiry_date))
-    else:
-        print('Unable to determine domain expiry date.')
-
-    if not result.has_spf:
-        print('No SPF record found.')
-
-    if result.certificate.expiry:
-        days_remaining = (result.certificate.expiry - today).days
-        if days_remaining < 0:
-            print('Certificate expired on {0}.'.format(result.certificate.expiry))
-        else:
-            print('Certificate expires in {0} days.'.format(days_remaining))
-
-    if result.certificate.version in _INSECURE_CERT_VERSIONS:
-        print('Insecure certificate: {0}'.format(result.certificate.version))
-
-    if args.relay:
-        open_relays = has_open_relays(result.domain)
-        for r in open_relays:
-            print('Possible open relay in host {0}:{1} -> {2}'.format(r.host, r.port, r.failed_tests[0]))

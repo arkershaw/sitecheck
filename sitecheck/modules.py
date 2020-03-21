@@ -756,6 +756,20 @@ class Security(ModuleBase):
 class DomainCheck(ModuleBase):
     def __init__(self, domains=[], relay=False):
         super(DomainCheck, self).__init__()
+        self.domains = domains
+        self.relay = relay
+
+    @report
+    def begin(self, report):
+        self.domains.append(self.sitecheck.session.domain)
+        # TODO: Check alternate domains redirect to main
+        for domain in self.domains:
+            check_domain(domain, self.relay, report.add_message, report.add_warning)
+
+
+class DomainCheck_Old(ModuleBase):
+    def __init__(self, domains=[], relay=False):
+        super(DomainCheck, self).__init__()
         self.relay = relay
         self.domains = domains
         if len(domains) > 0:

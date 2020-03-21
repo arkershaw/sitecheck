@@ -47,7 +47,7 @@ class Session(object):
 		self.test_ext = set.union(media_files, resource_files, document_files)
 		# Allows the inclusion of resources (images, styles etc.) in parent folder of path (if specified).
 		self.include_ext = set([])
-		# Pause between requests to consume less .
+		# Pause between requests to consume less resources.
 		self.wait_seconds = 1.0
 		# Time to wait for a response from server.
 		self.request_timeout = 30.0
