@@ -19,17 +19,17 @@
 # along with sitecheck. If not, see <http://www.gnu.org/licenses/>.
 
 import socket
-import sys
 import re
 import ssl
 import datetime
 import ipaddress
 import subprocess
+from urllib.parse import urlparse
 
-# TODO: DNSBL, DNSSEC, reverse DNS
+# TODO: DNSBL, DNSSEC
 
 try:
-    from dns.resolver import query, NoAnswer, NoMetaqueries
+    from dns.resolver import query, NoAnswer, NoMetaqueries, NXDOMAIN
 except ModuleNotFoundError:
     _dns_available = False
 else:
@@ -76,7 +76,15 @@ def is_ip_address(address):
         return False
 
 
-def name_and_address(host):
+def get_name_and_address(value):
+    # Parse as a URL to get the host.
+    if re.match('^[a-z1-9]*://', value, re.IGNORECASE):
+        url = value
+    else:
+        url = 'http://{0}'.format(value)
+
+    host = urlparse(url).netloc
+
     if is_ip_address(host):
         address = host
         try:
@@ -89,7 +97,69 @@ def name_and_address(host):
             address = socket.getaddrinfo(host, None)[0][4][0]
         except socket.gaierror:
             address = None
+
     return name, address
+
+
+def find_soa(domain):
+    if _dns_available:
+        parts = domain.split('.')
+        while True:
+            n = '.'.join(parts)
+            try:
+                soa = query(n, 'SOA')
+                cn = soa.canonical_name.to_text()
+                if cn == n:
+                    return n
+                else:
+                    return find_soa(cn)
+            except NoAnswer:
+                parts = parts[1:]
+                if len(parts) == 1:
+                    return domain
+            except NXDOMAIN:
+                return domain
+    else:
+        return domain
+
+
+class Host:
+    def __init__(self, name_or_address):
+        self.name, self.address = get_name_and_address(name_or_address)
+
+        if self.name:
+            self.certificate = Certificate(self.name)
+            domain = find_soa(self.name)
+            self.domain = Domain(domain)
+        else:
+            self.certificate = None
+            self.domain = None
+
+        if self.address:
+            reverse_name, reverse_address = get_name_and_address(self.address)
+            self.reverse_dns = (reverse_name is not None)
+        else:
+            self.reverse_dns = None
+
+
+class Certificate:
+    def __init__(self, domain):
+        self.version, self.expiry = get_certificate_details(domain)
+
+
+class Domain:
+    def __init__(self, domain):
+        self.domain = domain
+        self.zone_transfer_allowed = zone_transfer_allowed(domain)
+        self.has_spf = spf_exists(domain)
+        self.expiry_date = get_expiry_date(domain)
+
+
+class OpenRelay:
+    def __init__(self, host, port, failed_tests):
+        self.host = host
+        self.port = port
+        self.failed_tests = failed_tests
 
 
 class SocketHelper:
@@ -120,7 +190,9 @@ class SocketHelper:
         return self.receive_all()
 
 
-def get_certificate_details(host):
+def get_certificate_details(host, port=443):
+    name, address = get_name_and_address(host)
+
     def get_cert(protocol):
         context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
         context.load_default_certs()
@@ -130,8 +202,8 @@ def get_certificate_details(host):
         context.minimum_version = protocol
         context.maximum_version = protocol
         try:
-            with socket.create_connection((host, 443)) as sock:
-                with context.wrap_socket(sock, server_hostname=host) as ssl_sock:
+            with socket.create_connection((address, port)) as sock:
+                with context.wrap_socket(sock, server_hostname=name) as ssl_sock:
                     cert = ssl_sock.getpeercert()
                     version = ssl_sock.version()
                     expiry = None
@@ -156,40 +228,19 @@ def get_certificate_details(host):
             break
 
     if cert_expiry or cert_version:
-        return Certificate(cert_version, cert_expiry)
+        return cert_version, cert_expiry
     else:
-        return None
+        return None, None
 
 
-class OpenRelay:
-    def __init__(self, host, port, failed_tests):
-        self.host = host
-        self.port = port
-        self.failed_tests = failed_tests
-
-
-class Certificate:
-    def __init__(self, version, expiry):
-        self.version = version
-        self.expiry = expiry
-
-
-class Domain:
-    def __init__(self, domain, zone_transfer_allowed, has_spf, expiry_date, certificate_details, has_reverse_dns):
-        self.domain = domain
-        self.zone_transfer_allowed = zone_transfer_allowed
-        self.has_spf = has_spf
-        self.expiry_date = expiry_date
-        self.certificate = certificate_details
-        self.has_reverse_dns = has_reverse_dns
-
-
-def whois(domain):
+def who_is(domain):
     try:
-        result = subprocess.run(["whois", domain], capture_output=True)
-        return result.stdout
+        result = subprocess.run(["whois", domain.rstrip('.')], capture_output=True, text=True)
     except FileNotFoundError:
         return None
+    else:
+        result.check_returncode()
+        return result.stdout
 
 
 # Expiry Date.......... 2012-09-09
@@ -205,35 +256,19 @@ def whois(domain):
 # Registrar Registration Expiration Date: 2023-02-28T05:00:00Z
 # Expiry date:  04-Apr-2021
 def get_expiry_date(domain):
-    result = whois(domain)
+    result = who_is(domain)
     if result:
         ed = re.search(r'(?:renew|expir).*?(?:(?P<alpha>\d{2}-\w{3}-\d{4})|(?P<num>\d{4}-\d{2}-\d{2}))',
-                       result.decode('ascii'), re.IGNORECASE)
+                       result, re.IGNORECASE)
         if ed:
             if ed.group('num'):
                 return datetime.datetime.strptime(ed.group('num'), '%Y-%m-%d').date()
             elif ed.group('alpha'):
                 return datetime.datetime.strptime(ed.group('alpha'), '%d-%b-%Y').date()
             else:
-                # TODO: Return string value if we can't parse the date
+                # TODO: Return string value if we can't parse the date?
                 pass
     return None
-
-
-def get_soa(domain):
-    if _dns_available:
-        parts = domain.split('.')
-        while True:
-            d = '.'.join(parts)
-            try:
-                query(d, 'SOA')
-                return d
-            except NoAnswer:
-                parts = parts[1:]
-                if len(parts) == 1:
-                    return domain
-    else:
-        return domain
 
 
 def spf_exists(domain):
@@ -241,6 +276,8 @@ def spf_exists(domain):
         try:
             res = query(domain, 'TXT')
         except NoAnswer:
+            pass
+        except NXDOMAIN:
             pass
         else:
             txt = [r.to_text() for r in res]
@@ -258,6 +295,8 @@ def zone_transfer_allowed(domain):
             return True
         except NoMetaqueries:
             return False
+        except NXDOMAIN:
+            pass
     return None
 
 
@@ -268,6 +307,8 @@ def get_name_servers(domain):
             return list(filter(lambda ns: len(ns) > 0 and ns != '0', name_servers))
         except NoAnswer:
             pass
+        except NXDOMAIN:
+            pass
     return []
 
 
@@ -276,6 +317,8 @@ def get_mail_servers(domain):
         try:
             return [m.exchange.to_text().rstrip('.') for m in query(domain, 'MX')]
         except NoAnswer:
+            pass
+        except NXDOMAIN:
             pass
     return []
 
@@ -298,7 +341,7 @@ def has_open_relays(domain):
 
 # SMTP can be 25 or 587
 def test_open_relay(host, port=25, mail_from='from@example.com', rcpt_to='to@example.com', send=False):
-    name, address = name_and_address(host)
+    name, address = get_name_and_address(host)
 
     if not address:
         raise Exception('No address found for {0}'.format(host))
@@ -343,67 +386,50 @@ def test_open_relay(host, port=25, mail_from='from@example.com', rcpt_to='to@exa
         return failed_tests
 
 
-def reverse_dns(host):
-    name, address = name_and_address(host)
-    if is_ip_address(host):
-        return name
+def check_domain(value, relay=False, message=print, warning=print):
+    host = Host(value)
+    today = datetime.date.today()
+
+    if host.domain.domain != value:
+        message('Domain: {0}'.format(host.domain.domain))
+
+    if host.domain.zone_transfer_allowed:
+        warning('Zone transfer permitted.')
+
+    if type(host.domain.expiry_date) == datetime.date:
+        days_remaining = (host.domain.expiry_date - today).days
+        if days_remaining < 0:
+            warning('Domain expired on {0}.'.format(host.domain.expiry_date))
+        else:
+            message('Domain expires in {0} days.'.format(days_remaining))
+    elif host.domain.expiry_date:
+        message('Domain expires on: {0}.'.format(host.domain.expiry_date))
     else:
-        return reverse_dns(address)
+        warning('Unable to determine domain expiry date.')
 
+    if not host.domain.has_spf:
+        warning('No SPF record found.')
 
-def check_domain(domain, relay=False, message=None, warning=None):
-    cd = get_certificate_details(domain)
-    rdns = reverse_dns(domain)
-    d = get_soa(domain)
-    if not cd:
-        cd = get_certificate_details(d)
-    zt = zone_transfer_allowed(d)
-    spf = spf_exists(d)
-    ed = get_expiry_date(d)
-    result = Domain(d, zt, spf, ed, cd, rdns)
+    if not host.reverse_dns:
+        warning('No reverse DNS.')
 
-    if message or warning:
-        today = datetime.date.today()
-
-        if domain != result.domain:
-            message('Using: {0}'.format(result.domain))
-
-        if result.zone_transfer_allowed:
-            warning('Zone transfer permitted.')
-
-        if type(result.expiry_date) == datetime.date:
-            days_remaining = (result.expiry_date - today).days
+    if host.certificate:
+        if host.certificate.expiry:
+            days_remaining = (host.certificate.expiry - today).days
             if days_remaining < 0:
-                warning('Domain expired on {0}.'.format(result.expiry_date))
+                warning('Certificate expired on {0}.'.format(host.certificate.expiry))
             else:
-                message('Domain expires in {0} days.'.format(days_remaining))
-        elif result.expiry_date:
-            message('Domain expires on: {0}.'.format(result.expiry_date))
-        else:
-            warning('Unable to determine domain expiry date.')
+                message('Certificate expires in {0} days.'.format(days_remaining))
 
-        if not result.has_spf:
-            warning('No SPF record found.')
+        if host.certificate.version in _INSECURE_CERT_VERSIONS:
+            warning('Insecure certificate: {0}'.format(host.certificate.version))
+    else:
+        message('No certificate found.')
 
-        if result.certificate:
-            if result.certificate.expiry:
-                days_remaining = (result.certificate.expiry - today).days
-                if days_remaining < 0:
-                    warning('Certificate expired on {0}.'.format(result.certificate.expiry))
-                else:
-                    message('Certificate expires in {0} days.'.format(days_remaining))
-
-            if result.certificate.version in _INSECURE_CERT_VERSIONS:
-                warning('Insecure certificate: {0}'.format(result.certificate.version))
-        else:
-            mesage('No certifcate found.')
-
-        if relay:
-            open_relays = has_open_relays(result.domain)
-            for r in open_relays:
-                warning('Possible open relay in host {0}:{1} -> {2}'.format(r.host, r.port, r.failed_tests[0]))
-
-    return result
+    if relay:
+        open_relays = has_open_relays(host.domain.domain)
+        for r in open_relays:
+            warning('Possible open relay in host {0}:{1} -> {2}'.format(r.host, r.port, r.failed_tests[0]))
 
 
 if __name__ == '__main__':
@@ -413,11 +439,4 @@ if __name__ == '__main__':
     parser.add_argument('domain')
     args = parser.parse_args()
 
-    if is_ip_address(args.domain):
-        # IP address supplied instead of domain
-        sys.exit('Please supply a domain')
-
-    print('Checking: {0}'.format(args.domain))
-
-    check_domain(args.domain, args.relay, print, print)
-
+    check_domain(args.domain, args.relay)

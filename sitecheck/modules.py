@@ -19,14 +19,12 @@
 
 import re
 import os
-import datetime
 import hashlib
 import urllib.parse
 import urllib.request
 from io import StringIO
 import json
 import base64
-from socket import gaierror
 from subprocess import Popen, TimeoutExpired, PIPE
 
 try:
@@ -45,17 +43,16 @@ except:
 else:
     _enchant_available = True
 
-try:
-    from domaincheck import DomainInfo, test_relay
-except:
-    _domaincheck_available = False
-else:
-    _domaincheck_available = True
 
-from sitecheck.reporting import ensure_dir, report
+from domaincheck import check_domain
+from sitecheck.reporting import ensure_dir, requires_report
 from sitecheck.core import Authenticate, ModuleBase, HtmlHelper, TextHelper
 
-__all__ = ['Authenticate', 'RequestList', 'RequiredPages', 'DuplicateContent', 'InsecureContent', 'DomainCheck', 'Persister', 'InboundLinks', 'RegexMatch', 'Validator', 'Accessibility', 'MetaData', 'StatusLog', 'Security', 'Comments', 'Spelling', 'Readability', 'Spider', 'JavascriptSpider']
+__all__ = [
+    'Authenticate', 'RequestList', 'RequiredPages', 'DuplicateContent', 'InsecureContent', 'DomainCheck', 'Persister',
+    'InboundLinks', 'RegexMatch', 'Validator', 'Accessibility', 'MetaData', 'StatusLog', 'Security', 'Comments',
+    'Spelling', 'Readability', 'Spider', 'JavascriptSpider'
+]
 
 
 class Spider(ModuleBase):
@@ -116,7 +113,7 @@ class StatusLog(ModuleBase):
 class Accessibility(ModuleBase):
     def __init__(self):
         super(Accessibility, self).__init__()
-        self.accessibility = re.compile(' - Access: \[([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)\]')
+        self.accessibility = re.compile(r' - Access: \[([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)\]')
         self.ignore = set()
         self.ignore.add('1.1.2.1') # <img> missing 'longdesc' and d-link
         self.ignore.add('2.1.1') # ensure information not conveyed through color alone.
@@ -128,7 +125,7 @@ class Accessibility(ModuleBase):
 
         self.options = {'show-warnings': False, 'accessibility-check': 1}
 
-    @report
+    @requires_report
     def begin(self, report):
         global _tidy_available
         if not _tidy_available:
@@ -237,7 +234,7 @@ class Readability(ModuleBase):
         self.count = 0
         self.total = 0
 
-    @report
+    @requires_report
     def complete(self, report):
         if self.count > 0:
             report.add_message('\nSummary: Min {:.2f}, Max {:.2f}, Avg {:.2f}'.format(self.min, self.max, self.total / self.count))
@@ -281,7 +278,7 @@ class Validator(ModuleBase):
         super(Validator, self).__init__()
         self.options = {'show-warnings': True}
 
-    @report
+    @requires_report
     def begin(self, report):
         global _tidy_available
         if not _tidy_available:
@@ -410,7 +407,7 @@ class Spelling(ModuleBase):
 
             self.spell_checker = SpellChecker(d, filters=[EmailFilter, URLFilter])
 
-    @report
+    @requires_report
     def begin(self, report):
         if self.spell_checker:
             report.add_message('Language: {0}'.format(self.language))
@@ -472,7 +469,7 @@ class Spelling(ModuleBase):
                             if m.start() == 0 or m.group(1) in self.sentence_end or m.group(2)[0].islower():
                                 st = max(m.start() - 20, 0)
                                 en = min(m.end() + 20, l)
-                                ctx = re.sub('\t|\n', ' ', t[st:en])
+                                ctx = re.sub('[\t\n]', ' ', t[st:en])
                                 words[w] = [err.word, 1, ctx]
 
 
@@ -497,7 +494,7 @@ class InboundLinks(ModuleBase):
         }
         self.inbound = set()
 
-    @report
+    @requires_report
     def begin(self, report):
         if hasattr(self.sitecheck.session, 'check_for_updates') and self.sitecheck.session.check_for_updates:
             try:
@@ -554,7 +551,7 @@ class InboundLinks(ModuleBase):
                         req.verb = 'GET' # Otherwise it will be set to HEAD as it is on another domain
                         self.sitecheck.request_queue.put(req)
 
-    @report
+    @requires_report
     def complete(self, report):
         urls = list(self.inbound)
         if len(urls) > 0:
@@ -759,153 +756,19 @@ class DomainCheck(ModuleBase):
         self.domains = domains
         self.relay = relay
 
-    @report
+    @requires_report
     def begin(self, report):
-        self.domains.append(self.sitecheck.session.domain)
-        # TODO: Check alternate domains redirect to main
+        check_domain(self.sitecheck.session.domain, self.relay, report.add_message, report.add_warning)
         for domain in self.domains:
             check_domain(domain, self.relay, report.add_message, report.add_warning)
-
-
-class DomainCheck_Old(ModuleBase):
-    def __init__(self, domains=[], relay=False):
-        super(DomainCheck, self).__init__()
-        self.relay = relay
-        self.domains = domains
-        if len(domains) > 0:
-            self.main_domain = domains[0]
-        else:
-            self.main_domain = ''
-
-    def get_domain(self, domain, root=False):
-        url = domain
-        if not re.match('^https?://', domain, re.IGNORECASE):
             url = 'http://{0}'.format(domain)
-
-        d = urllib.parse.urlparse(url).netloc
-
-        if root and d.startswith('www.'):
-            d = d[4:]
-
-        return d
-
-    @report
-    def begin(self, report):
-        global _domaincheck_available
-        if not _domaincheck_available:
-            report.add_error('Module domaincheck not available')
-        else:
-            if not sslv2_available:
-                report.add_warning('Unable to test for SSLv2 (most likely due to OpenSSL compiled without SSLv2 support)')
-
-            self.main_domain = self.get_domain(self.sitecheck.session.domain)
-
-            self.domains.append(self.main_domain)
-            check_domains = set()
-
-            for domain in self.domains:
-                d = self.get_domain(domain, True)
-
-                check_domains.add(d)
-
-                if d != self.main_domain:
-                    url = 'http://{0}'.format(d)
-                    req = self._create_request(url, url)
-                    req.modules = [self]
-                    self.sitecheck.request_queue.put(req)
-
-            self.domains = list(check_domains)
-
-    def process(self, request, response, report):
-        check = False
-        with self.sync_lock:
-            if request.domain in self.domains:
-                self.domains.remove(request.domain)
-                check = True
-
-        if check:
-            self._check(request.domain, report)
-
-        if request.source == self.name and not request.domain == self.main_domain:
-            report.add_warning('Not redirecting to main domain')
-
-    @report
-    def end(self, report):
-        with self.sync_lock:
-            for d in self.domains:
-                self._check(d, report)
-
-    def _check(self, domain, report):
-        today = datetime.date.today()
-
-        try:
-            d = DomainInfo(domain)
-        except gaierror:
-            report.add_warning('Domain not found: {0}'.format(domain))
-            return
-
-        if not domain == self.main_domain:
-            url = 'http://www.{0}/'.format(domain)
             req = self._create_request(url, url)
             req.modules = [self]
             self.sitecheck.request_queue.put(req)
 
-        report.add_message('Nameservers:')
-        for ns in d.name_servers:
-            report.add_message('\t{0}'.format(ns))
-
-        if d.zone_transfer:
-            report.add_message('Zone Transfer Permitted')
-
-        if type(d.domain_expiry) == datetime.date:
-            rem = (d.domain_expiry - today).days
-            if rem < 0:
-                report.add_message('Domain expired {0}'.format(d.domain_expiry))
-            else:
-                report.add_message('Domain expires in {0} days'.format(rem))
-        elif d.domain_expiry:
-            report.add_message('Domain expires on: {0}'.format(d.domain_expiry))
-        else:
-            report.add_warning('Unable to determine domain expiry date')
-
-        if d.spf:
-            report.add_message('SPF: {0}'.format(d.spf))
-        else:
-            report.add_warning('No SPF record found')
-
-        report.add_message('Hosts:')
-        for host in d.hosts:
-            h = d.hosts[host]
-
-            report.add_message('\t{0}'.format(h.address))
-
-            if h.name:
-                report.add_message('\t\tReverse DNS: {0}'.format(h.name))
-            else:
-                report.add_warning('\t\t No reverse DNS')
-
-            report.add_message('\t\tRecords: {0}'.format(', '.join(h.records)))
-
-            if h.cert_expiry:
-                rem = (h.cert_expiry - today).days
-                if rem < 0:
-                    report.add_message('\t\tCertificate expired {0}'.format(h.cert_expiry))
-                else:
-                    report.add_message('\t\tCertificate expires in {0} days'.format(rem))
-
-            if h.sslv2:
-                report.add_warning('\t\tInsecure ciphers supported')
-
-            if self.relay:
-                relay, failed = test_relay(h.address, port=25)
-                if relay:
-                    for f in failed:
-                        report.add_warning('\t\tPossible open relay (port 25): {0} -> {1}'.format(f[0], f[1]))
-
-                relay, failed = test_relay(h.address, port=587)
-                if relay:
-                    for f in failed:
-                        report.add_warning('\t\tPossible open relay (port 587): {0} -> {1}'.format(f[0], f[1]))
+    def process(self, request, response, report):
+        if request.source == self.name and not request.domain == self.sitecheck.session.domain:
+            report.add_warning('Not redirecting to main domain')
 
 
 class DuplicateContent(ModuleBase):
@@ -1008,7 +871,7 @@ class RequiredPages(ModuleBase):
             if rp.startswith(self.root_path):
                 self.pages.discard(rp[self.root_path_length:])
 
-    @report
+    @requires_report
     def complete(self, report):
         if len(self.pages) > 0:
             report.add_message('{0}/{1} pages unmatched\n'.format(len(self.pages), self.total))

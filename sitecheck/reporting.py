@@ -42,7 +42,7 @@ def strfdelta(tdelta, fmt):
     return fmt.format(**d)
 
 
-def report(method):
+def requires_report(method):
     def inner(self, *args, **kwargs):
         rd = ReportData()
         rd.default_source = self.source
