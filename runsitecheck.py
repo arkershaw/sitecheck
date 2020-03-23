@@ -76,7 +76,8 @@ if __name__ == '__main__':
     from importlib.machinery import SourceFileLoader
 
     from sitecheck import *
-    from sitecheck.core import VERSION, CONTACT_EMAIL, append, Authenticate, Request
+    from sitecheck.core import VERSION, CONTACT_EMAIL, append, Request
+    from sitecheck.modules import Authenticate
     from sitecheck.reporting import FlatFile
 
     signal.signal(signal.SIGINT, signal_handler)
