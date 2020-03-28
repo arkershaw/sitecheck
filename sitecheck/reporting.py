@@ -86,10 +86,10 @@ class ReportData(object):
             self.messages[source].append((level, str(message)))
 
     def __len__(self):
-        l = 0
+        length = 0
         for src in self.messages:
-            l += len(self.messages[src])
-        return l
+            length += len(self.messages[src])
+        return length
 
     def __iter__(self):
         for src in self.messages:
@@ -111,7 +111,7 @@ class OutputQueue(queue.Queue):
     def put_report(self, report, block=True, timeout=None):
         queue.Queue.put(self, (None, None, report), block, timeout)
 
-    def put(self, request, response, report, block=True, timeout=None):
+    def put_values(self, request, response, report, block=True, timeout=None):
         queue.Queue.put(self, (request, response, report), block, timeout)
 
 
@@ -222,7 +222,7 @@ class FlatFile(object):
 
     def write(self, request, response, report):
         for src, msgs in report:
-            if not src in self._outfiles:
+            if src not in self._outfiles:
                 self._outfiles[src] = open('{0}{1}{2}'.format(self.root_path, src, self.extension), mode='a')
 
             if request:
@@ -241,7 +241,7 @@ class FlatFile(object):
 class HTML(object):
     def __init__(self, directory='html'):
         self.directory = directory
-        self._outfiles = {}
+        self._out_files = {}
         self.default_log_file = 'sitecheck'
         self.extension = '.html'
         self.header = '<html>\n\t<body>\n'
@@ -258,7 +258,7 @@ class HTML(object):
         if not self.root_path.endswith(os.sep):
             self.root_path = self.root_path + os.sep
 
-        self._outfiles = {}
+        self._out_files = {}
         self.default_log_file = 'sitecheck'
         self.extension = '.html'
         self.header = '<html>\n\t<body>\n'
@@ -266,8 +266,8 @@ class HTML(object):
         self._debug = sitecheck.session._debug
 
     def __getstate__(self):
-        state = self._clean_state(dict(self.__dict__))
-        del state['_outfiles']
+        state = dict(self.__dict__)
+        del state['_out_files']
         return state
 
     def begin(self):
@@ -284,7 +284,7 @@ class HTML(object):
             raise Exception('Unable to create output directory.')
 
     def _write(self, source, messages, indent):
-        fl = self._outfiles[source]
+        fl = self._out_files[source]
         for m in messages:
             if len(m[0]) > 0:
                 if m[0] != 'DEBUG' or self._debug:
@@ -294,11 +294,11 @@ class HTML(object):
 
     def write(self, request, response, report):
         for src, msgs in report:
-            if src in self._outfiles:
-                fl = self._outfiles[src]
+            if src in self._out_files:
+                fl = self._out_files[src]
             else:
                 fl = open('{0}{1}{2}'.format(self.root_path, src, self.extension), mode='a')
-                self._outfiles[src] = fl
+                self._out_files[src] = fl
                 fl.write(self.header)
                 fl.write('\t\t<h1>{0}</h1>\n'.format(html.escape(src.title())))
                 fl.write('\t\t<a href="index{0}">&lt;- Back</a>\n'.format(self.extension))
@@ -315,7 +315,7 @@ class HTML(object):
         ix.write(self.header)
         ix.write('\t\t<h1>Results</h1>\n\t\t<ul>\n')
 
-        for fl in self._outfiles.items():
+        for fl in self._out_files.items():
             ix.write('\t\t\t<li><a href="{0}{1}">{2}</a></li>\n'.format(html.escape(fl[0]), self.extension, html.escape(fl[0].title())))
             fl[1].write(self.footer)
             fl[1].close()

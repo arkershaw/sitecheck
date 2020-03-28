@@ -31,7 +31,7 @@ class InboundLinks(ModuleBase):
     def __init__(self, engines=None):
         super(InboundLinks, self).__init__()
         self.domain = ''
-        self.link = ''
+        self.link = None
         self.engines = engines
         # URL, page regex, page size, initial offset
         self.engine_parameters = {
@@ -52,7 +52,8 @@ class InboundLinks(ModuleBase):
     def begin(self, report):
         if hasattr(self.sitecheck.session, 'check_for_updates') and self.sitecheck.session.check_for_updates:
             try:
-                settings = urllib.request.urlopen('http://www.site-check.co.uk/search-engines.js').read().decode('utf-8')
+                settings = urllib.request.urlopen('http://www.site-check.co.uk/search-engines.js')\
+                    .read().decode('utf-8')
                 ss = StringIO(settings)
                 sd = json.load(ss)
             except:
@@ -78,7 +79,7 @@ class InboundLinks(ModuleBase):
                 url = e[0].format(domain=self.domain, index=e[3])
                 req = self._create_request(url, se)
                 req.modules = [self]
-                req.verb = 'GET' # Otherwise it will be set to HEAD as it is on another domain
+                req.verb = 'GET'  # Otherwise it will be set to HEAD as it is on another domain
                 self.sitecheck.request_queue.put(req)
             else:
                 report.add_error('Unknown search engine: [{0}]'.format(se))
@@ -88,9 +89,9 @@ class InboundLinks(ModuleBase):
         if request.source == self.name and response.is_html and request.referrer in self.engine_parameters:
             with self.sync_lock:
                 e = self.engine_parameters[request.referrer]
-                mtch = e[1].search(response.content)
-                if mtch:
-                    e[4] = int(re.sub('[^0-9]', '', mtch.groups()[0]))
+                match = re.search(e[1], response.content)
+                if match:
+                    e[4] = int(re.sub('[^0-9]', '', match.groups()[0]))
 
                     for m in self.link.finditer(response.content):
                         url = m.groups()[0]
@@ -102,7 +103,7 @@ class InboundLinks(ModuleBase):
                         url = e[0].format(domain=self.domain, index=e[5])
                         req = self._create_request(url, request.referrer)
                         req.modules = [self]
-                        req.verb = 'GET' # Otherwise it will be set to HEAD as it is on another domain
+                        req.verb = 'GET'  # Otherwise it will be set to HEAD as it is on another domain
                         self.sitecheck.request_queue.put(req)
 
     @requires_report
@@ -118,9 +119,9 @@ class InboundLinks(ModuleBase):
 
 
 class DomainCheck(ModuleBase):
-    def __init__(self, domains=[], relay=False):
+    def __init__(self, domains=None, relay=False):
         super(DomainCheck, self).__init__()
-        self.domains = domains
+        self.domains = domains if domains else []
         self.relay = relay
 
     @requires_report

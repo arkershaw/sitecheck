@@ -86,7 +86,7 @@ class RequestList(ModuleBase):
 
 class Spider(ModuleBase):
     def _log_url(self, url):
-        if url == None:
+        if url is None:
             return False
         if len(url) == 0:
             return False
@@ -95,7 +95,7 @@ class Spider(ModuleBase):
 
         parts = urllib.parse.urlparse(url)
         # if (parts.netloc == request.domain or len(parts.netloc) == 0) and parts.path == request.path:
-        #	return False
+        #     return False
 
         if re.match('^http', parts.scheme, re.IGNORECASE) or len(parts.scheme) == 0:
             return True

@@ -81,8 +81,10 @@ class Session(object):
 			# Persister(directory='output'),
 			# InboundLinks(engines=['Google', 'Bing']),
 			RegexMatch(expressions={
-				'Email Address': re.compile("[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?", re.IGNORECASE),
-				'IP Address': re.compile('(?:\d{1,3}\.){3}\d{1,3}'),
+				'Email Address': re.compile(
+					r'''[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?''',
+					re.IGNORECASE),
+				'IP Address': re.compile(r'(?:\d{1,3}\.){3}\d{1,3}'),
 				'Lorem Ipsum': re.compile('lorem ipsum', re.IGNORECASE)
 			}),
 			# Validator(),

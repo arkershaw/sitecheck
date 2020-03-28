@@ -164,12 +164,12 @@ class Accessibility(ModuleBase):
                     report.add_message('Total: {0}'.format(c))
 
     def _log(self, error):
-        mtch = self.accessibility.search(error)
+        match = self.accessibility.search(error)
         log = False
-        if mtch:
+        if match:
             log = True
             txt = ''
-            for grp in mtch.groups():
+            for grp in match.groups():
                 if len(txt) > 0:
                     txt += '.'
                 txt += grp

@@ -73,7 +73,7 @@ class InsecureContent(ModuleBase):
         if response.is_html and request.protocol.lower() == 'https':
             doc = HtmlHelper(response.content)
 
-            for e, a, v in doc.get_attribute('src'): #img, script
+            for e, a, v in doc.get_attribute('src'):  # img, script
                 if v.lower().startswith('http:'):
                     report.add_message('{0}'.format(v))
 

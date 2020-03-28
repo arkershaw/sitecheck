@@ -115,14 +115,14 @@ class SiteCheck(object):
         if not self._started:
             return False
 
-        cmpl = False
+        completed = False
         if self.request_queue.empty():
-            cmpl = True
+            completed = True
             for t in self._threads:
                 if t.active:
-                    cmpl = False
+                    completed = False
 
-        return cmpl
+        return completed
 
     @property
     def started(self):
@@ -257,17 +257,17 @@ def append(content, append):
     else:
         return content + append
 
-#def prepend(content, prepend):
-    #if content is None and prepend is None:
-        #return ''
-    #if content is None:
-        #return prepend
-    #elif prepend is None:
-        #return content
-    #elif content.lower().startswith(prepend.lower()):
-        #return content
-    #else:
-        #return prepend + content
+# def prepend(content, prepend):
+    # if content is None and prepend is None:
+        # return ''
+    # if content is None:
+        # return prepend
+    # elif prepend is None:
+        # return content
+    # elif content.lower().startswith(prepend.lower()):
+        # return content
+    # else:
+        # return prepend + content
 
 
 def dict_to_sorted_list(dict_obj):
@@ -323,7 +323,7 @@ class Checker(threading.Thread):
             if not request.domain == dom.netloc:
                 # External domain
                 request.verb = 'HEAD'
-            elif not request.path.startswith(dom.path) and not request.extension in self._session.include_ext:
+            elif not request.path.startswith(dom.path) and request.extension not in self._session.include_ext:
                 # This is hit if path is a file on the current domain but above the current path
                 request.verb = 'HEAD'
             elif request.extension in self._session.test_ext:
@@ -455,23 +455,26 @@ class Checker(threading.Thread):
                         self._session._processed = []
 
                     if (300 <= res.status < 400) and req.domain == dom.netloc:
-                        locs = res.get_headers('location')
-                        if len(locs) > 0:
-                            if len(locs) > 1:
+                        locations = res.get_headers('location')
+                        if len(locations) > 0:
+                            if len(locations) > 1:
                                 report.add_error('Multiple redirect locations found')
-                                for loc in locs:
+                                for loc in locations:
                                     report.add_message(loc)
 
-                            redir, msgs = self._request_queue.redirect(req, locs[-1])
+                            redirect, msgs = self._request_queue.redirect(req, locations[-1])
 
-                            if not redir:
+                            if not redirect:
                                 report.add_error(msgs[0])
                                 if len(msgs) > 1:
                                     for msg in msgs[1:]:
                                         report.add_message(msg)
                         else:
                             report.add_error('Redirect with no location')
-                    elif res.status >= 400 and res.status not in self._session._processed and req.domain == dom.netloc and req.verb == 'HEAD':
+                    elif res.status >= 400 \
+                            and res.status not in self._session._processed \
+                            and req.domain == dom.netloc \
+                            and req.verb == 'HEAD':
                         # If first error page is on a HEAD request, get the resource again
                         req.verb = ''
                         self._request_queue.put(req)
@@ -490,11 +493,11 @@ class Checker(threading.Thread):
                     if not self._request_queue.retry(req):
                         report.add_error('Exceeded max retries')
 
-                self._output_queue.put(req, res, report)
+                self._output_queue.put_values(req, res, report)
 
 
 class Request(object):
-    def __init__(self, url, post_data=[], referrer=None):
+    def __init__(self, url, post_data=None, referrer=None):
         self.source = ''
         self._referrer = referrer
         self.encoding = 'application/x-www-form-urlencoded'
@@ -505,7 +508,7 @@ class Request(object):
         self.timeouts = 0
         self.sequence = 0
         self.modules = []
-        self.post_data = post_data
+        self.post_data = post_data if post_data else []
         self.headers = {}  # Dictionary for httplib
         self.meta = {}
 
@@ -539,10 +542,10 @@ class Request(object):
         if len(url_parts.query) == 0:
             self.query = ''
         else:
-            qsin = urllib.parse.parse_qs(url_parts.query, keep_blank_values=True)
+            query_in = urllib.parse.parse_qs(url_parts.query, keep_blank_values=True)
             # URL's with querystring parameters in different order are equivalent
-            qsout = dict_to_sorted_list(qsin)
-            self.query = urllib.parse.urlencode(qsout)
+            query_out = dict_to_sorted_list(query_in)
+            self.query = urllib.parse.urlencode(query_out)
 
     @property
     def url(self):
@@ -558,7 +561,7 @@ class Request(object):
 
     @referrer.setter
     def referrer(self, value):
-        self_referrer = value
+        self._referrer = value
         self._set_url(str(self))
 
     @referrer.deleter
@@ -628,9 +631,9 @@ class Request(object):
         # Relies on query, post and headers being sorted
         h = [self._verb, self.__str__()]
 
-        hdrs = dict_to_sorted_list(self.headers)
-        if len(hdrs) > 0:
-            h.append(urllib.parse.urlencode(hdrs))
+        headers = dict_to_sorted_list(self.headers)
+        if len(headers) > 0:
+            h.append(urllib.parse.urlencode(headers))
 
         pd = self.post_data_string()
         if len(pd) > 0:
@@ -640,10 +643,17 @@ class Request(object):
 
 
 class Response(object):
+    MARKUP_CONTENT_TYPES = [
+        'text/html',
+        'application/xhtml+xml',
+        'text/xml',
+        'application/xml',
+    ]
+
     def __init__(self, response, start_time):
         end_time = time.time()
         self.headers = response.getheaders()
-        html = self.get_header('content-type').startswith('text/html')
+        is_html = self.get_header('content-type').lower() in Response.MARKUP_CONTENT_TYPES
         temp = response.read()
         if temp and html:
             self.content = temp.decode('utf-8', errors='replace')
@@ -655,21 +665,21 @@ class Response(object):
         self.status = response.status
         self.message = response.reason
         self.version = response.version
-        if html and len(self.content) > 0:
+        if is_html and len(self.content) > 0:
             self.is_html = True
         else:
             self.is_html = False
 
     def get_header(self, name):
-        hdrs = self.get_headers(name)
-        if len(hdrs) > 0:
-            return hdrs[0]
+        headers = self.get_headers(name)
+        if len(headers) > 0:
+            return headers[0]
         else:
             return ''
 
     def get_headers(self, name):
-        hdrs = [h for h in self.headers if h[0].lower() == name.lower()]
-        return [h[1] for h in hdrs]
+        headers = [h for h in self.headers if h[0].lower() == name.lower()]
+        return [h[1] for h in headers]
 
 
 class RequestQueue(queue.Queue):
@@ -680,7 +690,7 @@ class RequestQueue(queue.Queue):
         self.requests = set()
         self.urls = set()
 
-    def _validate(self, request):
+    def _validate(self, request: Request):
         if request is None:
             return False
 
@@ -689,10 +699,10 @@ class RequestQueue(queue.Queue):
 
             parts = urllib.parse.urlparse(self.session.domain)
 
-            if len(request.protocol) == 0:
+            if request.protocol is None or len(request.protocol) == 0:
                 request.protocol = parts.scheme.lower()
 
-            if len(request.domain) == 0:
+            if request.domain is None or len(request.domain) == 0:
                 request.domain = parts.netloc.lower()
 
             request.path = parts.path + request.path
@@ -719,7 +729,8 @@ class RequestQueue(queue.Queue):
     def _put_request(self, request, block, timeout):
         if self._validate(request):
             hc = request.hash()
-            if (not hc in self.requests) and (len(self.urls) < self.session.max_requests or self.session.max_requests == 0):
+            if (hc not in self.requests) \
+                    and (len(self.urls) < self.session.max_requests or self.session.max_requests == 0):
                 self.requests.add(hc)
                 self.urls.add(str(request))
                 queue.Queue.put(self, request, block, timeout)
@@ -793,24 +804,25 @@ class RequestQueue(queue.Queue):
 
 class HtmlHelper(object):
     # From: http://effbot.org/zone/re-sub.htm#unescape-html
+    @staticmethod
     def html_decode(text):
-        def fixup(m):
-            text = m.group(0)
-            if text[:2] == "&#":
+        def fixup(match):
+            value = match.group(0)
+            if value[:2] == "&#":
                 try:
-                    if text[:3] == "&#x":
-                        return chr(int(text[3:-1], 16))
+                    if value[:3] == "&#x":
+                        return chr(int(value[3:-1], 16))
                     else:
-                        return chr(int(text[2:-1]))
+                        return chr(int(value[2:-1]))
                 except ValueError:
                     pass
             else:
                 try:
-                    text = chr(html.entities.name2codepoint[text[1:-1]])
+                    return chr(html.entities.name2codepoint[value[1:-1]])
                 except KeyError:
                     pass
-            return text
-        return re.sub("&#?\w+;", fixup, text)
+            return value
+        return re.sub(r'&#?\w+;', fixup, text)
 
     def __init__(self, document):
         self.document = document
@@ -824,9 +836,10 @@ class HtmlHelper(object):
 
     def get_elements(self, elements):
         e = self._element_expression(elements)
-        rx = re.compile(r'(?:<\s*(?P<element>{0})\b[^>/]*)(?:(?:/\s*>)|(?:>.*?<\s*/\s*(?P=element)\s*>))'.format(e), self.flags)
-        mtchs = rx.finditer(self.document)
-        for m in mtchs:
+        rx = re.compile(r'(?:<\s*(?P<element>{0})\b[^>/]*)(?:(?:/\s*>)|(?:>.*?<\s*/\s*(?P=element)\s*>))'.format(e),
+                        self.flags)
+        matches = rx.finditer(self.document)
+        for m in matches:
             yield HtmlHelper(m.group(0))
 
     def get_attribute(self, attribute, elements=None):
@@ -836,15 +849,17 @@ class HtmlHelper(object):
         # < form name = 'name' action = 'test 1' method = 'get'>
         if elements:
             e = self._element_expression(elements)
-            rx = re.compile(r'''<\s*(?P<element>{0})\s[^>]*?(?<=\s){1}\s*=\s*(?P<quoted>"|')?(?P<attr>.*?)(?(quoted)(?P=quoted)|[\s>])''' \
+            rx = re.compile(
+                r'''<\s*(?P<element>{0})\s[^>]*?(?<=\s){1}\s*=\s*(?P<quoted>["'])?(?P<attr>.*?)(?(quoted)(?P=quoted)|[\s>])''' \
                 .format(e, attribute), self.flags)
         else:
-            rx = re.compile(r'''<\s*(?P<element>[^\s>]+)\s[^>]*?(?<=\s){0}\s*=\s*(?P<quoted>"|')?(?P<attr>.*?)(?(quoted)(?P=quoted)|[\s>])''' \
+            rx = re.compile(
+                r'''<\s*(?P<element>[^\s>]+)\s[^>]*?(?<=\s){0}\s*=\s*(?P<quoted>["'])?(?P<attr>.*?)(?(quoted)(?P=quoted)|[\s>])''' \
                 .format(attribute), self.flags)
 
-        mtchs = rx.finditer(self.document)
-        for m in mtchs:
-            yield (m.group('element'), attribute, m.group('attr'))
+        matches = rx.finditer(self.document)
+        for m in matches:
+            yield m.group('element'), attribute, m.group('attr')
 
     def get_text(self, elements=None):
         if elements:
@@ -855,15 +870,15 @@ class HtmlHelper(object):
         else:
             rx = re.compile(r'(?:^[^<]|>)(?P<text>[^<]*?\w[^<]*?)(?:<|$)', self.flags)
 
-            mtchs = rx.finditer(self.document)
-            for m in mtchs:
+            matches = rx.finditer(self.document)
+            for m in matches:
                 yield m.group('text')
 
     def strip_elements(self, elements=None):
         if elements:
             e = self._element_expression(elements)
-            self.document = re.sub(r'<\s*(?P<element>{0})\b.*?>.*?<\s*/\s*(?P=element)\s*>'.format(e), \
-                '', self.document, flags=self.flags)
+            self.document = re.sub(r'<\s*(?P<element>{0})\b.*?>.*?<\s*/\s*(?P=element)\s*>'.format(e),
+                                   '', self.document, flags=self.flags)
         else:
             self.document = re.sub(r'<.*?>', '', self.document, flags=self.flags)
 
@@ -873,8 +888,8 @@ class HtmlHelper(object):
     def get_comments(self):
         rx = re.compile(r'<\s*!\s*-\s*-(?P<comment>.*?)-\s*-\s*>', self.flags)
 
-        mtchs = rx.finditer(self.document)
-        for m in mtchs:
+        matches = rx.finditer(self.document)
+        for m in matches:
             yield m.group('comment')
 
 
@@ -914,7 +929,7 @@ class TextHelper(object):
     def syllable_count(self):
         s = 0
         for word in self._to_s().split(' '):
-            w = re.sub('\W', '', word)
+            w = re.sub(r'\W', '', word)
             if len(w) <= 3:
                 s += 1
             else:

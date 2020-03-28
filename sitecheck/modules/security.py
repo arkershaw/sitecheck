@@ -115,17 +115,17 @@ class Security(ModuleBase):
 
     def _build_query(self, items):
         # Unsafe encoding is required for this module
-        qsout = []
+        query_out = []
         keys = list(items.keys())
         keys.sort()
         for k in keys:
             if type(items[k]) is list:
                 for i in items[k]:
-                    qsout.append('{0}={1}'.format(k, i))
+                    query_out.append('{0}={1}'.format(k, i))
             else:
-                qsout.append('{0}={1}'.format(k, items[k]))
+                query_out.append('{0}={1}'.format(k, items[k]))
 
-        return '&'.join(qsout)
+        return '&'.join(query_out)
 
     def process(self, request, response, report):
         if request.source == self.name:
@@ -153,11 +153,11 @@ class Security(ModuleBase):
                     self._inject_each(request, doc, atk)
 
     def _inject_all(self, request, document, value):
-        hdrs = request.headers.copy()
-        for h in hdrs:
-            hdrs[h] = value
+        headers = request.headers.copy()
+        for h in headers:
+            headers[h] = value
         req = self._create_request(str(request), str(request))
-        req.headers = hdrs
+        req.headers = headers
         req.modules = [self]
         req.meta['vector'] = 'headers'
         self.sitecheck.request_queue.put(req)
@@ -197,16 +197,16 @@ class Security(ModuleBase):
                 self.sitecheck.request_queue.put(req)
 
     def _inject_each(self, request, document, value):
-        hdrs = request.headers.copy()
-        for h in hdrs:
-            temp = hdrs[h]
-            hdrs[h] = value
+        headers = request.headers.copy()
+        for h in headers:
+            temp = headers[h]
+            headers[h] = value
             req = self._create_request(str(request), str(request))
-            req.headers = hdrs
+            req.headers = headers
             req.modules = [self]
             req.meta['vector'] = 'headers'
             self.sitecheck.request_queue.put(req)
-            hdrs[h] = temp
+            headers[h] = temp
 
         if len(request.query) > 0:
             qs = urllib.parse.parse_qs(request.query, keep_blank_values=True)
