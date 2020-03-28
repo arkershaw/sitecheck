@@ -19,6 +19,7 @@
 
 import re
 import os
+import sys
 import urllib.parse
 import urllib.request
 import base64
@@ -46,7 +47,7 @@ class Spelling(ModuleBase):
         return state
 
     def _read_dictionary(self, dict_path):
-        self.dictionary = [w.lower() for w in open(dict_path, 'r').readlines()]
+        self.dictionary = [w.strip().lower() for w in open(dict_path, 'r').read().splitlines()]
 
     def initialise(self, sitecheck):
         super(Spelling, self).initialise(sitecheck)
@@ -109,19 +110,26 @@ class Spelling(ModuleBase):
             # TODO: Ignore plurals of dictionary words ending in s
             for w in split_words:
                 # Check second letter is lowercase to avoid abbreviations.
-                lw = w.lower()
-                if len(w) > 1 and w[1].islower() and lw not in self.dictionary:
-                    if lw in words:
-                        words[lw][1] += 1
-                    else:
-                        m = re.search(r'(.)?\s*\b(%s)\b' % w, t)
-                        if m:
-                            # First word in sentence/para or not proper noun.
-                            if m.start() == 0 or m.group(1) in self.sentence_end or m.group(2)[0].islower():
-                                st = max(m.start() - 20, 0)
-                                en = min(m.end() + 20, text_length)
-                                ctx = re.sub('[\t\n]', ' ', t[st:en])
-                                words[lw] = [w, 1, ctx]
+                if len(w) > 1 and w[1].islower():
+                    lw = w.lower()
+                    found = False
+                    if lw in self.dictionary:
+                        found = True
+                    elif lw.endswith('s') and lw[:-1] in self.dictionary:
+                        found = True
+
+                    if not found:
+                        if lw in words:
+                            words[lw][1] += 1
+                        else:
+                            m = re.search(r'(.)?\s*\b(%s)\b' % w, t)
+                            if m:
+                                # First word in sentence/para or not proper noun.
+                                if m.start() == 0 or m.group(1) in self.sentence_end or m.group(2)[0].islower():
+                                    st = max(m.start() - 20, 0)
+                                    en = min(m.end() + 20, text_length)
+                                    ctx = re.sub('[\t\n]', ' ', t[st:en])
+                                    words[lw] = [w, 1, ctx]
 
 
 class Accessibility(ModuleBase):
@@ -152,7 +160,8 @@ class Accessibility(ModuleBase):
             try:
                 doc, err = tidy_document(response.content, options=self.options)
             except:
-                report.add_message('Error parsing: [{0}]'.format(str(request)))
+                ex = sys.exc_info()
+                report.add_error('Error {0} {1}'.format(str(ex[0]), str(ex[1])))
             else:
                 c = 0
                 for e in err.splitlines():
@@ -258,7 +267,8 @@ class Validator(ModuleBase):
             try:
                 doc, err = tidy_document(response.content, options=self.options)
             except:
-                report.add_error('Unable to parse response')
+                ex = sys.exc_info()
+                report.add_error('Error {0} {1}'.format(str(ex[0]), str(ex[1])))
             else:
                 l = err.splitlines()
                 if len(l) > 0:

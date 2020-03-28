@@ -394,7 +394,7 @@ class Checker(threading.Thread):
             res = Response(r, st)
         except socket.gaierror:
             ex = sys.exc_info()
-            err = 'DNS error {0} {1}'.format(str(ex[0]), str(ex[1])) # Probably
+            err = 'DNS error {0} {1}'.format(str(ex[0]), str(ex[1]))  # Probably
         except socket.timeout:
             ex = sys.exc_info()
             err = 'Timeout {0} {1}'.format(str(ex[0]), str(ex[1]))
@@ -721,7 +721,7 @@ class RequestQueue(queue.Queue):
         if request.path.startswith('#'):
             return False
 
-        if re.match('^http', request.protocol, re.IGNORECASE):
+        if request.protocol.lower().startswith('http'):
             return True
         else:
             return False

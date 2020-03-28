@@ -24,7 +24,7 @@ import datetime
 import html
 import shutil
 
-__all__ = ['FlatFile', 'HTML']
+__all__ = ['FlatFile', 'HTML', 'requires_report']
 _ensure_dir_lock = threading.Lock()
 
 

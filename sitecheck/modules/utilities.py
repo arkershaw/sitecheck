@@ -22,7 +22,7 @@ import urllib.parse
 import urllib.request
 from io import StringIO
 import json
-from domaincheck import check_domain
+from domaincheck import Host, domain_report, get_host, find_soa
 from sitecheck.reporting import requires_report
 from sitecheck.core import ModuleBase
 
@@ -121,19 +121,46 @@ class InboundLinks(ModuleBase):
 class DomainCheck(ModuleBase):
     def __init__(self, domains=None, relay=False):
         super(DomainCheck, self).__init__()
-        self.domains = domains if domains else []
+        if domains and len(domains) > 0:
+            self.domains = dict([(d, False) for d in domains])
+            self.main_domain = domains[0]
+            self.root_domain = self.main_domain
+        else:
+            self.domains = {}
+            self.main_domain = ''
+            self.root_domain = ''
+
         self.relay = relay
 
-    @requires_report
-    def begin(self, report):
-        check_domain(self.sitecheck.session.domain, self.relay, report.add_message, report.add_warning)
+    def begin(self):
+        # Issue a request for each additional domain.
         for domain in self.domains:
-            check_domain(domain, self.relay, report.add_message, report.add_warning)
-            url = 'http://{0}'.format(domain)
+            if domain.startswith('http'):
+                url = domain
+            else:
+                url = 'http://{0}'.format(domain)
             req = self._create_request(url, url)
             req.modules = [self]
             self.sitecheck.request_queue.put(req)
 
+        # Add the main domain. It will already have a request.
+        self.main_domain = get_host(self.sitecheck.session.domain)
+        self.root_domain = find_soa(self.main_domain)
+        self.domains[self.main_domain] = False
+
     def process(self, request, response, report):
-        if request.source == self.name and not request.domain == self.sitecheck.session.domain:
+        check = False
+        with self.sync_lock:
+            if request.domain in self.domains:
+                self.domains[request.domain] = True
+                check = True
+            elif request.domain.endswith(self.root_domain):
+                self.domains[request.domain] = True
+                check = True
+
+        if check:
+            host = Host(request.domain)
+            domain_report(host, report.add_message, report.add_warning)
+
+        if request.source == self.name and not request.domain == self.main_domain:
             report.add_warning('Not redirecting to main domain')
