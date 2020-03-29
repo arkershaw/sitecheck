@@ -21,12 +21,15 @@ multiple times.
 
 # Dependencies
 
-- Python 3
-- HTML Tidy (validation, accessibility)
-- dnspython, whois (domain check)
-- A word list for your language with one word per line (spelling)
-
-Using VirtualEnv is recommended.
+- Python 3.
+    - pytidylib (validation, accessibility)
+    - dnspython (domain check)
+- HTML Tidy (validation, accessibility).
+- Whois (domain check).
+- A word list for your language with one word per line (spelling).
+    - English is available [here](http://www.nltk.org/nltk_data/) (Word Lists).
+    Place the file in the config/output directory (see below) and put the file
+    name in the config or specify an absolute path in the config.
 
 # Installation
 
@@ -37,14 +40,15 @@ Download and install the following:
 - [Python 3](http://www.python.org/download/).
 
 - [tidy.dll](http://www.html-tidy.org/) if validation or
-accessibility are required. Place tidy.dll on your system
-path.
+accessibility checks are required. Place tidy.dll somewhere on your
+system path.
 
 - [whois.exe](https://docs.microsoft.com/en-us/sysinternals/downloads/whois)
-if domain checking is required. Place the whois.exe on your system path or
-in the sitecheck folder.
+if domain checking is required. Place the whois.exe somewhere on your system path
+or in the sitecheck directory.
 
-Install the dependencies with pip.
+It is recommended to install the Python package dependencies with pip inside a
+virtual environment.
 
 To install sitecheck, extract the archive then open a command window
 in the same directory as the extracted files and type:
@@ -54,8 +58,8 @@ in the same directory as the extracted files and type:
 ## Linux
 
 Packages for dependencies should be available from your distribution's
-package manager or installable via pip or the links above. Install all
-dependencies and then extract the archive and run:
+package manager or pip. Install all dependencies then extract the
+archive and run:
 
 `python setup.py install`
 
@@ -113,8 +117,8 @@ post parameters, **disabled by default**.
 
 - **Comments** Logs the content of any HTML comments found.
 
-- **Spelling** Spellcheck using Enchant. Custom dictionary words are in
-the file "dict.txt", **disabled by default**.
+- **Spelling** Spellcheck using the specified dictionary (see above),
+**disabled by default**.
 
 - **Spider** If this module is disabled, only a single page will be
 analysed. Scans all files under the domain/path as well as testing
@@ -149,6 +153,5 @@ For site-specific configuration, copy config.py to the output directory
 specified on the command line. The domain and path properties can be
 specified in the config file and subsequently omitted from the command
 line (as with resuming a suspended job above). This config file will be
-used instead of the default. The custom dictionary file for the
-spelling module (dict.txt) can also be overridden by copying to the
-same location.
+used instead of the default. The dictionary file can also be placed in
+this directory.

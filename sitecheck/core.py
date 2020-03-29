@@ -330,9 +330,9 @@ class Checker(threading.Thread):
                 request.verb = 'HEAD'
 
     def set_headers(self, request):
-        hdrs = self._session.headers.copy()
-        hdrs.update(request.headers)
-        request.headers = hdrs
+        headers = self._session.headers.copy()
+        headers.update(request.headers)
+        request.headers = headers
         if 'Content-Type' in request.headers or 'content-type' in request.headers:
             pass
         else:

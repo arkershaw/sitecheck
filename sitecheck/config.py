@@ -94,7 +94,7 @@ class Session(object):
 			# Security(email='user@example.com', attacks=["1'1\\'1", '"/><xss>'], quick=True, post=True),
 			# WARNING: Using quick=False will result in SIGNIFICANTLY more requests as each parameter will be injected individually
 			Comments(),
-			# Spelling(language='en_GB'),
+			# Spelling(language='en', dictionary_file='en-basic.txt'),
 			Readability(threshold=45),
 			Spider()
 		]

@@ -36,10 +36,13 @@ else:
 
 
 class Spelling(ModuleBase):
-    def __init__(self, dictionary_path='en_US'):
+    DEFAULT_DICTIONARY = 'en-basic.txt'
+
+    def __init__(self, language='en', dictionary_path=DEFAULT_DICTIONARY):
         super(Spelling, self).__init__()
         self.sentence_end = '!?.'
         self.dictionary_path = dictionary_path
+        self.language = language
         self.dictionary = None
         self.stemmer = PorterStemmer()
 
@@ -69,7 +72,7 @@ class Spelling(ModuleBase):
     def begin(self, report):
         if not self.dictionary:
             report.add_error('Unable to open dictionary - using default.')
-            dict_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'en-basic.txt')
+            dict_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), Spelling.DEFAULT_DICTIONARY)
             self._read_dictionary(dict_path)
 
     def process(self, request, response, report):
@@ -117,7 +120,7 @@ class Spelling(ModuleBase):
                     found = False
                     if lw in self.dictionary:
                         found = True
-                    else:
+                    elif self.language == 'en':
                         s = self.stemmer.stem(lw, 0, len(lw) - 1)
                         if s in self.dictionary:
                             found = True
