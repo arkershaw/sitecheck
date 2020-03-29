@@ -25,6 +25,7 @@ import urllib.request
 import base64
 from sitecheck.reporting import ensure_dir, requires_report
 from sitecheck.core import ModuleBase, HtmlHelper, TextHelper
+from sitecheck.modules.porterstemmer import PorterStemmer
 
 try:
     from tidylib import tidy_document
@@ -40,6 +41,7 @@ class Spelling(ModuleBase):
         self.sentence_end = '!?.'
         self.dictionary_path = dictionary_path
         self.dictionary = None
+        self.stemmer = PorterStemmer()
 
     def __getstate__(self):
         state = self._clean_state(dict(self.__dict__))
@@ -115,8 +117,10 @@ class Spelling(ModuleBase):
                     found = False
                     if lw in self.dictionary:
                         found = True
-                    elif lw.endswith('s') and lw[:-1] in self.dictionary:
-                        found = True
+                    else:
+                        s = self.stemmer.stem(lw, 0, len(lw) - 1)
+                        if s in self.dictionary:
+                            found = True
 
                     if not found:
                         if lw in words:

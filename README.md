@@ -38,7 +38,7 @@ Download and install the following:
 
 - [tidy.dll](http://www.html-tidy.org/) if validation or
 accessibility are required. Place tidy.dll on your system
-path or in the sitecheck folder.
+path.
 
 - [whois.exe](https://docs.microsoft.com/en-us/sysinternals/downloads/whois)
 if domain checking is required. Place the whois.exe on your system path or
