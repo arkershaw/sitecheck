@@ -140,6 +140,7 @@ class ReportThread(threading.Thread):
     def run(self):
         st = datetime.datetime.now()
         self._output_queue.put_message('Started: {0:%Y-%m-%d %H:%M:%S}'.format(st))
+        self._output_queue.put_message('Using threads: {0}'.format(self._session.thread_pool))
 
         for r in self._reports:
             if hasattr(r, 'begin') and not self._resume:
@@ -166,7 +167,7 @@ class ReportThread(threading.Thread):
 
         for r in self._reports:
             if hasattr(r, 'end'):
-                r.end() # This should throw exception as it cannot be logged
+                r.end()  # This should throw exception as it cannot be logged
 
 
 class FlatFile(object):

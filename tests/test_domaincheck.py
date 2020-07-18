@@ -8,8 +8,8 @@ class TestDomainCheck(unittest.TestCase):
         # self.ipv4 = '93.184.216.34'
         # self.domain = 'example.com'
 
-        self.ipv6 = '2404:6800:4005:810::2013'
-        self.ipv4 = '172.217.163.243'
+        self.ipv6 = '2a00:1450:4009:801::2013'
+        self.ipv4 = '216.58.198.179'
         self.domain = 'testsite.site-check.co.uk'
 
     def test_is_ip_address(self):

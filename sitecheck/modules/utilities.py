@@ -122,7 +122,8 @@ class DomainCheck(ModuleBase):
     def __init__(self, domains=None, relay=False):
         super(DomainCheck, self).__init__()
         if domains and len(domains) > 0:
-            self.domains = dict([(d, False) for d in domains])
+            hosts = [get_host(d) for d in set(domains)]
+            self.domains = dict([(d, False) for d in hosts])
             self.main_domain = domains[0]
             self.root_domain = self.main_domain
         else:
@@ -135,10 +136,7 @@ class DomainCheck(ModuleBase):
     def begin(self):
         # Issue a request for each additional domain.
         for domain in self.domains:
-            if domain.startswith('http'):
-                url = domain
-            else:
-                url = 'http://{0}'.format(domain)
+            url = 'http://{0}'.format(domain)
             req = self._create_request(url, url)
             req.modules = [self]
             self.sitecheck.request_queue.put(req)
@@ -151,7 +149,7 @@ class DomainCheck(ModuleBase):
     def process(self, request, response, report):
         check = False
         with self.sync_lock:
-            if request.domain in self.domains:
+            if request.domain in self.domains and not self.domains[request.domain]:
                 self.domains[request.domain] = True
                 check = True
             elif request.domain.endswith(self.root_domain):

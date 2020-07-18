@@ -29,7 +29,7 @@ from urllib.parse import urlparse
 # TODO: DNSBL, DNSSEC
 
 try:
-    from dns.resolver import query, NoAnswer, NoMetaqueries, NXDOMAIN
+    from dns.resolver import resolve, NoAnswer, NoMetaqueries, NXDOMAIN
 except ModuleNotFoundError:
     _dns_available = False
 else:
@@ -111,7 +111,7 @@ def find_soa(domain):
         while True:
             n = '.'.join(parts)
             try:
-                soa = query(n, 'SOA')
+                soa = resolve(n, 'SOA')
                 cn = soa.canonical_name.to_text()
                 if cn == n:
                     return n
@@ -281,7 +281,7 @@ def get_expiry_date(domain):
 def spf_exists(domain):
     if _dns_available:
         try:
-            res = query(domain, 'TXT')
+            res = resolve(domain, 'TXT')
         except NoAnswer:
             pass
         except NXDOMAIN:
@@ -298,7 +298,7 @@ def spf_exists(domain):
 def zone_transfer_allowed(domain):
     if _dns_available:
         try:
-            query(domain, 'AXFR')
+            resolve(domain, 'AXFR')
             return True
         except NoMetaqueries:
             return False
@@ -310,7 +310,7 @@ def zone_transfer_allowed(domain):
 def get_name_servers(domain):
     if _dns_available:
         try:
-            name_servers = [n.to_text().rstrip('.') for n in query(domain, 'NS')]
+            name_servers = [n.to_text().rstrip('.') for n in resolve(domain, 'NS')]
             return list(filter(lambda ns: len(ns) > 0 and ns != '0', name_servers))
         except NoAnswer:
             pass
@@ -322,7 +322,7 @@ def get_name_servers(domain):
 def get_mail_servers(domain):
     if _dns_available:
         try:
-            return [m.exchange.to_text().rstrip('.') for m in query(domain, 'MX')]
+            return [m.exchange.to_text().rstrip('.') for m in resolve(domain, 'MX')]
         except NoAnswer:
             pass
         except NXDOMAIN:

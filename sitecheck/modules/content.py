@@ -70,7 +70,10 @@ class Spelling(ModuleBase):
 
     @requires_report
     def begin(self, report):
-        if not self.dictionary:
+        report.add_message('Language: {0}'.format(self.language))
+        if self.dictionary:
+            report.add_message('Using dictionary: {0}'.format(self.dictionary_path))
+        else:
             report.add_error('Unable to open dictionary - using default.')
             dict_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), Spelling.DEFAULT_DICTIONARY)
             self._read_dictionary(dict_path)
@@ -145,7 +148,7 @@ class Accessibility(ModuleBase):
         self.accessibility = re.compile(r' - Access: \[([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)\]')
         self.ignore = set()
         self.ignore.add('1.1.2.1')  # <img> missing 'longdesc' and d-link
-        self.ignore.add('2.1.1')  # ensure information not conveyed through color alone.
+        self.ignore.add('2.1.1')  # ensure information not conveyed through color alone
         self.ignore.add('6.1.1')  # style sheets require testing
         self.ignore.add('6.2.2')  # text equivalents require updating
         self.ignore.add('6.3.1')  # programmatic objects require testing
@@ -259,7 +262,7 @@ class Readability(ModuleBase):
 class Validator(ModuleBase):
     def __init__(self):
         super(Validator, self).__init__()
-        self.options = {'show-warnings': True}
+        self.options = {'show-warnings': True, 'quote-ampersand': False}
 
     @requires_report
     def begin(self, report):
@@ -329,7 +332,7 @@ class Persister(ModuleBase):
             self.sitecheck.request_queue.put(req)
         elif len(response.content) > 0 and response.status < 300:
             od = self.sitecheck.session.root_path + self.sitecheck.session.output + os.sep
-            if len(self.directory) >  0:
+            if len(self.directory) > 0:
                 od += self.directory + os.sep
             od += request.domain
 
@@ -355,4 +358,4 @@ class Persister(ModuleBase):
             if response.is_html:
                 open(pth, mode='w').write(response.content)
             else:
-                open(pth, mode='wb').write(response.content)
+                open(pth, mode='wb').write(response.content.encode())
